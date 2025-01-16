@@ -1,0 +1,12 @@
+Metric,Value
+Relative error [Fluid],39.961099692083934
+Relative error [Bound],58.588816123816144
+Relative error [Core],24.141131652249364
+Absolute error [Fluid],0.14730507395022602
+Absolute error [Bound],0.1794959100217748
+Absolute error [Core],0.1199318492255301
+Absolute error [Non-F],0.0010004795936641284
+R.M.S. error [Fluid],0.19012208170656156
+R.M.S. error [Bound],0.2283325040642332
+R.M.S. error [Core],0.15003168737654168
+R.M.S. error [Non-F],0.01595862238951882
