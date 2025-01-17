@@ -13,8 +13,7 @@ from utils.prepare_data import prepare_data, load_data, extract_fluid_region, lo
 from utils.utils import save_to_h5, h5_to_paraview
 from utils.preprocessing_utils import compute_outer_boundary_mask
 import SIREN
-from configs.SIREN_x2 import get_config
-from torch.utils.tensorboard import SummaryWriter
+from configs.SIREN_1t import get_config
 
 if __name__ == "__main__":
 
@@ -23,8 +22,8 @@ if __name__ == "__main__":
     config = get_config()
 
     # Path to stored weights
-    network_path = "../models/250115_Tests/SIREN_x2_20250115-1656/SIREN_x2_final.pth"
-    results_directory = "../results/250115_Tests/SIREN_x2_20250115-1656"
+    network_path = "../models/250115_Tests/SIREN_1t_20250115-1701/SIREN_1t_final.pth"
+    results_directory = "../results/250115_Tests_6/SIREN_1t_20250115-1701"
     if not os.path.exists(results_directory):
         os.makedirs(results_directory)
 
@@ -57,6 +56,12 @@ if __name__ == "__main__":
         save_to_h5(f"{results_directory}/healthy-05mm3.h5", "v", v_ref)
         save_to_h5(f"{results_directory}/healthy-05mm3.h5", "w", w_ref)
         #save_to_h5(f"{results_directory}/healthy-05mm3.h5", "p", p_ref)
+
+    # Expand mask
+    ## if config.setup.expand_mask:
+    ##     mask_flat = mask_flat + boundary_mask_flat
+    ##     if config.include_ref:
+    ##         mask_flat_ref = mask_flat_ref + boundary_mask_flat_ref
 
     # Include fluid region data
     if config.setup.fluid_region:
@@ -127,6 +132,11 @@ if __name__ == "__main__":
         else:
             X, Y, Z = u_ref.shape
             T = 1  # Single time step
+
+            u_ref = np.expand_dims(u_ref, axis=0)
+            v_ref = np.expand_dims(v_ref, axis=0)
+            w_ref = np.expand_dims(w_ref, axis=0)
+            p_ref = np.expand_dims(p_ref, axis=0) if config.setup.include_pressure else None
 
         D_pred = uvw_pred.shape[1]
 
@@ -199,6 +209,7 @@ if __name__ == "__main__":
             Ks[t][2][2], Ms[t][2][2], Rs[t][2][2] = linreg(w_pred[t], w_ref[t], core_mask)
         
         print('Total avg')
+        ## TODO - other losses (DE, nRMSE)
         rel_err_tot = np.mean(rel_err, axis=0)
         print(f'Relative error [Fluid] {rel_err_tot[0]:.1f}')
         print(f'Relative error [Bound] {rel_err_tot[1]:.1f}')
@@ -311,11 +322,16 @@ if __name__ == "__main__":
             os.makedirs(SR_directory)
 
         # Extract boundaries
-        if config.plot.expand_mask:
-            boundary_mask = compute_outer_boundary_mask(mask)
-            mask = mask + boundary_mask
+        ## if config.plot.expand_mask:
+        ##     boundary_mask = compute_outer_boundary_mask(mask)
+        ##     mask = mask + boundary_mask
 
-        t_len, x_len, y_len, z_len = u.shape
+        if config.setup.include_time:
+            t_len, x_len, y_len, z_len = u.shape
+        else:
+            x_len, y_len, z_len = u.shape
+            t_len = 1
+
         t_normalized, x_normalized, y_normalized, z_normalized, standardization_factors = create_and_normalize_coords(config, t_len, x_len, y_len, z_len)
 
         # Upsample each coordinate
@@ -356,7 +372,10 @@ if __name__ == "__main__":
             uvw_pred_full[fluid_indices] = uvw_pred_ups
             uvw_pred_ups = uvw_pred_full
 
-        uvw_pred_ups = uvw_pred_ups.reshape(len(t_ups), len(x_ups), len(y_ups), len(z_ups), len(uvw_pred_ups[0]))
+        if config.setup.include_time:
+            uvw_pred = uvw_pred_ups.reshape(len(t_ups), len(x_ups), len(y_ups), len(z_ups), len(uvw_pred_ups[0]))
+        else:
+            uvw_pred = uvw_pred_ups.reshape(1, len(x_ups), len(y_ups), len(z_ups), len(uvw_pred_ups[0]))
 
         u_pred = uvw_pred[:, :, :, :, 0]
         v_pred = uvw_pred[:, :, :, :, 1]
@@ -384,12 +403,26 @@ if __name__ == "__main__":
 
     if config.predictions.compare_noisy_vs_ref:
 
-        assert config.ref_spatial_factor == 1
+        assert config.ref_spatial_factor == 1 ## TODO - interpolation option if not the same resolution
 
         # Create directory
         ref_directory = f'{results_directory}/ref_data'
         if not os.path.exists(ref_directory):
             os.makedirs(ref_directory)
+
+        if not config.setup.include_time:
+
+            if len(u_ref.shape) == 3: 
+                u_ref = np.expand_dims(u_ref, axis=0)
+                v_ref = np.expand_dims(v_ref, axis=0)
+                w_ref = np.expand_dims(w_ref, axis=0)
+                p_ref = np.expand_dims(p_ref, axis=0) if config.setup.include_pressure else None
+
+            if len(u.shape) == 3: 
+                u = np.expand_dims(u, axis=0)
+                v = np.expand_dims(v, axis=0)
+                w = np.expand_dims(w, axis=0)
+                p = np.expand_dims(p, axis=0) if config.setup.include_pressure else None
 
         # Get metrics
         peak_flow_idx = config.predictions.peak_flow_idx
