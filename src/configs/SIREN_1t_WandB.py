@@ -74,7 +74,7 @@ def get_config():
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 1000 # 300000
+    config.training.iterations = 250 # 300000
     config.training.data_points_per_batch = None # None to use all
     config.training.coll_points_per_batch = 20000 # None to use all
     config.training.boundary_points_per_batch = None # None to use all

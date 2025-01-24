@@ -10,10 +10,11 @@ from utils.evaluation_utils import (
     create_boundary_and_core_masks, calculate_relative_error, calculate_absolute_error, 
     calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure, linreg)
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, load_ref_data, prepare_ref_data
-from utils.utils import save_to_h5, h5_to_paraview
+from utils.utils import save_to_h5
+from utils.loss_utils import vector_potential_fn
 from utils.preprocessing_utils import compute_outer_boundary_mask
 import SIREN
-from configs.SIREN_1t import get_config
+from configs.SIREN_1t_VP import get_config
 
 if __name__ == "__main__":
 
@@ -22,8 +23,8 @@ if __name__ == "__main__":
     config = get_config()
 
     # Path to stored weights
-    network_path = "../models/250115_Tests/SIREN_1t_20250115-1701/SIREN_1t_final.pth"
-    results_directory = "../results/250115_Tests_6/SIREN_1t_20250115-1701"
+    network_path = "../models/250124_Testing/SIREN_1t_VP_20250124-1119/SIREN_1t_VP_final.pth"
+    results_directory = "../results/250124_Testing/SIREN_1t_VP_20250124-1119"
     if not os.path.exists(results_directory):
         os.makedirs(results_directory)
 
@@ -35,13 +36,10 @@ if __name__ == "__main__":
     #save_to_h5(f"{results_directory}/healthy-05mm3_LR_SNR5_x1.h5", "v", v*mask)
     #save_to_h5(f"{results_directory}/healthy-05mm3_LR_SNR5_x1.h5", "w", w*mask)
     #save_to_h5(f"{results_directory}/healthy-05mm3_LR_SNR5_x1.h5", "p", p*mask)
-    save_to_h5(f"{results_directory}/healthy-05mm3_LR_dv_241211.h5", "u", u*mask)
-    save_to_h5(f"{results_directory}/healthy-05mm3_LR_dv_241211.h5", "v", v*mask)
-    save_to_h5(f"{results_directory}/healthy-05mm3_LR_dv_241211.h5", "w", w*mask)
-    #save_to_h5(f"{results_directory}/healthy-05mm3_LR_dv_241211.h5", "p", p*mask)
-
-    # Save to vtk file
-    #h5_to_paraview(u, v, w, p, (config.resolution.dx, config.resolution.dy, config.resolution.dz), f"{results_directory}/healthy-05mm3_LR_SNR5_x1.vti")
+    save_to_h5(f"{results_directory}/healthy-05mm3_t24_26_250120_TSNR12_x1.h5", "u", u*mask)
+    save_to_h5(f"{results_directory}/healthy-05mm3_t24_26_250120_TSNR12_x1.h5", "v", v*mask)
+    save_to_h5(f"{results_directory}/healthy-05mm3_t24_26_250120_TSNR12_x1.h5", "w", w*mask)
+    #save_to_h5(f"{results_directory}/healthy-05mm3_t24_26_250120_TSNR12_x1.h5", "p", p*mask)
 
     # Prepare data
     uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, mask)
@@ -98,12 +96,18 @@ if __name__ == "__main__":
 
         # Predict reference coordinates
         model.eval()
-        with torch.no_grad():
-            xyz_ref = torch.from_numpy(xyz_ref).float().to(DEVICE)
-            uvw_pred = model(xyz_ref)  # shape (N_fluid, out_dim)
+        xyz_ref = torch.from_numpy(xyz_ref).float().to(DEVICE)
+        xyz_ref.requires_grad = config.training.use_vector_potential
 
-        # Detach
-        uvw_pred = uvw_pred.cpu().numpy()
+        if config.training.use_vector_potential:
+            with torch.set_grad_enabled(True):
+                uvw_pred = model(xyz_ref)
+                uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
+                uvw_pred = uvw_pred.detach().cpu().numpy()
+        else:
+            with torch.no_grad():
+                uvw_pred = model(xyz_ref)
+                uvw_pred = uvw_pred.cpu().numpy()
 
         if config.predictions.fluid_region:
             fluid_indices = mask_flat_ref==1
@@ -360,12 +364,18 @@ if __name__ == "__main__":
         
         # Predict fluid data poinst grid
         model.eval()
-        with torch.no_grad():
-            xyz_ups = torch.from_numpy(xyz_ups).float().to(DEVICE)
-            uvw_pred_ups = model(xyz_ups)  # shape (N_fluid, out_dim)
+        xyz_ups = torch.from_numpy(xyz_ups).float().to(DEVICE)
+        xyz_ups.requires_grad = config.training.use_vector_potential
 
-        # Detach
-        uvw_pred_ups = uvw_pred_ups.cpu().numpy()
+        if config.training.use_vector_potential:
+            with torch.set_grad_enabled(True):
+                uvw_pred_ups = model(xyz_ups)
+                uvw_pred_ups = vector_potential_fn(uvw_pred_ups, xyz_ups)
+                uvw_pred_ups = uvw_pred_ups.detach().cpu().numpy()
+        else:
+            with torch.no_grad():
+                uvw_pred_ups = model(xyz_ups)
+                uvw_pred_ups = uvw_pred_ups.cpu().numpy()
 
         if config.plot.fluid_region:
             uvw_pred_full = np.zeros(((len(xyz_ups_full), len(uvw_pred_ups[0])))) + config.plot.non_fluid_value

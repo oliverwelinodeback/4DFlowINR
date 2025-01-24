@@ -15,7 +15,7 @@ def get_config():
 
     # Model 
     networks_folder = "../models/250124_Testing"
-    config.network_name = "SIREN_1t"
+    config.network_name = "SIREN_1t_minmax"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
@@ -55,7 +55,7 @@ def get_config():
     # Normalization and constants
     config.vel_normalization = "characteristic" # max_velocity
     config.coords_characteristic = True 
-    config.coords_normalization = "standardize" # min_max
+    config.coords_normalization = "min_max" # min_max
     config.constants = ml_collections.ConfigDict()
     config.constants.U = 1.0
     config.constants.L = 0.005
@@ -87,8 +87,8 @@ def get_config():
     config.training.BFGS_lr = 1e-1
     config.training.iterations_before_BFGS = 600
     # Loss details
-    config.training.epochs_before_PDE = 0
-    config.training.grad_weight_scheme = False
+    config.training.epochs_before_PDE = 50
+    config.training.grad_weight_scheme = True
     config.training.alpha = 0.9
     # Data loss options
     config.training.use_mse = True
@@ -99,10 +99,10 @@ def get_config():
     config.training.w_weight = 1.0
     config.training.p_weight = 0.01
     # Physics loss options
-    config.training.use_physics_loss = False
-    config.training.physics_loss_on_data_points = False
+    config.training.use_physics_loss = True
+    config.training.physics_loss_on_data_points = True
     config.training.use_navier_stokes = False
-    config.training.use_divergence = False
+    config.training.use_divergence = True
     config.training.physics_weight = 1.0
     # Boundary loss options
     config.training.pressure_in_boundary_loss = False

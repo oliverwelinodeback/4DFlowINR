@@ -9,6 +9,8 @@ from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract
 from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
 from utils.evaluation_utils import create_boundary_and_core_masks, calculate_relative_error, calculate_absolute_error, calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure
+from utils.loss_utils import vector_potential_fn
+
 #import vtk
 #from vtk.util import numpy_support as ns
 
@@ -128,12 +130,18 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
 
     # Predict reference coordinates
     model.eval()
-    with torch.no_grad():
-        xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
-        uvw_pred = model(xyz_ref)  # shape (N_fluid, out_dim)
+    xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
+    xyz_ref.requires_grad = config.training.use_vector_potential
 
-    # Detach
-    uvw_pred = uvw_pred.cpu().numpy()
+    if config.training.use_vector_potential:
+        with torch.set_grad_enabled(True):
+            uvw_pred = model(xyz_ref)
+            uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
+            uvw_pred = uvw_pred.detach().cpu().numpy()
+    else:
+        with torch.no_grad():
+            uvw_pred = model(xyz_ref)
+            uvw_pred = uvw_pred.cpu().numpy()
 
     if config.plot.fluid_region:
         fluid_indices = mask_flat_ref==1
@@ -258,12 +266,18 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
 
     # Predict reference coordinates
     model.eval()
-    with torch.no_grad():
-        xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
-        uvw_pred = model(xyz_ref)  # shape (N_fluid, out_dim)
+    xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
+    xyz_ref.requires_grad = config.training.use_vector_potential
 
-    # Detach
-    uvw_pred = uvw_pred.cpu().numpy()
+    if config.training.use_vector_potential:
+        with torch.set_grad_enabled(True):
+            uvw_pred = model(xyz_ref)
+            uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
+            uvw_pred = uvw_pred.detach().cpu().numpy()
+    else:
+        with torch.no_grad():
+            uvw_pred = model(xyz_ref)
+            uvw_pred = uvw_pred.cpu().numpy()
 
     if config.plot.fluid_region:
         fluid_indices = mask_flat_ref==1
@@ -440,12 +454,18 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
     
     # Predict fluid data poinst grid
     model.eval()
-    with torch.no_grad():
-        xyz_plot = torch.from_numpy(xyz_plot).float().to(device)
-        uvw_pred_plot = model(xyz_plot)  # shape (N_fluid, out_dim)
+    xyz_plot = torch.from_numpy(xyz_plot).float().to(device)
+    xyz_plot.requires_grad = config.training.use_vector_potential
 
-    # Detach
-    uvw_pred_plot = uvw_pred_plot.cpu().numpy()
+    if config.training.use_vector_potential:
+        with torch.set_grad_enabled(True):
+            uvw_pred_plot = model(xyz_plot)
+            uvw_pred_plot = vector_potential_fn(uvw_pred_plot, xyz_plot)
+            uvw_pred_plot = uvw_pred_plot.detach().cpu().numpy()
+    else:
+        with torch.no_grad():
+            uvw_pred_plot = model(xyz_plot)
+            uvw_pred_plot = uvw_pred_plot.cpu().numpy()
 
     if config.plot.fluid_region:
         uvw_pred_full = np.zeros(((len(xyz_plot_full), len(uvw_pred_plot[0])))) + config.plot.non_fluid_value
@@ -500,54 +520,3 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
     plt.close()
 
     return
-
-def h5_to_paraview(u, v, w, p=None, spacing=(1.0, 1.0, 1.0), filename='output.vti'):
-    
-    # Validate input shapes
-    if not (u.shape == v.shape == w.shape):
-        raise ValueError("Input arrays u, v, w must have the same shape.")
-    if p is not None and p.shape != u.shape:
-        raise ValueError("Scalar field p must have the same shape as u, v, w.")
-    
-    X, Y, Z = u.shape
-    
-    # Reshape to (Z, Y, X) for VTK
-    u = u.transpose(2, 1, 0)
-    v = v.transpose(2, 1, 0)
-    w = w.transpose(2, 1, 0)
-    if p is not None:
-        p = p.transpose(2, 1, 0)
-    
-    # Flatten the arrays in Fortran order (column-major)
-    u_flat = u.ravel(order='F')
-    v_flat = v.ravel(order='F')
-    w_flat = w.ravel(order='F')
-    if p is not None:
-        p_flat = p.ravel(order='F')
-    
-    # Create vtkImageData
-    imageData = vtk.vtkImageData()
-    imageData.SetOrigin(0.0, 0.0, 0.0)
-    imageData.SetSpacing(spacing)
-    imageData.SetDimensions(X, Y, Z)
-    
-    # Create velocity vectors
-    velocity = np.stack((u_flat, v_flat, w_flat), axis=1)  # Shape: (N, 3)
-    vtk_velocity = ns.numpy_to_vtk(num_array=velocity, deep=True, array_type=ns.get_vtk_array_type(velocity.dtype))
-    vtk_velocity.SetName("Velocity")
-    imageData.GetPointData().SetVectors(vtk_velocity)
-    
-    # Create scalar field if provided
-    if p is not None:
-        vtk_p = ns.numpy_to_vtk(num_array=p_flat, deep=True, array_type=ns.get_vtk_array_type(p_flat.dtype))
-        vtk_p.SetName("Pressure")
-        imageData.GetPointData().AddArray(vtk_p)
-        imageData.GetPointData().SetActiveScalars("Pressure")  # Optionally set as active scalar
-    
-    # Write to VTK file
-    writer = vtk.vtkXMLImageDataWriter()
-    writer.SetFileName(filename)
-    writer.SetInputData(imageData)
-    writer.Write()
-    
-    print(f"VTK file saved as '{filename}'.")
