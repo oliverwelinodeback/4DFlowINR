@@ -45,21 +45,26 @@ def scale_and_repeat(img, target_img):
     scale_y = target_img.shape[1] / img.shape[1]
     scale_z = target_img.shape[2] / img.shape[2]
     
-    # stretch in y and z, we will tile it in x
-    scale = (1, scale_y, scale_z)
+    ### # stretch in y and z, we will tile it in x
+    ### scale = (1, scale_y, scale_z)
     
+    # stretch in x and y, we will tile it in z
+    scale = (scale_x, scale_y, 1)
+
     # scale the template to the mask size
     img = ndimage.zoom(img, scale)
 
     # repeat (tile) along first axis
     # np.tile only works on last axis, so we transpose the matrix first and back
-    img = np.transpose(img, (2,1,0))
-    img = np.tile(img, int(np.ceil(scale_x)))
-    img = np.transpose(img, (2,1,0))
-    
+    ####img = np.transpose(img, (2,1,0))
+    ####img = np.tile(img, int(np.ceil(scale_x)))
+    ####img = np.transpose(img, (2,1,0))
+    img = np.tile(img, int(np.ceil(scale_z)))
+
     # cut the excess from the tiling
-    img = img[:target_img.shape[0],:,:]
-    
+    ####img = img[:target_img.shape[0],:,:]
+    img = img[:,:, :target_img.shape[2]]
+
     return img
 
 def prepare_magnitude(template, vessel, template_mask, case_mask, threshold=0):
@@ -195,14 +200,14 @@ def flow_dualvenc_reconstruction(vel_lv, vel_hv, venc_l, venc_h):
 
 if __name__ == '__main__':
 
-    tSNR = 4
-    downsample = 2
+    tSNR = 2
+    downsample = 1
     template_idx = 3
-    case_name = 'patient3-PreOp-05mm3_corr'
+    case_name = 'patient3-PreOp-05mm3'
 
     # tSNR = 12 (high), 8 (med), 4 (low) for downsample = 2
     # tSNR = 8 (high), 4 (med), 2 (low) for downsample = 1
-    # Mag template - 0 healthy, 1 patient1, 2 patient3-postOp, 3 patient3-preOp 
+    # Mag template - 0 healthy, 1 patient1, 2 patient3-PostOp, 3 patient3-PreOp 
 
     # Update your path here
     base_path = '../../../data/data_05mm_incl_pressure' 
@@ -212,7 +217,7 @@ if __name__ == '__main__':
 
     # -----------------------
     input_filepath  =   f'{base_path}/{case_name}.h5'
-    outputLR_filename = f'{base_path}/{case_name}_dv_lowSNR_x2.h5'
+    outputLR_filename = f'{base_path}/{case_name}_dv_lowSNR_x1.h5'
     
     # Change your case name, template idx (see mag_template_aligned.h5), and target SNR here
 
@@ -234,6 +239,11 @@ if __name__ == '__main__':
         vessel = np.asarray(hf.get('vessels')[template_idx])
         #vessel = np.asarray(hf.get('vessel')[template_idx])
         template_mask = np.asarray(hf.get('mask')[template_idx])
+
+        # Transpose & rearrange for correct alignment
+        template = np.transpose(template, (2,1,0))
+        vessel = np.transpose(vessel, (2,1,0))
+        template_mask = np.transpose(template_mask, (2,1,0))
 
     # Load the mask once
     with h5py.File(input_filepath, mode = 'r' ) as hf:
@@ -277,7 +287,6 @@ if __name__ == '__main__':
             hr_v = pad(hr_v, pad_x, pad_y, pad_z) 
             hr_w = pad(hr_w, pad_x, pad_y, pad_z)
             hr_p = pad(p, pad_x, pad_y, pad_z)
-
 
             max_u = np.asarray(hf['max_u'][idx])
             max_v = np.asarray(hf['max_v'][idx])
@@ -344,11 +353,12 @@ if __name__ == '__main__':
         h5utils.save_to_h5(outputLR_filename, "v_hv", lr_v_hv)
         h5utils.save_to_h5(outputLR_filename, "w_hv", lr_w_hv)
 
-        h5utils.save_to_h5(outputLR_filename, "mag_image", mag_image)
+        #h5utils.save_to_h5(outputLR_filename, "mag_image", mag_image)
 
-        h5utils.save_to_h5(outputLR_filename, "mag_u", mag_u)
-        h5utils.save_to_h5(outputLR_filename, "mag_v", mag_v)
-        h5utils.save_to_h5(outputLR_filename, "mag_w", mag_w)
+        h5utils.save_to_h5(outputLR_filename, "mag", mag_u)
+        #h5utils.save_to_h5(outputLR_filename, "mag_u", mag_v)
+        #h5utils.save_to_h5(outputLR_filename, "mag_v", mag_v)
+        #h5utils.save_to_h5(outputLR_filename, "mag_w", mag_w)
 
         h5utils.save_to_h5(outputLR_filename, "high_venc", high_venc)
         #h5utils.save_to_h5(outputLR_filename, "low_venc", low_venc)
