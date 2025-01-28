@@ -195,10 +195,10 @@ def flow_dualvenc_reconstruction(vel_lv, vel_hv, venc_l, venc_h):
 
 if __name__ == '__main__':
 
-    tSNR = 8
-    downsample = 1
-    template_idx = 0 
-    case_name = 'healthy-05mm3'
+    tSNR = 4
+    downsample = 2
+    template_idx = 3
+    case_name = 'patient3-PreOp-05mm3_corr'
 
     # tSNR = 12 (high), 8 (med), 4 (low) for downsample = 2
     # tSNR = 8 (high), 4 (med), 2 (low) for downsample = 1
@@ -209,6 +209,10 @@ if __name__ == '__main__':
     output_dir = '../../../data/data_05mm_incl_pressure'
 
     template_filepath = '../../../data/mag_templates.h5'
+
+    # -----------------------
+    input_filepath  =   f'{base_path}/{case_name}.h5'
+    outputLR_filename = f'{base_path}/{case_name}_dv_lowSNR_x2.h5'
     
     # Change your case name, template idx (see mag_template_aligned.h5), and target SNR here
 
@@ -217,10 +221,6 @@ if __name__ == '__main__':
     targetSNR_hv = tSNR 
     targetSNR_hv = targetSNR_hv**2
     mag_threshold = 0
-
-    # -----------------------
-    input_filepath  =   f'{base_path}/{case_name}.h5'
-    outputLR_filename = f'{base_path}/{case_name}_dv_highSNR_x1.h5'
 
     crop_ratio = 1 / downsample
     #-----------------------
@@ -240,7 +240,10 @@ if __name__ == '__main__':
         dx = np.asarray(hf['dx'])
         data_count = len(hf.get("u"))
         case_mask = np.asarray(hf.get('mask'))
-    
+    print(case_mask.shape)
+    if len(case_mask.shape) == 4:
+        case_mask = case_mask[0]
+
     # Create the synthetic magnitude based on template and case_mask
     print("Preparing magnitude from template...")
     mag_image = prepare_magnitude(template, vessel, template_mask, case_mask, threshold=mag_threshold)
@@ -273,6 +276,8 @@ if __name__ == '__main__':
             hr_u = pad(hr_u, pad_x, pad_y, pad_z)
             hr_v = pad(hr_v, pad_x, pad_y, pad_z) 
             hr_w = pad(hr_w, pad_x, pad_y, pad_z)
+            hr_p = pad(p, pad_x, pad_y, pad_z)
+
 
             max_u = np.asarray(hf['max_u'][idx])
             max_v = np.asarray(hf['max_v'][idx])
@@ -331,10 +336,6 @@ if __name__ == '__main__':
         h5utils.save_to_h5(outputLR_filename, "v", lr_v)
         h5utils.save_to_h5(outputLR_filename, "w", lr_w)
 
-        h5utils.save_to_h5(outputLR_filename, "u_masked", lr_u*mask_image)
-        h5utils.save_to_h5(outputLR_filename, "v_masked", lr_v*mask_image)
-        h5utils.save_to_h5(outputLR_filename, "w_masked", lr_w*mask_image)
-
         h5utils.save_to_h5(outputLR_filename, "u_lv", lr_u_lv)
         h5utils.save_to_h5(outputLR_filename, "v_lv", lr_v_lv)
         h5utils.save_to_h5(outputLR_filename, "w_lv", lr_w_lv)
@@ -352,9 +353,18 @@ if __name__ == '__main__':
         h5utils.save_to_h5(outputLR_filename, "high_venc", high_venc)
         #h5utils.save_to_h5(outputLR_filename, "low_venc", low_venc)
         #h5utils.save_to_h5(outputLR_filename, "max_vel", max_vel)
-        
+        print(lr_u_hv.shape)
+
         # Save pressure
-        h5utils.save_to_h5(outputLR_filename, 'p', p)
+        if crop_ratio != 1.0: 
+            p_lr = ndimage.zoom(hr_p, crop_ratio, order=3)
+            p_lr = unpad(p_lr, pad_x // downsample, pad_y // downsample, pad_z // downsample)
+            h5utils.save_to_h5(outputLR_filename, "p", p_lr)
+            print("p lr shape:")
+            print(p_lr.shape)
+        else:
+            p = unpad(hr_p, pad_x // downsample, pad_y // downsample, pad_z // downsample)
+            h5utils.save_to_h5(outputLR_filename, 'p', p)
         
         if idx == 0:
             if crop_ratio != 1.0: 
@@ -363,6 +373,11 @@ if __name__ == '__main__':
                 mask_image = unpad(mask_image, pad_x//downsample, pad_y//downsample, pad_z//downsample)
             else:
                 mask_image = case_mask
+
+            print('Original mask')
+            print(case_mask.shape)
+            print('New mask')
+            print(mask_image.shape)
             # only save once
             h5utils.save_to_h5(outputLR_filename, "dx", dx*downsample)
             h5utils.save_to_h5(outputLR_filename, "_template_idx", template_idx) # magnitude template idx
