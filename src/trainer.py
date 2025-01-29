@@ -3,11 +3,12 @@ import time
 import torch
 from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_boundary_loss, update_loss_weights
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
-from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
-import SIREN
-from configs.SIREN_1t_div import get_config
+from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed,plot_3D
+import networks
+from configs.FF_1t import get_config
 from torch.utils.tensorboard import SummaryWriter
 
+import os
 if __name__ == "__main__":
 
     print("Starting script")
@@ -30,6 +31,23 @@ if __name__ == "__main__":
     if config.include_ref:
         u_ref, v_ref, w_ref, p_ref, mask_ref = load_ref_data(config)
         xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, mask_ref)
+
+    print("xyz_data.shape", xyz_data.shape)
+    print("uvw_data.shape", uvw_data.shape)
+    print("mask_flat.shape", mask_flat.shape)
+    print("boundary_mask_flat.shape", boundary_mask_flat.shape)
+    print("xyz_data_ref.shape", xyz_data_ref.shape)
+    print("u_ref.shape", u_ref.shape)
+    print("v_ref.shape", v_ref.shape)
+    print("w_ref.shape", w_ref.shape)
+    print("mask_flat_ref.shape", mask_flat_ref.shape)
+    
+    
+    spacing = [config.resolution.dx, config.resolution.dy, config.resolution.dz]
+    plot_3D(xyz_data[:,0],xyz_data[:,1],xyz_data[:,2],uvw_data[:,0],uvw_data[:,1], uvw_data[:,2],spacing,
+       SEG=None, save_path=os.path.join(config.log_dir,'velocities.html'), show=True, size_cones=1,step=2,cmin=0,cmax=2.5)
+
+    exit()
 
     # Expand mask
     if config.setup.expand_mask:
@@ -59,14 +77,25 @@ if __name__ == "__main__":
 
     # Initialize network
     DEVICE = torch.device('cuda')
-    model = SIREN.SIREN(
-        in_dim=config.network.in_dim,
-        out_dim=config.network.out_dim,
-        depth=config.network.depth,
-        hidden_features=config.network.hidden_features,
-        first_omega_0=config.network.first_omega_0,
-        hidden_omega_0=config.network.hidden_omega_0
-    ).to(DEVICE)
+    if config.network.arch == "SIREN":
+        model = networks.SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.first_omega_0,
+            hidden_omega_0=config.network.hidden_omega_0
+        ).to(DEVICE)
+    else:
+        model = networks.FFN(
+            input_dim=config.network.in_dim,
+            output_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_dim=config.network.hidden_features,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
+
 
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config.training.lr)
@@ -179,6 +208,7 @@ if __name__ == "__main__":
 
         # Predict and calculate boundary points
         bound_loss = compute_boundary_loss(config, model, xyz_boundary_batch)
+        bound_loss = torch.tensor(0.0).to(DEVICE)
         
         # Total loss
         if config.training.grad_weight_scheme:

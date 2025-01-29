@@ -64,7 +64,6 @@ def load_data(config):
                     config.domain.y_start:config.domain.y_end, 
                     config.domain.z_start:config.domain.z_end]
         # h×w×d = (81, 57, 50)
-
     return u, v, w, p, mask
 
 def load_ref_data(config):

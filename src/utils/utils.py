@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 from utils.evaluation_utils import create_boundary_and_core_masks, calculate_relative_error, calculate_absolute_error, calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure
 #import vtk
 #from vtk.util import numpy_support as ns
+import plotly.graph_objects as go
+import plotly.subplots as sp
+import plotly.express as px
 
 def copy_cource_code(model_dir, directory_to_backup=["."], folder_name="backup_source"):
 
@@ -551,3 +554,66 @@ def h5_to_paraview(u, v, w, p=None, spacing=(1.0, 1.0, 1.0), filename='output.vt
     writer.Write()
     
     print(f"VTK file saved as '{filename}'.")
+
+
+def plot_3D(x,y,z, u, v, w,spacing, SEG=None, save_path='velocities.html', show=True, size_cones=500,step=1,cmax=None,cmin=None):
+  """
+  Plots velocities in 3D using Plotly library.
+
+  Parameters:
+  coords (np.ndarray): The coordinates of the velocity field.
+  u (np.ndarray): The x-component of the velocity field.
+  v (np.ndarray): The y-component of the velocity field.
+  w (np.ndarray): The z-component of the velocity field.
+  save_path (str, optional): The file path to save the plot. Default is 'velocities.html'.
+  show (bool, optional): Whether to show the plot. Default is True.
+  """  
+
+  if SEG is not None:
+    x = x[SEG.ravel().nonzero()]
+    y = y[SEG.ravel().nonzero()]
+    z = z[SEG.ravel().nonzero()]
+    u = u[SEG.ravel().nonzero()]
+    v = v[SEG.ravel().nonzero()]
+    w = w[SEG.ravel().nonzero()]
+
+  samples = np.arange(0,x.shape[0]-1,step)
+  
+  x = x[samples]
+  y = y[samples]
+  z = z[samples]
+  u = u[samples]
+  v = v[samples]
+  w = w[samples]
+
+  fig = go.Figure(data=go.Cone(
+    x=x,
+    y=y,
+    z=z,
+    u=u,
+    v=v,
+    w=w,
+    cmin=cmin,
+    cmax=cmax,
+    colorscale='Jet',
+    sizemode='absolute',
+    sizeref=size_cones,
+    # opacity=0.7,
+    # anchor='tail',
+    showscale=True
+  ))
+
+  fig.update_layout(
+    scene=dict(
+      # aspectmode='manual',
+      # aspectratio=dict(x=spacing[2] / np.max(spacing), y=spacing[0]/ np.max(spacing), z=spacing[1]/ np.max(spacing)),
+      aspectmode='data',
+      xaxis_title='X (cm)',
+      yaxis_title='Y (cm)',
+      zaxis_title='Z (cm)'
+    )
+  )
+ 
+  fig.write_html(save_path)
+  if show:
+    fig.show()

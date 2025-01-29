@@ -7,37 +7,37 @@ def get_config():
     config = ml_collections.ConfigDict()
 
     # Data
-    config.data_file = "../../data/data_05mm_incl_pressure/healthy-05mm3_LR_SNR5_x1.h5"
+    config.data_file = "../data/AoHealthy_noisy_2mm_n2.h5"
     config.include_ref = True
-    config.data_file_ref = "../../data/data_05mm_incl_pressure/healthy-05mm3.h5"
+    config.data_file_ref = "../data/AoHealthy_ref_2mm.h5"
     config.ref_spatial_factor = 1
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250115_Tests"
-    config.network_name = "SIREN_1t"
+    networks_folder = "../models/250129_AoModel"
+    config.network_name = "FFN_1t"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
 
     # Domain
     config.domain = ml_collections.ConfigDict()
-    config.domain.t_start = 25
-    config.domain.t_end = 126
-    config.domain.x_start = 120
-    config.domain.x_end = 201
+    config.domain.t_start = 0
+    config.domain.t_end = -1
+    config.domain.x_start = 0
+    config.domain.x_end = -1
     config.domain.y_start = 0
-    config.domain.y_end = 57
-    config.domain.z_start = 19
-    config.domain.z_end = 69
+    config.domain.y_end = -1
+    config.domain.z_start = 0
+    config.domain.z_end = -1
 
     # Resolution
     config.resolution = ml_collections.ConfigDict()
     config.resolution.from_file = True
-    config.resolution.dx = 0.0005
-    config.resolution.dy = 0.0005
-    config.resolution.dz = 0.0005
-    config.resolution.dt = 0.01
+    config.resolution.dx = 0.002
+    config.resolution.dy = 0.002
+    config.resolution.dz = 0.002
+    config.resolution.dt = 0.01874
 
     # Setup / Options
     config.setup = ml_collections.ConfigDict()
@@ -54,9 +54,9 @@ def get_config():
     config.boundary_repetitions = 1000
 
     # Normalization and constants
-    config.vel_normalization = "characteristic" # max_velocity
-    config.coords_characteristic = True 
-    config.coords_normalization = "standardize" # min_max
+    config.vel_normalization = "max_velocity" # max_velocity, characteristic
+    config.coords_characteristic = False
+    config.coords_normalization = "min_max" # min_max, standardize
     config.constants = ml_collections.ConfigDict()
     config.constants.U = 1.0
     config.constants.L = 0.005
@@ -68,14 +68,19 @@ def get_config():
     config.network = ml_collections.ConfigDict()
     config.network.in_dim = 3
     config.network.out_dim = 3
-    config.network.depth = 6
-    config.network.hidden_features = 128
+    config.network.depth = 5
+    config.network.hidden_features = 200
+    config.network.arch = "FFN"
+    # SIREN parameters
     config.network.first_omega_0 = 30
     config.network.hidden_omega_0 = 30
+    # Fourier Feature Encoding parameters
+    config.network.fourier_mapping_size = 128
+    config.network.fourier_scale = 5.0
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 1000 # 300000
+    config.training.iterations = 15_000 # 300000
     config.training.data_points_per_batch = None # None to use all
     config.training.coll_points_per_batch = 20000 # None to use all
     config.training.boundary_points_per_batch = None # None to use all
@@ -110,9 +115,9 @@ def get_config():
     config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
-    config.training.summary_iter = 200
+    config.training.summary_iter = 500
     config.training.log_iter = 1
-    config.training.error_iter = 200
+    config.training.error_iter = 500
     config.training.denormalize = True
     # Plotting
     config.plot = ml_collections.ConfigDict()
