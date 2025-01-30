@@ -7,15 +7,16 @@ def get_config():
     config = ml_collections.ConfigDict()
 
     # Data
-    config.data_file = "../../data/data_05mm_incl_pressure/healthy-05mm3_t24_26_250120_TSNR12_x1.h5"
+    #!# config.data_file = "../../data/data_05mm_incl_pressure/healthy-05mm3_LR_SNR5_x1.h5" #!#
+    config.data_file = "../data/data_05mm_incl_pressure/healthy-05mm3_t24_26_250120_TSNR12_x1.h5" #!#
     config.include_ref = True
-    config.data_file_ref = "../../data/data_05mm_incl_pressure/healthy-05mm3.h5"
+    config.data_file_ref = "../data/data_05mm_incl_pressure/healthy-05mm3.h5" #!#
     config.ref_spatial_factor = 1
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250129_Testing"
-    config.network_name = "SIREN_1t"
+    networks_folder = "../models/250124_Testing"
+    config.network_name = "SIREN_1t_VP"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
@@ -33,7 +34,6 @@ def get_config():
 
     # Resolution
     config.resolution = ml_collections.ConfigDict()
-    config.resolution.from_file = True
     config.resolution.dx = 0.0005
     config.resolution.dy = 0.0005
     config.resolution.dz = 0.0005
@@ -93,7 +93,7 @@ def get_config():
     config.training.alpha = 0.9
     # Data loss options
     config.training.use_mse = True
-    config.training.use_vector_potential = False
+    config.training.use_vector_potential = True
     config.training.pressure_in_data_loss = False
     config.training.u_weight = 1.0
     config.training.v_weight = 1.0

@@ -14,7 +14,7 @@ def get_config():
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250129_Testing"
+    networks_folder = "../models/250124_Testing"
     config.network_name = "SIREN_1t"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
@@ -33,7 +33,6 @@ def get_config():
 
     # Resolution
     config.resolution = ml_collections.ConfigDict()
-    config.resolution.from_file = True
     config.resolution.dx = 0.0005
     config.resolution.dy = 0.0005
     config.resolution.dz = 0.0005
@@ -75,7 +74,7 @@ def get_config():
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 1000 # 300000
+    config.training.iterations = 250 # 300000
     config.training.data_points_per_batch = None # None to use all
     config.training.coll_points_per_batch = 20000 # None to use all
     config.training.boundary_points_per_batch = None # None to use all

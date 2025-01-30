@@ -9,6 +9,8 @@ from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract
 from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
 from utils.evaluation_utils import create_boundary_and_core_masks, calculate_relative_error, calculate_absolute_error, calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure
+from utils.loss_utils import vector_potential_fn
+
 #import vtk
 #from vtk.util import numpy_support as ns
 import plotly.graph_objects as go
@@ -131,12 +133,18 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
 
     # Predict reference coordinates
     model.eval()
-    with torch.no_grad():
-        xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
-        uvw_pred = model(xyz_ref)  # shape (N_fluid, out_dim)
+    xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
+    xyz_ref.requires_grad = config.training.use_vector_potential
 
-    # Detach
-    uvw_pred = uvw_pred.cpu().numpy()
+    if config.training.use_vector_potential:
+        with torch.set_grad_enabled(True):
+            uvw_pred = model(xyz_ref)
+            uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
+            uvw_pred = uvw_pred.detach().cpu().numpy()
+    else:
+        with torch.no_grad():
+            uvw_pred = model(xyz_ref)
+            uvw_pred = uvw_pred.cpu().numpy()
 
     if config.plot.fluid_region:
         fluid_indices = mask_flat_ref==1
@@ -261,12 +269,18 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
 
     # Predict reference coordinates
     model.eval()
-    with torch.no_grad():
-        xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
-        uvw_pred = model(xyz_ref)  # shape (N_fluid, out_dim)
+    xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
+    xyz_ref.requires_grad = config.training.use_vector_potential
 
-    # Detach
-    uvw_pred = uvw_pred.cpu().numpy()
+    if config.training.use_vector_potential:
+        with torch.set_grad_enabled(True):
+            uvw_pred = model(xyz_ref)
+            uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
+            uvw_pred = uvw_pred.detach().cpu().numpy()
+    else:
+        with torch.no_grad():
+            uvw_pred = model(xyz_ref)
+            uvw_pred = uvw_pred.cpu().numpy()
 
     if config.plot.fluid_region:
         fluid_indices = mask_flat_ref==1
@@ -443,12 +457,18 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
     
     # Predict fluid data poinst grid
     model.eval()
-    with torch.no_grad():
-        xyz_plot = torch.from_numpy(xyz_plot).float().to(device)
-        uvw_pred_plot = model(xyz_plot)  # shape (N_fluid, out_dim)
+    xyz_plot = torch.from_numpy(xyz_plot).float().to(device)
+    xyz_plot.requires_grad = config.training.use_vector_potential
 
-    # Detach
-    uvw_pred_plot = uvw_pred_plot.cpu().numpy()
+    if config.training.use_vector_potential:
+        with torch.set_grad_enabled(True):
+            uvw_pred_plot = model(xyz_plot)
+            uvw_pred_plot = vector_potential_fn(uvw_pred_plot, xyz_plot)
+            uvw_pred_plot = uvw_pred_plot.detach().cpu().numpy()
+    else:
+        with torch.no_grad():
+            uvw_pred_plot = model(xyz_plot)
+            uvw_pred_plot = uvw_pred_plot.cpu().numpy()
 
     if config.plot.fluid_region:
         uvw_pred_full = np.zeros(((len(xyz_plot_full), len(uvw_pred_plot[0])))) + config.plot.non_fluid_value
