@@ -14,7 +14,7 @@ def get_config():
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250124_Testing"
+    networks_folder = "../models/250129_Testing"
     config.network_name = "SIREN_1t"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
