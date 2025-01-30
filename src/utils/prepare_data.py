@@ -64,6 +64,14 @@ def load_data(config):
                     config.domain.y_start:config.domain.y_end, 
                     config.domain.z_start:config.domain.z_end]
         # h×w×d = (81, 57, 50)
+
+        # if config.resolution.from_file:
+
+        #     config.resolution.dx = dx
+        #     config.resolution.dy = dy
+        #     config.resolution.dz = dz
+        #     config.resolution.dt = dt
+
     return u, v, w, p, mask
 
 def load_ref_data(config):
@@ -189,6 +197,11 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
                 min_y, max_y, min_z, max_z, 
             ]
         else:
+            # standardization_factors = [
+            #     min_x, max_x,
+            #     min_y, max_y,
+            #     min_z, max_z
+            # ]
             standardization_factors = [
                 min_C, max_C,
                 min_C, max_C,

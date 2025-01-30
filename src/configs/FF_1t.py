@@ -1,7 +1,7 @@
 import ml_collections
 from datetime import datetime
 
-def get_config():
+def get_config(sweep_config=None):
     
     """Get the default hyperparameter configuration."""
     config = ml_collections.ConfigDict()
@@ -43,7 +43,7 @@ def get_config():
     config.setup = ml_collections.ConfigDict()
     config.setup.include_pressure = False
     config.setup.include_time = False
-    config.setup.fluid_region = True
+    config.setup.fluid_region = False
     config.setup.expand_mask = True
 
     # Collocation & Boundary points sampling
@@ -76,11 +76,11 @@ def get_config():
     config.network.hidden_omega_0 = 30
     # Fourier Feature Encoding parameters
     config.network.fourier_mapping_size = 128
-    config.network.fourier_scale = 2.5
+    config.network.fourier_scale = 2.0
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 5_000 # 300000
+    config.training.iterations = 1_000 # 300000
     config.training.data_points_per_batch = None # None to use all
     config.training.coll_points_per_batch = 20000 # None to use all
     config.training.boundary_points_per_batch = None # None to use all
@@ -117,11 +117,11 @@ def get_config():
     # Logging and performance evaluation
     config.training.summary_iter = 500
     config.training.log_iter = 1
-    config.training.error_iter = 500
+    config.training.error_iter = 100
     config.training.denormalize = True
     # Plotting
     config.plot = ml_collections.ConfigDict()
-    config.plot.iter = 200
+    config.plot.iter = 100
     config.plot.gt = True
     config.plot.t_step = None
     config.plot.z_slice = 20
@@ -129,7 +129,7 @@ def get_config():
     config.plot.temporal_factor = 2
     config.plot.temp_upsampling_mode = 'extend'
     config.plot.spat_upsampling_mode = 'centered'
-    config.plot.fluid_region = True
+    config.plot.fluid_region = False
     config.plot.non_fluid_value = 0
     config.plot.expand_mask = True
     config.plot.denormalize = True
@@ -141,6 +141,6 @@ def get_config():
     config.predictions.predict_SR_data = True
     config.predictions.compare_noisy_vs_ref = True
     config.predictions.denormalize = True
-    config.predictions.fluid_region = True
+    config.predictions.fluid_region = False
 
     return config

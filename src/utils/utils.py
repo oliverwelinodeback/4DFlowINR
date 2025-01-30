@@ -505,12 +505,14 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
             p_pred = p_pred*(config.constants.rho*(config.constants.U**2)) if config.setup.include_pressure else None
     
     z_slice = config.plot.z_slice*config.plot.spatial_factor
-
+    
+    print("w_pred", w_pred.shape)
     # Plotting (example using matplotlib)
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(8, 6))
     plt.subplot(1, 2, 1)
     plt.title('Predicted w')
-    plt.imshow(w_pred[:, :, z_slice], origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
+    plt.imshow(w_pred[:, :, z_slice], origin='lower')
+    # plt.imshow(w_pred[:, :, z_slice], origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
 
     if config.setup.include_pressure and p_pred is not None:

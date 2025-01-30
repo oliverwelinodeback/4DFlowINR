@@ -33,7 +33,7 @@ if __name__ == "__main__":
         xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, mask_ref)
 
 
-    
+    #  #Glyph check
     # spacing = [config.resolution.dx, config.resolution.dy, config.resolution.dz]
     # plot_3D(xyz_data[:,0],xyz_data[:,1],xyz_data[:,2],uvw_data[:,0],uvw_data[:,1], uvw_data[:,2],spacing,
     #    SEG=None, save_path=os.path.join(config.log_dir,'velocities.html'), show=False, size_cones=1,step=1,cmin=0,cmax=2.5)
