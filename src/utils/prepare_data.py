@@ -168,9 +168,20 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
             ]
 
     elif config.coords_normalization == "min_max":
-        x_normalized, min_x, max_x = min_max_normalize(x)
-        y_normalized, min_y, max_y = min_max_normalize(y)
-        z_normalized, min_z, max_z = min_max_normalize(z)
+        max_x, min_x = x.max(), x.min()
+        max_y, min_y = y.max(), y.min()
+        max_z, min_z = z.max(), z.min()
+        max_C = max(max_x, max_y, max_z)
+        min_C = min(min_x, min_y, min_z)
+
+        # x_normalized, min_x, max_x = min_max_normalize(x)
+        # y_normalized, min_y, max_y = min_max_normalize(y)
+        # z_normalized, min_z, max_z = min_max_normalize(z)
+
+        x_normalized = (x - min_C) / (max_C - min_C)
+        y_normalized = (y - min_C) / (max_C - min_C)
+        z_normalized = (z - min_C) / (max_C - min_C)
+
         if config.setup.include_time:
             t_normalized, min_t, max_t = min_max_normalize(t)
             standardization_factors = [
@@ -179,9 +190,9 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
             ]
         else:
             standardization_factors = [
-                min_x, max_x,
-                min_y, max_y,
-                min_z, max_z
+                min_C, max_C,
+                min_C, max_C,
+                min_C, max_C
             ]
     else:
         raise ValueError("Unknown coordinate normalization.")

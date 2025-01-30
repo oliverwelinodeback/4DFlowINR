@@ -171,47 +171,36 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     mu = config.constants.mu
     Re = (rho*U*L)/mu # Reynolds number
 
-    # Extract normalization adjustments
     if config.coords_normalization == "standardize":
         # Extract standardization factors
         _, std_t, _, std_x, _, std_y, _, std_z = standardization_factors
-        adj_t = 1/std_t
-        adj_x = 1/std_x
-        adj_y = 1/std_y
-        adj_z = 1/std_z
-    elif config.coords_normalization == "min_max":
-        min_t, max_t, min_x, max_x, min_y, max_y, min_z, max_z = standardization_factors
-        adj_t = 1/(max_t - min_t)
-        adj_x = 1/(max_x - min_x)
-        adj_y = 1/(max_y - min_y)
-        adj_z = 1/(max_z - min_z)
-    else: 
-        adj_t, adj_x, adj_y, adj_z = 1.0, 1.0, 1.0, 1.0
+    else:
+        std_t, std_x, std_y, std_z = 1.0, 1.0, 1.0, 1.0
 
     # Calculate residuals based on Navier-Stokes Equations
     momentum_u = (
-        adj_t * du_dt 
-        + adj_x * (u * du_dx) + adj_y* (v * du_dy) + adj_z * (w * du_dz) 
-        + adj_x * dp_dx 
-        - (1/Re) * ((adj_x**2) * d2u_dx2 + (adj_y**2) * d2u_dy2 + (adj_z**2) * d2u_dz2)
+        (1 / std_t) * du_dt 
+        + (1 / std_x) * (u * du_dx) + (1 / std_y) * (v * du_dy) + (1 / std_z) * (w * du_dz) 
+        + (1 / std_x) * dp_dx 
+        - (1/Re) * ((1 / std_x**2) * d2u_dx2 + (1 / std_y**2) * d2u_dy2 + (1 / std_z**2) * d2u_dz2)
     )    
 
     momentum_v = (
-        adj_t * dv_dt 
-        + adj_x * (u * dv_dx) + adj_y * (v * dv_dy) + adj_z * (w * dv_dz) 
-        + adj_y * dp_dy 
-        - (1/Re) * ((adj_x**2) * d2v_dx2 + (adj_y**2) * d2v_dy2 + (adj_z**2) * d2v_dz2)
+        (1 / std_t) * dv_dt 
+        + (1 / std_x) * (u * dv_dx) + (1 / std_y) * (v * dv_dy) + (1 / std_z) * (w * dv_dz) 
+        + (1 / std_y) * dp_dy 
+        - (1/Re) * ((1 / std_x**2) * d2v_dx2 + (1 / std_y**2) * d2v_dy2 + (1 / std_z**2) * d2v_dz2)
     ) 
 
     momentum_w = (
-        adj_t * dw_dt 
-        + adj_x * (u * dw_dx) + adj_y * (v * dw_dy) + adj_z * (w * dw_dz) 
-        + adj_z * dp_dz 
-        - (1/Re) * ((adj_x**2) * d2w_dx2 + (adj_y**2) * d2w_dy2 + (adj_z**2) * d2w_dz2)
+        (1 / std_t) * dw_dt 
+        + (1 / std_x) * (u * dw_dx) + (1 / std_y) * (v * dw_dy) + (1 / std_z) * (w * dw_dz) 
+        + (1 / std_z) * dp_dz 
+        - (1/Re) * ((1 / std_x**2) * d2w_dx2 + (1 / std_y**2) * d2w_dy2 + (1 / std_z**2) * d2w_dz2)
     ) 
 
     # Calculate divergence
-    div = adj_x*du_dx + adj_y*dv_dy + adj_z*dw_dz
+    div = (du_dx / std_x) + (dv_dy / std_y) + (dw_dz / std_z)
 
     # Calculate MSE
     momentum_loss_u = momentum_u ** 2
@@ -243,25 +232,13 @@ def divergence_loss(uvw_pred, xyz_collocation, standardization_factors, config):
     if config.coords_normalization == "standardize":
         if config.setup.include_time:
             _, _, _, std_x, _, std_y, _, std_z = standardization_factors
-
         else:
             _, std_x, _, std_y, _, std_z = standardization_factors
-        adj_x = 1/std_x
-        adj_y = 1/std_y
-        adj_z = 1/std_z
-    elif config.coords_normalization == "min_max":
-        if config.setup.include_time:
-            _, _, min_x, max_x, min_y, max_y, min_z, max_z = standardization_factors
-        else:
-            min_x, max_x, min_y, max_y, min_z, max_z = standardization_factors
-        adj_x = 1/(max_x - min_x)
-        adj_y = 1/(max_y - min_y)
-        adj_z = 1/(max_z - min_z)
     else:
-        adj_x, adj_y, adj_z = 1.0, 1.0, 1.0
+        std_x, std_y, std_z = 1.0, 1.0, 1.0
 
     # Calculate divergence
-    div = adj_x*du_dx + adj_y*dv_dy + adj_z*dw_dz
+    div = (du_dx / std_x) + (dv_dy / std_y) + (dw_dz / std_z)
 
     # Calculate loss
     div_loss = torch.mean(div ** 2)
@@ -372,7 +349,7 @@ def update_loss_weights(config, model, loss_weights, it, xyz_data_batch, uvw_dat
     return loss_weights
 
 def compute_data_loss(config, model, xyz_data, uvw_data, mask):
-
+    
     # Predict data points
     uvw_pred = model(xyz_data)
     

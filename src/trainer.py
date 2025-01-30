@@ -32,22 +32,13 @@ if __name__ == "__main__":
         u_ref, v_ref, w_ref, p_ref, mask_ref = load_ref_data(config)
         xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, mask_ref)
 
-    print("xyz_data.shape", xyz_data.shape)
-    print("uvw_data.shape", uvw_data.shape)
-    print("mask_flat.shape", mask_flat.shape)
-    print("boundary_mask_flat.shape", boundary_mask_flat.shape)
-    print("xyz_data_ref.shape", xyz_data_ref.shape)
-    print("u_ref.shape", u_ref.shape)
-    print("v_ref.shape", v_ref.shape)
-    print("w_ref.shape", w_ref.shape)
-    print("mask_flat_ref.shape", mask_flat_ref.shape)
-    
-    
-    spacing = [config.resolution.dx, config.resolution.dy, config.resolution.dz]
-    plot_3D(xyz_data[:,0],xyz_data[:,1],xyz_data[:,2],uvw_data[:,0],uvw_data[:,1], uvw_data[:,2],spacing,
-       SEG=None, save_path=os.path.join(config.log_dir,'velocities.html'), show=True, size_cones=1,step=2,cmin=0,cmax=2.5)
 
-    exit()
+    
+    # spacing = [config.resolution.dx, config.resolution.dy, config.resolution.dz]
+    # plot_3D(xyz_data[:,0],xyz_data[:,1],xyz_data[:,2],uvw_data[:,0],uvw_data[:,1], uvw_data[:,2],spacing,
+    #    SEG=None, save_path=os.path.join(config.log_dir,'velocities.html'), show=False, size_cones=1,step=1,cmin=0,cmax=2.5)
+
+    # exit()
 
     # Expand mask
     if config.setup.expand_mask:
@@ -208,7 +199,6 @@ if __name__ == "__main__":
 
         # Predict and calculate boundary points
         bound_loss = compute_boundary_loss(config, model, xyz_boundary_batch)
-        bound_loss = torch.tensor(0.0).to(DEVICE)
         
         # Total loss
         if config.training.grad_weight_scheme:

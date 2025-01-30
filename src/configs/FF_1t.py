@@ -76,11 +76,11 @@ def get_config():
     config.network.hidden_omega_0 = 30
     # Fourier Feature Encoding parameters
     config.network.fourier_mapping_size = 128
-    config.network.fourier_scale = 5.0
+    config.network.fourier_scale = 2.5
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 15_000 # 300000
+    config.training.iterations = 5_000 # 300000
     config.training.data_points_per_batch = None # None to use all
     config.training.coll_points_per_batch = 20000 # None to use all
     config.training.boundary_points_per_batch = None # None to use all
@@ -98,7 +98,7 @@ def get_config():
     config.training.alpha = 0.9
     # Data loss options
     config.training.use_mse = True
-    config.training.use_vector_potential = False
+    config.training.use_vector_potential = True
     config.training.pressure_in_data_loss = False
     config.training.u_weight = 1.0
     config.training.v_weight = 1.0
