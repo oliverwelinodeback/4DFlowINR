@@ -184,6 +184,44 @@ def calculate_absolute_error(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, mask=None
     abs_err = np.sum(diff_speed*mask) / (np.sum(mask) + 1) if mask is not None else np.mean(diff_speed)
     return abs_err
 
+def calculate_vnrmse(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, mask=None):
+    u_diff = np.square(u_pred - u_hi)
+    v_diff = np.square(v_pred - v_hi)
+    w_diff = np.square(w_pred - w_hi)
+
+    diff_speed = (u_diff + v_diff + w_diff)
+
+    mse = np.sum(diff_speed*mask) / (np.sum(mask) + 1) if mask is not None else np.mean(diff_speed)
+
+    vmag_hi = np.sqrt(np.square(u_hi) + np.square(v_hi) + np.square(w_hi))
+    vmax_hi = np.max(vmag_hi.ravel())
+
+    vnrmse = np.sqrt(mse) / vmax_hi
+    
+    return vnrmse
+
+def calculate_directional_error(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, mask=None):
+
+    abs_dot = np.abs(u_pred*u_hi + v_pred*v_hi + w_pred*w_hi)
+    abs_norm = np.sqrt(u_pred**2 + v_pred**2 + w_pred**2) * np.sqrt(u_hi**2 + v_hi**2 + w_hi**2)
+    cos_theta = abs_dot / (abs_norm + 1e-16)
+
+    d_error = np.sum((1 - cos_theta)*mask) / (np.sum(mask) + 1) if mask is not None else np.mean(1 - cos_theta)
+
+    return d_error
+
+def calculate_divergence(f,h, mask=None):
+      """
+      Computes the divergence of the vector field f, corresponding to dFx/dx + dFy/dy + ...
+      :param f: List of ndarrays, where every item of the list is one dimension of the vector field
+      :return: Single ndarray ,of the same shape as each of the items in f, which corresponds to a scalar field
+      """
+      num_dims = len(f)
+    #   div =  np.ufunc.reduce(np.add, [np.gradient(f[i], h[i], axis=i) for i in range(num_dims)])
+      div =  np.ufunc.reduce(np.add, [np.gradient(f[i], axis=i) for i in range(num_dims)])
+      mean_div = np.sum(np.abs(div)*mask) / (np.sum(mask) + 1) if mask is not None else np.mean(div)
+      return mean_div
+
 def calculate_absolute_error_pressure(p_pred, p_hi, mask=None):
     p_diff = np.square(p_pred - p_hi)
 

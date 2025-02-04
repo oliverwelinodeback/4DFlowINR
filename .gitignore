@@ -2,3 +2,5 @@
 /data
 /src/__pychache__
 /src/utils/__pychache__
+/results
+/src/wandb

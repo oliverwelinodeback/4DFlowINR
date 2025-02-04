@@ -8,7 +8,17 @@ import pandas as pd
 from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract_fluid_region, compute_outer_boundary_mask
 from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
-from utils.evaluation_utils import create_boundary_and_core_masks, calculate_relative_error, calculate_absolute_error, calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure
+from utils.evaluation_utils import (
+    create_boundary_and_core_masks, 
+    calculate_relative_error, 
+    calculate_absolute_error, 
+    calculate_rmse, 
+    calculate_absolute_error_pressure, 
+    calculate_rmse_pressure, 
+    calculate_divergence,
+    calculate_directional_error,
+    calculate_vnrmse,
+    )
 from utils.loss_utils import vector_potential_fn
 
 #import vtk
@@ -35,8 +45,9 @@ def copy_cource_code(model_dir, directory_to_backup=["."], folder_name="backup_s
 
     return 
 
-def save_to_h5(output_filepath, col_name, dataset):
-    dataset = np.expand_dims(dataset, axis=0)
+def save_to_h5(output_filepath, col_name, dataset, expand=False):
+    if expand:
+        dataset = np.expand_dims(dataset, axis=0)
 
     # convert float64 to float32 to save space
     if dataset.dtype == 'float64':
@@ -65,6 +76,9 @@ def save_checkpoint(model, iter, config, final=False, extra_data=None):
         'iteration': iter,
         'model_state_dict': model.state_dict(),
     }
+    
+    if config.network.arch == "FFN":
+        checkpoint['fourier_B'] = model.fourier_encoder.B
 
     if extra_data is not None:
         checkpoint.update(extra_data)
@@ -186,6 +200,7 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
 
     u_pred = uvw_pred[:, :, :, :, 0]
     v_pred = uvw_pred[:, :, :, :, 1]
+
     w_pred = uvw_pred[:, :, :, :, 2]
     p_pred = uvw_pred[:, :, :, :, 3] if config.setup.include_pressure else None
 
@@ -195,8 +210,13 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
     boundary_mask, core_mask = create_boundary_and_core_masks(mask_ref, 0.1, 'voxels')
 
     rel_err = np.zeros((T,3))
-    abs_err = np.zeros((T,5))
-    rmse = np.zeros((T,5))
+    abs_err = np.zeros((T,4))
+    rmse = np.zeros((T,4))
+
+    vnrmse = np.zeros((T,4))
+    d_error = np.zeros((T,4))
+    div_pred = np.zeros((T,4))
+    div_ref = np.zeros((T,4))
 
     for t in range(T):
         rel_err[t,0] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
@@ -214,7 +234,27 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         rmse[t,2] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
         rmse[t,3] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
         #rmse[t,4] = (calculate_rmse_pressure(p_pred[t], p_ref[t], mask_ref))
-    
+
+        vnrmse[t,0] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+        vnrmse[t,1] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+        vnrmse[t,2] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+        vnrmse[t,3] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+        d_error[t,0] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+        d_error[t,1] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+        d_error[t,2] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+        d_error[t,3] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+        div_pred[t,0] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
+        div_pred[t,1] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
+        div_pred[t,2] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
+        div_pred[t,3] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
+
+        div_ref[t,0] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
+        div_ref[t,1] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
+        div_ref[t,2] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
+        div_ref[t,3] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
+
     print('Total avg')
     rel_err_tot = np.mean(rel_err, axis=0)
     print(f'Relative error [Fluid] {rel_err_tot[0]:.1f}')
@@ -252,13 +292,34 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         'R.M.S. error [Core]': rmse_tot[2],
         'R.M.S. error [Non-F]': rmse_tot[3],
         #'R.M.S. error Pressure [Fluid]': rmse_tot[4],
+
+        'VNRMSE [Fluid]': vnrmse[0,0],
+        'VNRMSE [Bound]': vnrmse[0,1],
+        'VNRMSE [Core]': vnrmse[0,2],
+        'VNRMSE [Non-F]': vnrmse[0,3],
+
+        'Directional error [Fluid]': d_error[0,0],
+        'Directional error [Bound]': d_error[0,1],
+        'Directional error [Core]': d_error[0,2],
+        'Directional error [Non-F]': d_error[0,3],
+
+        'Divergence prediction [Fluid]': div_pred[0,0],
+        'Divergence prediction [Bound]': div_pred[0,1],
+        'Divergence prediction [Core]': div_pred[0,2],
+        'Divergence prediction [Non-F]': div_pred[0,3],
+
+        'Divergence reference [Fluid]': div_ref[0,0],
+        'Divergence reference [Bound]': div_ref[0,1],
+        'Divergence reference [Core]': div_ref[0,2],
+        'Divergence reference [Non-F]': div_ref[0,3],
+
     }
 
     metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
     metrics_filename = f"{directory}/metrics.csv"
     metrics_df.to_csv(metrics_filename, index=False)
 
-    return 
+    return metrics
 
 def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr, w_lr, p_lr, u_ref, v_ref, w_ref, p_ref, mask_ref, mask_flat_ref, U_max):
 
@@ -409,6 +470,12 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
 
         plt.savefig(os.path.join(directory, f"prediction_vs_reference_p.png"))
         plt.close()
+
+    # with h5py.File(f"{config.log_dir}/pred.h5", 'w') as f:
+    #     f.create_dataset('u', data=u_pred)
+    #     f.create_dataset('v', data=v_pred)
+    #     f.create_dataset('w', data=w_pred)
+
     return
 
 def plot_predictions(config, model, device, it, u, mask, U_max):
@@ -506,7 +573,6 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
     
     z_slice = config.plot.z_slice*config.plot.spatial_factor
     
-    print("w_pred", w_pred.shape)
     # Plotting (example using matplotlib)
     plt.figure(figsize=(8, 6))
     plt.subplot(1, 2, 1)

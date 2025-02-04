@@ -6,9 +6,14 @@ from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sa
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed,plot_3D
 import networks
 from configs.FF_1t import get_config
+# from configs.SIREN_1t import get_config
 from torch.utils.tensorboard import SummaryWriter
 
 import os
+
+
+
+
 if __name__ == "__main__":
 
     print("Starting script")
@@ -22,7 +27,7 @@ if __name__ == "__main__":
     set_seed(config.random_seed)
 
     # Load data
-    u, v, w, p, mask = load_data(config)
+    u, v, w, p, mask, config = load_data(config)
 
     # Prepare data
     uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, mask)
@@ -199,6 +204,7 @@ if __name__ == "__main__":
 
         # Predict and calculate boundary points
         bound_loss = compute_boundary_loss(config, model, xyz_boundary_batch)
+        bound_loss = torch.tensor(0.0).to(DEVICE) 
         
         # Total loss
         if config.training.grad_weight_scheme:
@@ -256,11 +262,10 @@ if __name__ == "__main__":
         # Compare with reference data
         if config.include_ref:
             if (it + 1) % config.training.error_iter == 0 or it == 0:
-                evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, mask_ref, mask_flat_ref, U_max)
+                metrics = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, mask_ref, mask_flat_ref, U_max)
                 plot_predictions_vs_reference(config, model, DEVICE, it+1, xyz_ref, 
                                             u, v, w, p, u_ref, v_ref, w_ref, p_ref, mask_ref, 
                                             mask_flat_ref, U_max)
-                
         # Save model at checkpoint
         if (it + 1) % config.training.summary_iter == 0:
             save_checkpoint(model, it+1, config)

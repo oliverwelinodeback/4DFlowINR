@@ -1,21 +1,21 @@
 import ml_collections
 from datetime import datetime
 
-def get_config():
+def get_config(sweep_config=None):
     
     """Get the default hyperparameter configuration."""
     config = ml_collections.ConfigDict()
 
     # Data
-    config.data_file = "../data/AoHealthy_noisy_2mm_n6.h5"
+    config.data_file = "../data/AoHealthy_noisy_2mm_n2.h5"
     config.include_ref = True
     config.data_file_ref = "../data/AoHealthy_ref_2mm.h5"
     config.ref_spatial_factor = 1
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250129_AoModel_SIREN"
-    config.network_name = "SIREN_1t"
+    networks_folder = "../models/250129_AoModel"
+    config.network_name = "FFN_1t"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
@@ -43,7 +43,7 @@ def get_config():
     config.setup = ml_collections.ConfigDict()
     config.setup.include_pressure = False
     config.setup.include_time = False
-    config.setup.fluid_region = True
+    config.setup.fluid_region = False
     config.setup.expand_mask = True
 
     # Collocation & Boundary points sampling
@@ -54,9 +54,9 @@ def get_config():
     config.boundary_repetitions = 1000
 
     # Normalization and constants
-    config.vel_normalization = "max_velocity" # max_velocity
+    config.vel_normalization = "max_velocity" # max_velocity, characteristic
     config.coords_characteristic = False
-    config.coords_normalization = "min_max" # min_max
+    config.coords_normalization = "min_max" # min_max, standardize
     config.constants = ml_collections.ConfigDict()
     config.constants.U = 1.0
     config.constants.L = 0.005
@@ -70,17 +70,17 @@ def get_config():
     config.network.out_dim = 3
     config.network.depth = 5
     config.network.hidden_features = 200
-    config.network.arch = "SIREN"
+    config.network.arch = "FFN"
     # SIREN parameters
     config.network.first_omega_0 = 30
     config.network.hidden_omega_0 = 30
     # Fourier Feature Encoding parameters
     config.network.fourier_mapping_size = 128
-    config.network.fourier_scale = 5.0
+    config.network.fourier_scale = 2.0
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 3000 # 300000
+    config.training.iterations = 1_000 # 300000
     config.training.data_points_per_batch = None # None to use all
     config.training.coll_points_per_batch = 20000 # None to use all
     config.training.boundary_points_per_batch = None # None to use all
@@ -115,13 +115,13 @@ def get_config():
     config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
-    config.training.summary_iter = 200
+    config.training.summary_iter = 500
     config.training.log_iter = 1
-    config.training.error_iter = 200
+    config.training.error_iter = 100
     config.training.denormalize = True
     # Plotting
     config.plot = ml_collections.ConfigDict()
-    config.plot.iter = 200
+    config.plot.iter = 100
     config.plot.gt = True
     config.plot.t_step = None
     config.plot.z_slice = 20
@@ -129,18 +129,18 @@ def get_config():
     config.plot.temporal_factor = 2
     config.plot.temp_upsampling_mode = 'extend'
     config.plot.spat_upsampling_mode = 'centered'
-    config.plot.fluid_region = True
+    config.plot.fluid_region = False
     config.plot.non_fluid_value = 0
     config.plot.expand_mask = True
     config.plot.denormalize = True
 
     # Prediction
     config.predictions = ml_collections.ConfigDict()
-    config.predictions.peak_flow_idx = 0
+    config.predictions.peak_flow_idx = 3
     config.predictions.predict_reference_data = True
     config.predictions.predict_SR_data = True
     config.predictions.compare_noisy_vs_ref = True
     config.predictions.denormalize = True
-    config.predictions.fluid_region = True
+    config.predictions.fluid_region = False
 
     return config

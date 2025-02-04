@@ -22,6 +22,28 @@ def mse_loss(uvw_data, uvw_pred, config):
 
     return mse_vel
 
+def cosine_loss(uvw_data, uvw_pred, config):
+    
+    u_pred, v_pred, w_pred = uvw_pred[..., 0]*config.U_max, uvw_pred[..., 1]*config.U_max, uvw_pred[..., 2]*config.U_max
+    u, v, w = uvw_data[..., 0]*config.U_max, uvw_data[..., 1]*config.U_max, uvw_data[..., 2]*config.U_max
+
+    Kv = torch.pi / config.constants.venc
+    cosine_u = 1 - torch.cos(Kv * (u_pred - u))
+    cosine_v = 1 - torch.cos(Kv * (v_pred - v))
+    cosine_w = 1 - torch.cos(Kv * (w_pred - w))
+
+    cosine_vel = torch.mean(config.training.u_weight*cosine_u + config.training.v_weight*cosine_v + config.training.w_weight*cosine_w)
+
+    if config.training.pressure_in_data_loss:
+        p_pred = uvw_pred[..., 3]
+        p = uvw_data[..., 3]
+
+        cosine_p = 1 - torch.cos(Kv * (p_pred - p))
+        
+        cosine_vel += config.training.p_weight*torch.mean(cosine_p)
+    
+    return cosine_vel
+
 def fluid_weighted_mse_loss(uvw_data, uvw_pred, mask, config):
     
     u_pred, v_pred, w_pred = uvw_pred[..., 0], uvw_pred[..., 1], uvw_pred[..., 2]
@@ -363,6 +385,14 @@ def compute_data_loss(config, model, xyz_data, uvw_data, mask):
             data_loss = mse_loss(uvw_pred, uvw_data, config)
         else:
             data_loss = fluid_weighted_mse_loss(uvw_pred, uvw_data, mask, config)
+    
+    elif config.training.use_cosine:
+        if config.setup.fluid_region:
+            data_loss = cosine_loss(uvw_pred, uvw_data, config)
+        else:
+            raise ValueError("No fluid_weighted_cosine_loss implemented yet.")
+            #TODO
+            # data_loss = fluid_weighted_cosine_loss(uvw_pred, uvw_data, mask, config)
     else:
         raise ValueError("No recognized data loss mode. Check config.training.use_mse or other flags.")
 
