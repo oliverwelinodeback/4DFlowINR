@@ -7,14 +7,15 @@ def get_config():
     config = ml_collections.ConfigDict()
 
     # Data
-    config.data_file = "../../data/data_05mm_incl_pressure/healthy-05mm3_t24_26_250120_TSNR12_x1.h5"
+    config.data_file = "../../data/data_05mm_incl_pressure/healthy-05mm3_dv_lowSNR_x1.h5"
     config.include_ref = True
+    config.include_ref_loss = True
     config.data_file_ref = "../../data/data_05mm_incl_pressure/healthy-05mm3.h5"
     config.ref_spatial_factor = 1
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250129_Testing"
+    networks_folder = "../models/250204_Testing"
     config.network_name = "SIREN_1t"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
@@ -24,12 +25,12 @@ def get_config():
     config.domain = ml_collections.ConfigDict()
     config.domain.t_start = 25
     config.domain.t_end = 126
-    config.domain.x_start = 120
-    config.domain.x_end = 201
-    config.domain.y_start = 0
-    config.domain.y_end = 57
-    config.domain.z_start = 19
-    config.domain.z_end = 69
+    config.domain.x_start = 2
+    config.domain.x_end = 140
+    config.domain.y_start = 8
+    config.domain.y_end = 102
+    config.domain.z_start = 90
+    config.domain.z_end = 200
 
     # Resolution
     config.resolution = ml_collections.ConfigDict()
@@ -49,13 +50,14 @@ def get_config():
     config.sample_collocation = True
     config.collocation_in_fluid = True
     config.collocation_points = 1500000
-    config.sample_boundary = True
+    config.sample_boundary = False
     config.boundary_repetitions = 1000
 
     # Normalization and constants
     config.vel_normalization = "characteristic" # max_velocity
     config.coords_characteristic = True 
     config.coords_normalization = "standardize" # min_max
+    config.global_normalization = True
     config.constants = ml_collections.ConfigDict()
     config.constants.U = 1.0
     config.constants.L = 0.005
@@ -92,7 +94,7 @@ def get_config():
     config.training.alpha = 0.9
     # Data loss options
     config.training.use_mse = True
-    config.training.use_vector_potential = False
+    config.training.use_vector_potential = True
     config.training.pressure_in_data_loss = False
     config.training.u_weight = 1.0
     config.training.v_weight = 1.0
@@ -106,14 +108,14 @@ def get_config():
     config.training.physics_weight = 1.0
     # Boundary loss options
     config.training.pressure_in_boundary_loss = False
-    config.training.use_boundary_mse = True
+    config.training.use_boundary_mse = False # True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
     config.training.summary_iter = 200
     config.training.log_iter = 1
     config.training.error_iter = 200
     config.training.denormalize = True
-    # Plotting
+    # Plottings
     config.plot = ml_collections.ConfigDict()
     config.plot.iter = 200
     config.plot.gt = True

@@ -1,10 +1,13 @@
 import numpy as np
 import h5py
 
-def standardize(data):
-    mean = np.mean(data)
-    std = np.std(data)
-    normalized_data = (data - mean) / std
+def standardize(data, mean=None, std=None):
+    if mean==None:
+        mean = np.mean(data)
+        std = np.std(data)
+        normalized_data = (data - mean) / std
+    else:
+        normalized_data = (data - mean) / std
     return normalized_data, mean, std
 
 def min_max_normalize(data):

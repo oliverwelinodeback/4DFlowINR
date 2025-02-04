@@ -3,9 +3,9 @@ import time
 import torch
 from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_boundary_loss, update_loss_weights
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
-from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
+from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import SIREN
-from configs.SIREN_1t_div import get_config
+from configs.SIREN_1t import get_config
 from torch.utils.tensorboard import SummaryWriter
 
 if __name__ == "__main__":
@@ -15,7 +15,7 @@ if __name__ == "__main__":
     config = get_config()
 
     # Store source files
-    copy_cource_code(config.log_dir, directory_to_backup= [".", "configs"])
+    #copy_cource_code(config.log_dir, directory_to_backup= [".", "configs"])
 
     # Set random seed
     set_seed(config.random_seed)
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # Load and prepare reference data
     if config.include_ref:
         u_ref, v_ref, w_ref, p_ref, mask_ref = load_ref_data(config)
-        xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, mask_ref)
+        uvw_data_ref, xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, mask_ref, U_max)
 
     # Expand mask
     if config.setup.expand_mask:
@@ -41,11 +41,12 @@ if __name__ == "__main__":
     if config.setup.fluid_region:
         uvw_train, xyz_train = extract_fluid_region(uvw_data, xyz_data, mask_flat)
         if config.include_ref:
-            xyz_ref = xyz_data_ref[mask_flat_ref==1]
+            uvw_ref, xyz_ref = extract_fluid_region(uvw_data_ref, xyz_data_ref, mask_flat_ref)
+
     else:
         uvw_train, xyz_train = uvw_data, xyz_data
         if config.include_ref:
-            xyz_ref = xyz_data_ref
+            uvw_ref, xyz_ref = uvw_data_ref, xyz_data_ref
 
     # Sample collocation points
     xyz_collocation = None
@@ -212,6 +213,16 @@ if __name__ == "__main__":
                 for param_group in Adam_optimizer.param_groups:
                     param_group['lr'] *= config.training.lr_decay_factor
 
+
+        if config.include_ref_loss:
+            # Sample random points and set to device
+            xyz_ref_batch, uvw_ref_batch, mask_ref_batch = sample_ref_to_device(config, xyz_ref, uvw_ref, mask_flat_ref, DEVICE)
+            if config.training.use_vector_potential:
+                xyz_ref_batch.requires_grad = True
+            ref_loss, _ = compute_data_loss(config, model, xyz_ref_batch, uvw_ref_batch, mask_ref_batch)
+        else:
+            ref_loss = torch.tensor(0.0)
+
         # Logging
         metrics = {
             "Loss/Train": total_loss.item(),
@@ -223,11 +234,12 @@ if __name__ == "__main__":
             "Loss/Physics_data": physics_loss_data.item(),
             "Loss/Momentum_data": momentum_loss_data.item(),
             "Loss/Divergence_data": div_loss_data.item(),
+            "Loss/Ref": ref_loss.item(),
         }
         for key, value in metrics.items():
             writer.add_scalar(key, value, it)
         if (it + 1) % config.training.log_iter == 0:
-            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, physics_loss={physics_loss.item():.4f}, time={round((time.time()-start_time)/60, 1)} min")
+            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f} , physics_loss={physics_loss.item():.4f}, time={round((time.time()-start_time)/60, 1)} min")
 
         # Plot current model predictions
         if (it + 1) % config.plot.iter == 0:

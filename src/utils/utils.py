@@ -121,6 +121,27 @@ def sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train
 
     return xyz_data_batch, uvw_data_batch, mask_batch, xyz_collocation_batch, xyz_boundary_batch
 
+
+def sample_ref_to_device(config, xyz_train, uvw_train, mask_flat, device):
+    
+    # Data / Fluid Points
+    if config.training.data_points_per_batch is not None:
+        data_indices = np.random.choice(len(xyz_train), size=config.training.data_points_per_batch, replace=False)
+        xyz_data_batch = xyz_train[data_indices]
+        uvw_data_batch = uvw_train[data_indices]
+        mask_batch = mask_flat[data_indices]
+    else:
+        xyz_data_batch = xyz_train
+        uvw_data_batch = uvw_train
+        mask_batch = mask_flat
+
+    xyz_data_batch = torch.from_numpy(xyz_data_batch).float().to(device)
+    uvw_data_batch = torch.from_numpy(uvw_data_batch).float().to(device)
+    mask_batch = torch.from_numpy(mask_batch).float().to(device)
+    mask_batch = mask_batch.view(-1, 1)
+
+    return xyz_data_batch, uvw_data_batch, mask_batch
+
 def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref, p_ref, mask_ref, mask_flat_ref, U_max):
 
     # Create directory
@@ -212,6 +233,7 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         rmse[t,3] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
         #rmse[t,4] = (calculate_rmse_pressure(p_pred[t], p_ref[t], mask_ref))
     
+        # New metrics
     print('Total avg')
     rel_err_tot = np.mean(rel_err, axis=0)
     print(f'Relative error [Fluid] {rel_err_tot[0]:.1f}')

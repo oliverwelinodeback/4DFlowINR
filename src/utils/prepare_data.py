@@ -151,9 +151,33 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
 
     standardization_factors = None
     if config.coords_normalization == "standardize":
-        x_normalized, mean_x, std_x = standardize(x)
-        y_normalized, mean_y, std_y = standardize(y)
-        z_normalized, mean_z, std_z = standardize(z)
+
+        if config.global_normalization:
+
+            ranges = [np.ptp(arr) for arr in (x, y, z)]
+            print(ranges)
+            idx_largest = np.argmax(ranges)
+
+            if idx_largest == 0:
+                ref_data = x
+            elif idx_largest == 1:
+                ref_data = y
+            else:
+                ref_data = z
+
+            # Compute global mean and std from the largest array:
+            global_mean = np.mean(ref_data)
+            global_std = np.std(ref_data)
+
+            # Standardize all coordinate arrays using the global factors:
+            x_normalized, mean_x, std_x = standardize(x, global_mean, global_std)
+            y_normalized, mean_y, std_y = standardize(y, global_mean, global_std)
+            z_normalized, mean_z, std_z = standardize(z, global_mean, global_std)
+
+        else:
+            x_normalized, mean_x, std_x = standardize(x)
+            y_normalized, mean_y, std_y = standardize(y)
+            z_normalized, mean_z, std_z = standardize(z)
 
         if config.setup.include_time:
             t_normalized, mean_t, std_t = standardize(t)
@@ -169,9 +193,27 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
             ]
 
     elif config.coords_normalization == "min_max":
-        x_normalized, min_x, max_x = min_max_normalize(x)
-        y_normalized, min_y, max_y = min_max_normalize(y)
-        z_normalized, min_z, max_z = min_max_normalize(z)
+
+        if config.global_normalization:
+            max_x, min_x = x.max(), x.min()
+            max_y, min_y = y.max(), y.min()
+            max_z, min_z = z.max(), z.min()
+            max_C = max(max_x, max_y, max_z)
+            min_C = min(min_x, min_y, min_z)
+
+            max_x, min_x = max_C, min_C
+            max_y, min_y = max_C, min_C
+            max_z, min_z = max_C, min_C
+
+        else:
+            x_normalized, min_x, max_x = min_max_normalize(x)
+            y_normalized, min_y, max_y = min_max_normalize(y)
+            z_normalized, min_z, max_z = min_max_normalize(z)
+
+        x_normalized = (x - min_x) / (max_x - min_x)
+        y_normalized = (y - min_y) / (max_y - min_y)
+        z_normalized = (z - min_z) / (max_z - min_z)
+
         if config.setup.include_time:
             t_normalized, min_t, max_t = min_max_normalize(t)
             standardization_factors = [
@@ -317,7 +359,7 @@ def prepare_data(config, u, v, w, p, mask):
 
     return uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max
 
-def prepare_ref_data(config, u, mask):
+def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, mask, U_max):
 
     # Prepare coordinates
     if config.setup.include_time:
@@ -354,7 +396,35 @@ def prepare_ref_data(config, u, mask):
         mask_flat = mask.ravel()
         boundary_mask_flat = boundary_mask.ravel()
 
-    return xyz_data, mask_flat, boundary_mask_flat
+    # Normalize velocity data
+    if config.vel_normalization == "characteristic":
+        U = config.constants.U
+        u_normalized = u_ref / U
+        v_normalized = v_ref / U
+        w_normalized = w_ref / U
+
+    elif config.vel_normalization == "max_velocity":
+        u_normalized = u_ref / U_max
+        v_normalized = v_ref / U_max
+        w_normalized = w_ref / U_max
+
+    # Flatten data into pointwise prediction
+    u_flat = u_normalized.ravel()   # T×h×w×d --> T*h*w*d = (29087100,)
+    v_flat = v_normalized.ravel()
+    w_flat = w_normalized.ravel()
+
+    velocities = [u_flat, v_flat, w_flat]
+
+    if config.setup.include_pressure:
+        rho, U = config.constants.rho, config.constants.U
+        p_normalized = p_ref / (rho*(U**2))
+        p_flat = p_normalized.reshape(-1)
+        velocities.append(p_flat)
+
+    # Ground truth data
+    uvw_data_ref = np.stack(velocities, axis=1) # (T*h*w*d, 4) = (29087100, 4)
+    
+    return uvw_data_ref, xyz_data, mask_flat, boundary_mask_flat
 
 def extract_fluid_region(uvw_data, xyz_data, mask_flat):
 
