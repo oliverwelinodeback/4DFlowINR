@@ -12,8 +12,11 @@ from utils.evaluation_utils import (
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, load_ref_data, prepare_ref_data
 from utils.utils import save_to_h5, h5_to_paraview
 from utils.preprocessing_utils import compute_outer_boundary_mask
-import SIREN
-from configs.SIREN_1t import get_config
+import networks
+from configs.FF_1t import get_config
+from utils.loss_utils import vector_potential_fn
+
+import h5py
 
 if __name__ == "__main__":
 
@@ -22,13 +25,17 @@ if __name__ == "__main__":
     config = get_config()
 
     # Path to stored weights
-    network_path = "../models/250115_Tests/SIREN_1t_20250115-1701/SIREN_1t_final.pth"
-    results_directory = "../results/250115_Tests_6/SIREN_1t_20250115-1701"
+    # network_path = "/proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/models/250129_AoModel/FFN_1t_20250130-1713/checkpoints/FFN_1t_it1000.pth"
+    # results_directory = "../results/250130_Tests/FFN_1t_1"
+
+    # network_path = "/proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/models/250131_00100833_HNCM_V150_sys/FFN_1t_20250131-1052/checkpoints/FFN_1t_it44000.pth"
+    network_path = "../models/250131_00100833_HNCM_V150_sys/FFN_1t_20250131-1717/FFN_1t_final.pth"
+    results_directory = "../results/250131_Tests/FFN_1t_00100833_HNCM"
     if not os.path.exists(results_directory):
         os.makedirs(results_directory)
 
     # Load data
-    u, v, w, p, mask = load_data(config)
+    u, v, w, p, mask, config = load_data(config)
 
     # Save noisy data truth to results directory
     #save_to_h5(f"{results_directory}/healthy-05mm3_LR_SNR5_x1.h5", "u", u*mask)
@@ -75,18 +82,40 @@ if __name__ == "__main__":
 
     # Initialize network
     DEVICE = torch.device('cuda')
-    model = SIREN.SIREN(
-        in_dim=config.network.in_dim,
-        out_dim=config.network.out_dim,
-        depth=config.network.depth,
-        hidden_features=config.network.hidden_features,
-        first_omega_0=config.network.first_omega_0,
-        hidden_omega_0=config.network.hidden_omega_0
-    ).to(DEVICE)
+    if config.network.arch == "SIREN":
+        model = networks.SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.first_omega_0,
+            hidden_omega_0=config.network.hidden_omega_0
+        ).to(DEVICE)
+    else:
+        model = networks.FFN(
+            input_dim=config.network.in_dim,
+            output_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_dim=config.network.hidden_features,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
+
+    # # Print model weights before loading
+    # print("Model weights before loading:")
+    # for name, param in model.named_parameters():
+    #     print(f"{name}: {param.data}")
 
     # Load trained model
     checkpoint = torch.load(network_path, map_location=DEVICE)
     model.load_state_dict(checkpoint['model_state_dict'])
+    if config.network.arch == "FFN":
+        model.fourier_encoder.B = checkpoint['fourier_B']
+
+    # # Print model weights after loading
+    # print("\nModel weights after loading:")
+    # for name, param in model.named_parameters():
+    #     print(f"{name}: {param.data}")
 
     # Predict and compare with reference data
     if config.predictions.predict_reference_data:
@@ -98,16 +127,22 @@ if __name__ == "__main__":
 
         # Predict reference coordinates
         model.eval()
-        with torch.no_grad():
-            xyz_ref = torch.from_numpy(xyz_ref).float().to(DEVICE)
-            uvw_pred = model(xyz_ref)  # shape (N_fluid, out_dim)
+        xyz_train = torch.from_numpy(xyz_train).float().to(DEVICE)
+        xyz_train.requires_grad = config.training.use_vector_potential
 
-        # Detach
-        uvw_pred = uvw_pred.cpu().numpy()
+        if config.training.use_vector_potential:
+            with torch.set_grad_enabled(True):
+                uvw_pred = model(xyz_train)
+                uvw_pred = vector_potential_fn(uvw_pred, xyz_train)
+                uvw_pred = uvw_pred.detach().cpu().numpy()
+        else:
+            with torch.no_grad():
+                uvw_pred = model(xyz_train)
+                uvw_pred = uvw_pred.cpu().numpy()
 
         if config.predictions.fluid_region:
-            fluid_indices = mask_flat_ref==1
-            uvw_pred_full = np.zeros(((len(mask_flat_ref), len(uvw_pred[0]))))
+            fluid_indices = mask_flat==1
+            uvw_pred_full = np.zeros(((len(mask_flat), len(uvw_pred[0]))))    
             uvw_pred_full[fluid_indices] = uvw_pred
             uvw_pred = uvw_pred_full
 
@@ -147,10 +182,17 @@ if __name__ == "__main__":
         w_pred = uvw_pred[:, :, :, :, 2]
         p_pred = uvw_pred[:, :, :, :, 3] if config.setup.include_pressure else None
 
+
         # Save ref predictions to results directory
         save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "u", u_pred)
         save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "v", v_pred)
         save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "w", w_pred)
+
+        with h5py.File(f"{results_directory}/pred.h5", 'w') as f:
+            f.create_dataset('u', data=u_pred)
+            f.create_dataset('v', data=v_pred)
+            f.create_dataset('w', data=w_pred)
+            f.create_dataset('mask', data=mask)
         #save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p", p_pred)
 
         # Get metrics
@@ -230,6 +272,7 @@ if __name__ == "__main__":
         print(f'R.M.S.   error Pressure [Fluid] {rmse_tot[4]:.4f}')
 
         print(' ')
+        print(peak_flow_idx, 'Peak')
         print(f'U [Fluid] k: {Ks[peak_flow_idx][0][0]:.4f} \t m: {Ms[peak_flow_idx][0][0]:.4f} \t r^2: {Rs[peak_flow_idx][0][0]:.4f}')
         print(f'  [Bound] k: {Ks[peak_flow_idx][0][1]:.4f} \t m: {Ms[peak_flow_idx][0][1]:.4f} \t r^2: {Rs[peak_flow_idx][0][1]:.4f}')
         print(f'  [Core] k: {Ks[peak_flow_idx][0][2]:.4f} \t m: {Ms[peak_flow_idx][0][2]:.4f} \t r^2: {Rs[peak_flow_idx][0][2]:.4f}')
@@ -358,14 +401,29 @@ if __name__ == "__main__":
         else:
             xyz_ups = xyz_ups_full  
         
-        # Predict fluid data poinst grid
-        model.eval()
-        with torch.no_grad():
-            xyz_ups = torch.from_numpy(xyz_ups).float().to(DEVICE)
-            uvw_pred_ups = model(xyz_ups)  # shape (N_fluid, out_dim)
+        # # Predict fluid data poinst grid
+        # model.eval()
+        # with torch.no_grad():
+        #     xyz_ups = torch.from_numpy(xyz_ups).float().to(DEVICE)
+        #     uvw_pred_ups = model(xyz_ups)  # shape (N_fluid, out_dim)
 
-        # Detach
-        uvw_pred_ups = uvw_pred_ups.cpu().numpy()
+        # # Detach
+        # uvw_pred_ups = uvw_pred_ups.cpu().numpy()
+
+        # Predict reference coordinates
+        model.eval()
+        xyz_ups = torch.from_numpy(xyz_ups).float().to(DEVICE)
+        xyz_ups.requires_grad = config.training.use_vector_potential
+
+        if config.training.use_vector_potential:
+            with torch.set_grad_enabled(True):
+                uvw_pred_ups = model(xyz_ups)
+                uvw_pred_ups = vector_potential_fn(uvw_pred_ups, xyz_ups)
+                uvw_pred_ups = uvw_pred_ups.detach().cpu().numpy()
+        else:
+            with torch.no_grad():
+                uvw_pred_ups = model(xyz_ups)
+                uvw_pred_ups = uvw_pred_ups.cpu().numpy()
 
         if config.plot.fluid_region:
             uvw_pred_full = np.zeros(((len(xyz_ups_full), len(uvw_pred_ups[0])))) + config.plot.non_fluid_value

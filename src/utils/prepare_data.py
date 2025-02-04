@@ -65,14 +65,14 @@ def load_data(config):
                     config.domain.z_start:config.domain.z_end]
         # h×w×d = (81, 57, 50)
 
-        # if config.resolution.from_file:
+        if config.resolution.from_file:
+            config.resolution.dx = hf.attrs['spacing'][0]
+            config.resolution.dy = hf.attrs['spacing'][1]
+            config.resolution.dz = hf.attrs['spacing'][2]
+            config.resolution.dt = hf.attrs['dt']
+            print(f"Loaded resolution from file: {config.resolution.dx}, {config.resolution.dy}, {config.resolution.dz}, {config.resolution.dt}")	
 
-        #     config.resolution.dx = dx
-        #     config.resolution.dy = dy
-        #     config.resolution.dz = dz
-        #     config.resolution.dt = dt
-
-    return u, v, w, p, mask
+    return u, v, w, p, mask, config
 
 def load_ref_data(config):
     

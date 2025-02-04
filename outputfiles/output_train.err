@@ -1,0 +1,13 @@
+wandb: Agent Starting Run: lq4yniz9 with config:
+wandb: 	fourier_scale: 0.06107892444840147
+wandb: 	sweep: True
+wandb: Currently logged in as: javierbz to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Ignoring project 'SRFlowNIR' when running a sweep.
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Tracking run with wandb version 0.19.5
+wandb: Run data is saved locally in /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/src/wandb/run-20250204_152755-lq4yniz9
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run genial-sweep-1
+wandb: ⭐️ View project at https://wandb.ai/javierbz/SRFlowNIR
+wandb: 🧹 View sweep at https://wandb.ai/javierbz/SRFlowNIR/sweeps/2qjdvnxm
+wandb: 🚀 View run at https://wandb.ai/javierbz/SRFlowNIR/runs/lq4yniz9

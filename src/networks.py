@@ -76,7 +76,9 @@ class FFN(nn.Module):
     """
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, 
                  fourier_mapping_size: int, depth: int, scale: float = 1.0, bias: bool = True):
-        super().__init__()
+        # super().__init__()
+
+        super(FFN, self).__init__()
 
         # Fourier Encoding
         self.fourier_encoder = FourierFeatureEncoding(input_dim, fourier_mapping_size,scale=scale)

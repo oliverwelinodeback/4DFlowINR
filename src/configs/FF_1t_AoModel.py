@@ -1,21 +1,22 @@
 import ml_collections
 from datetime import datetime
 
-def get_config():
+def get_config(sweep_config=None):
     
     """Get the default hyperparameter configuration."""
     config = ml_collections.ConfigDict()
 
+    config.sweep = False
     # Data
-    config.data_file = "../data/AoHealthy_noisy_2mm_n6.h5"
+    config.data_file = "../data/AoHealthy_noisy_2mm_n2.h5"
     config.include_ref = True
     config.data_file_ref = "../data/AoHealthy_ref_2mm.h5"
     config.ref_spatial_factor = 1
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250129_AoModel_SIREN"
-    config.network_name = "SIREN_1t"
+    networks_folder = "../models/250202_Aomodel_n2"
+    config.network_name = "FFN_1t"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
@@ -49,20 +50,21 @@ def get_config():
     # Collocation & Boundary points sampling
     config.sample_collocation = True
     config.collocation_in_fluid = True
-    config.collocation_points = 1500000
-    config.sample_boundary = True
+    config.collocation_points = 500_000
+    config.sample_boundary = False
     config.boundary_repetitions = 1000
 
     # Normalization and constants
-    config.vel_normalization = "max_velocity" # max_velocity
+    config.vel_normalization = "max_velocity" # max_velocity, characteristic
     config.coords_characteristic = False
-    config.coords_normalization = "min_max" # min_max
+    config.coords_normalization = "min_max" # min_max, standardize
     config.constants = ml_collections.ConfigDict()
     config.constants.U = 1.0
     config.constants.L = 0.005
     config.constants.T = 0.005
     config.constants.rho = 1060
     config.constants.mu = 0.004
+    config.constants.venc = 3.5
 
     # Network architecture
     config.network = ml_collections.ConfigDict()
@@ -70,25 +72,25 @@ def get_config():
     config.network.out_dim = 3
     config.network.depth = 5
     config.network.hidden_features = 200
-    config.network.arch = "SIREN"
+    config.network.arch = "FFN"
     # SIREN parameters
     config.network.first_omega_0 = 30
     config.network.hidden_omega_0 = 30
     # Fourier Feature Encoding parameters
     config.network.fourier_mapping_size = 128
-    config.network.fourier_scale = 5.0
+    config.network.fourier_scale = 1.0
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 3000 # 300000
+    config.training.iterations = 20_000 # 300000
     config.training.data_points_per_batch = None # None to use all
-    config.training.coll_points_per_batch = 20000 # None to use all
+    config.training.coll_points_per_batch = None # None to use all
     config.training.boundary_points_per_batch = None # None to use all
     config.training.alpha = 0.9
     # Optimizer
-    config.training.lr = 1e-4
-    config.training.lr_decay_iter = 50000
-    config.training.lr_decay_factor = 0.5
+    config.training.lr = 5e-3
+    config.training.lr_decay_iter = 1000
+    config.training.lr_decay_factor = 0.75
     config.training.use_LBFGS = False
     config.training.BFGS_lr = 1e-1
     config.training.iterations_before_BFGS = 600
@@ -98,6 +100,7 @@ def get_config():
     config.training.alpha = 0.9
     # Data loss options
     config.training.use_mse = True
+    config.training.use_cosine = False
     config.training.use_vector_potential = True
     config.training.pressure_in_data_loss = False
     config.training.u_weight = 1.0
@@ -105,28 +108,28 @@ def get_config():
     config.training.w_weight = 1.0
     config.training.p_weight = 0.01
     # Physics loss options
-    config.training.use_physics_loss = False
+    config.training.use_physics_loss = True
     config.training.physics_loss_on_data_points = False
     config.training.use_navier_stokes = False
-    config.training.use_divergence = False
+    config.training.use_divergence = True
     config.training.physics_weight = 1.0
     # Boundary loss options
     config.training.pressure_in_boundary_loss = False
     config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
-    config.training.summary_iter = 200
-    config.training.log_iter = 1
-    config.training.error_iter = 200
+    config.training.summary_iter = 500
+    config.training.log_iter = 10
+    config.training.error_iter = 250
     config.training.denormalize = True
     # Plotting
     config.plot = ml_collections.ConfigDict()
-    config.plot.iter = 200
+    config.plot.iter = 500
     config.plot.gt = True
     config.plot.t_step = None
-    config.plot.z_slice = 20
-    config.plot.spatial_factor = 2
-    config.plot.temporal_factor = 2
+    config.plot.z_slice = 26
+    config.plot.spatial_factor = 1
+    config.plot.temporal_factor = 1
     config.plot.temp_upsampling_mode = 'extend'
     config.plot.spat_upsampling_mode = 'centered'
     config.plot.fluid_region = True
