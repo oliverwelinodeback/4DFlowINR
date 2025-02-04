@@ -1,66 +1,13 @@
-wandb: Agent Starting Run: 4h19qass with config:
-wandb: 	fourier_scale: 5.421904487128413
+wandb: Agent Starting Run: lq4yniz9 with config:
+wandb: 	fourier_scale: 0.06107892444840147
 wandb: 	sweep: True
 wandb: Currently logged in as: javierbz to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
 wandb: WARNING Ignoring project 'SRFlowNIR' when running a sweep.
 wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
 wandb: Tracking run with wandb version 0.19.5
-wandb: Run data is saved locally in /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/src/wandb/run-20250204_144838-4h19qass
+wandb: Run data is saved locally in /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/src/wandb/run-20250204_152755-lq4yniz9
 wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run glad-sweep-86
+wandb: Syncing run genial-sweep-1
 wandb: ⭐️ View project at https://wandb.ai/javierbz/SRFlowNIR
-wandb: 🧹 View sweep at https://wandb.ai/javierbz/SRFlowNIR/sweeps/t5vaszp0
-wandb: 🚀 View run at https://wandb.ai/javierbz/SRFlowNIR/runs/4h19qass
-wandb:                                                                                
-wandb: 
-wandb: Run history:
-wandb:     Directional error [Fluid] ██▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:     Directional error [Noisy] ▁
-wandb:            Divergence [Noisy] ▁
-wandb: Divergence prediction [Fluid] ▁▇▇▇▇███████████████████████████████████
-wandb:  Divergence reference [Fluid] ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:                 Loss/Boundary ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:                     Loss/Data █▆▃▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:               Loss/Divergence █▁▄▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:          Loss/Divergence_data ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:                 Loss/Momentum ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:            Loss/Momentum_data ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:                  Loss/Physics █▅▁▁▁▁▃▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:             Loss/Physics_data ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:                    Loss/Train █▄▁▁▁▂▂▁▂▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:                VNRMSE [Fluid] █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:                VNRMSE [Noisy] ▁
-wandb: 
-wandb: Run summary:
-wandb:     Directional error [Fluid] 0.00517
-wandb:     Directional error [Noisy] 0.00518
-wandb:            Divergence [Noisy] 0.06247
-wandb: Divergence prediction [Fluid] 0.06248
-wandb:  Divergence reference [Fluid] 0.05241
-wandb:                 Loss/Boundary 0
-wandb:                     Loss/Data 0.0
-wandb:               Loss/Divergence 0.0
-wandb:          Loss/Divergence_data 0
-wandb:                 Loss/Momentum 0
-wandb:            Loss/Momentum_data 0
-wandb:                  Loss/Physics 0.0
-wandb:             Loss/Physics_data 0
-wandb:                    Loss/Train 0.0
-wandb:                VNRMSE [Fluid] 0.01768
-wandb:                VNRMSE [Noisy] 0.01767
-wandb: 
-wandb: 🚀 View run sweepy-sweep-85 at: https://wandb.ai/javierbz/SRFlowNIR/runs/h0m9wyp2
-wandb: ⭐️ View project at: https://wandb.ai/javierbz/SRFlowNIR
-wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
-wandb: Find logs at: ./wandb/run-20250204_144439-h0m9wyp2/logs
-wandb: Agent Starting Run: q4cfxg7i with config:
-wandb: 	fourier_scale: 5.538880735881621
-wandb: 	sweep: True
-wandb: WARNING Ignoring project 'SRFlowNIR' when running a sweep.
-wandb: Tracking run with wandb version 0.19.5
-wandb: Run data is saved locally in /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/src/wandb/run-20250204_145624-q4cfxg7i
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run absurd-sweep-87
-wandb: ⭐️ View project at https://wandb.ai/javierbz/SRFlowNIR
-wandb: 🧹 View sweep at https://wandb.ai/javierbz/SRFlowNIR/sweeps/t5vaszp0
-wandb: 🚀 View run at https://wandb.ai/javierbz/SRFlowNIR/runs/q4cfxg7i
+wandb: 🧹 View sweep at https://wandb.ai/javierbz/SRFlowNIR/sweeps/2qjdvnxm
+wandb: 🚀 View run at https://wandb.ai/javierbz/SRFlowNIR/runs/lq4yniz9

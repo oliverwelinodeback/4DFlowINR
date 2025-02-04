@@ -350,7 +350,6 @@ if __name__ == "__main__":
             }
         }
         sweep_id = wandb.sweep(sweep=sweep_configuration, project="SRFlowNIR")
-        sweep_id = "t5vaszp0"
         wandb.agent(sweep_id, function=lambda: train(use_sweep=True),count=100)
     else:
         config = get_config()
