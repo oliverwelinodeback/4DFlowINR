@@ -13,7 +13,7 @@ class FF_SIREN(nn.Module):
         encoded_dim = fourier_mapping_size * 2
 
         self.net = []
-        self.net.append(SineLayer(in_dim, hidden_features, is_first=True, omega_0=first_omega_0))
+        self.net.append(SineLayer(encoded_dim, hidden_features, is_first=True, omega_0=first_omega_0))
         
         for i in range(depth):
             self.net.append(SineLayer(hidden_features, hidden_features, is_first=False, omega_0=hidden_omega_0))

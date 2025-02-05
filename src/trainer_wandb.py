@@ -6,17 +6,9 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.FF_1t_AoModel import get_config
+from configs.Config_1t_1x_healthy_lowSNR import get_config
 from torch.utils.tensorboard import SummaryWriter
-
-from utils.evaluation_utils import (
-    calculate_divergence,
-    calculate_directional_error,
-    calculate_vnrmse,
-    )
-
 import numpy as np
-import ml_collections
 
 def train(config=None, run_name=None,use_sweep=False):
 
@@ -38,8 +30,9 @@ def train(config=None, run_name=None,use_sweep=False):
         
     if use_sweep:
         training_config = get_config()
+        
         # Sweep overrides:
-        training_config.network.fourier_scale = config.fourier_scale
+        training_config.network.arch = config.network_arch
         config = training_config
 
 
@@ -67,8 +60,8 @@ def train(config=None, run_name=None,use_sweep=False):
     # Expand mask
     if config.setup.expand_mask:
         mask_flat = mask_flat + boundary_mask_flat
-        ## if config.include_ref: # Don't expand reference mask
-        ##     mask_flat_ref = mask_flat_ref + boundary_mask_flat_ref
+        if config.include_ref: # Don't expand reference mask
+            mask_flat_ref = mask_flat_ref.astype(np.uint8)
 
     # Include fluid region data
     if config.setup.fluid_region:
@@ -100,8 +93,8 @@ def train(config=None, run_name=None,use_sweep=False):
             out_dim=config.network.out_dim,
             depth=config.network.depth,
             hidden_features=config.network.hidden_features,
-            first_omega_0=config.network.first_omega_0,
-            hidden_omega_0=config.network.hidden_omega_0
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0
         ).to(DEVICE)
     elif config.network.arch == "FF_SIREN":
         model = networks.FF_SIREN(
@@ -109,8 +102,8 @@ def train(config=None, run_name=None,use_sweep=False):
             out_dim=config.network.out_dim,
             depth=config.network.depth,
             hidden_features=config.network.hidden_features,
-            first_omega_0=config.network.first_omega_0,
-            hidden_omega_0=config.network.hidden_omega_0,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
             fourier_mapping_size=config.network.fourier_mapping_size,
             scale=config.network.fourier_scale
         ).to(DEVICE)
@@ -295,7 +288,7 @@ def train(config=None, run_name=None,use_sweep=False):
         for key, value in metrics.items():
             writer.add_scalar(key, value, it)
         if (it + 1) % config.training.log_iter == 0:
-            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, physics_loss={physics_loss.item():.4E}, it_time={round((time.time()-it_start_time)/config.training.log_iter, 5)} s total_time={round((time.time()-start_time)/60, 1)} min")
+            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f}, physics_loss={physics_loss.item():.4E}, it_time={round((time.time()-it_start_time)/config.training.log_iter, 5)} s total_time={round((time.time()-start_time)/60, 1)} min")
 
             wandb.log({
                 "Loss/Train": total_loss.item(),
@@ -346,16 +339,12 @@ if __name__ == "__main__":
     if sweep:
         # Define sweep configuration
         sweep_configuration = {
-            'method': 'random',
-            'metric': {'name': 'VNRMSE [Fluid]', 'goal': 'minimize'},
-            'parameters': {
-                'fourier_scale': {
-                    'distribution': 'uniform',
-                    'min': 0.01,
-                    'max': 1.0
-                },
-                "sweep": {"value": True}
-            
+            'method': 'grid', #
+            'metric': {'name': 'Loss/Ref', 'goal': 'minimize'},
+            'parameters': { 
+                'network_arch': {
+                    'values': ['FF_SIREN', 'FFN']
+                }            
             }
         }
         sweep_id = wandb.sweep(sweep=sweep_configuration, project="SRFlowNIR")
