@@ -8,7 +8,9 @@ from scipy.ndimage import zoom
 from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract_fluid_region, compute_outer_boundary_mask
 from utils.evaluation_utils import (
     create_boundary_and_core_masks, calculate_relative_error, calculate_absolute_error, 
-    calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure, linreg)
+    calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure, linreg,
+    calculate_divergence, calculate_directional_error, calculate_vnrmse,
+    )
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, load_ref_data, prepare_ref_data
 from utils.utils import save_to_h5, h5_to_paraview
 from utils.preprocessing_utils import compute_outer_boundary_mask
@@ -217,6 +219,10 @@ if __name__ == "__main__":
         abs_err = np.zeros((T,5))
         rmse = np.zeros((T,5))
 
+        vnrmse = np.zeros((T,4))
+        d_error = np.zeros((T,4))
+        div_err = np.zeros((T,4))
+
         Ks = np.zeros((T,3,3))
         Ms = np.zeros((T,3,3))
         Rs = np.zeros((T,3,3))
@@ -237,6 +243,21 @@ if __name__ == "__main__":
             rmse[t,2] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
             rmse[t,3] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
             #rmse[t,4] = (calculate_rmse_pressure(p_pred[t], p_ref[t], mask_ref))
+
+            vnrmse[t,0] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+            vnrmse[t,1] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+            vnrmse[t,2] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+            vnrmse[t,3] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            d_error[t,0] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+            d_error[t,1] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+            d_error[t,2] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+            d_error[t,3] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            div_err[t,0] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
+            div_err[t,1] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
+            div_err[t,2] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
+            div_err[t,3] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
 
             Ks[t][0][0], Ms[t][0][0], Rs[t][0][0] = linreg(u_pred[t], u_ref[t], mask_ref)
             Ks[t][1][0], Ms[t][1][0], Rs[t][1][0] = linreg(v_pred[t], v_ref[t], mask_ref)
@@ -318,6 +339,21 @@ if __name__ == "__main__":
             'R.M.S. error [Bound] Peak': rmse[peak_flow_idx][1],
             'R.M.S. error [Core] Peak': rmse[peak_flow_idx][2],
             'R.M.S. error [Non-F] Peak': rmse[peak_flow_idx][3],
+
+            'VNRMSE [Fluid]': vnrmse[0,0],
+            'VNRMSE [Bound]': vnrmse[0,1],
+            'VNRMSE [Core]': vnrmse[0,2],
+            'VNRMSE [Non-F]': vnrmse[0,3],
+
+            'Directional error [Fluid]': d_error[0,0],
+            'Directional error [Bound]': d_error[0,1],
+            'Directional error [Core]': d_error[0,2],
+            'Directional error [Non-F]': d_error[0,3],
+
+            'Divergence prediction [Fluid]': div_err[0,0],
+            'Divergence prediction [Bound]': div_err[0,1],
+            'Divergence prediction [Core]': div_err[0,2],
+            'Divergence prediction [Non-F]': div_err[0,3],
 
             'U [Fluid] k': Ks[peak_flow_idx][0][0],
             'U [Bound] k': Ks[peak_flow_idx][0][1],
@@ -504,6 +540,10 @@ if __name__ == "__main__":
         abs_err = np.zeros((T,5))
         rmse = np.zeros((T,5))
 
+        vnrmse = np.zeros((T,4))
+        d_error = np.zeros((T,4))
+        div_err = np.zeros((T,4))
+
         Ks = np.zeros((T,3,3))
         Ms = np.zeros((T,3,3))
         Rs = np.zeros((T,3,3))
@@ -524,6 +564,21 @@ if __name__ == "__main__":
             rmse[t,2] = (calculate_rmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
             rmse[t,3] = (calculate_rmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
             # rmse[t,4] = (calculate_rmse_pressure(p[t], p_ref[t], mask_ref))
+
+            vnrmse[t,0] = (calculate_vnrmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+            vnrmse[t,1] = (calculate_vnrmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+            vnrmse[t,2] = (calculate_vnrmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+            vnrmse[t,3] = (calculate_vnrmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            d_error[t,0] = (calculate_directional_error(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+            d_error[t,1] = (calculate_directional_error(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+            d_error[t,2] = (calculate_directional_error(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+            d_error[t,3] = (calculate_directional_error(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            div_err[t,0] = (calculate_divergence([u[t], v[t], w[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
+            div_err[t,1] = (calculate_divergence([u[t], v[t], w[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
+            div_err[t,2] = (calculate_divergence([u[t], v[t], w[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
+            div_err[t,3] = (calculate_divergence([u[t], v[t], w[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
 
             Ks[t][0][0], Ms[t][0][0], Rs[t][0][0] = linreg(u[t], u_ref[t], mask_ref)
             Ks[t][1][0], Ms[t][1][0], Rs[t][1][0] = linreg(v[t], v_ref[t], mask_ref)
@@ -590,6 +645,21 @@ if __name__ == "__main__":
             'R.M.S. error [Core]': rmse_tot[2],
             'R.M.S. error [Non-F]': rmse_tot[3],
             # 'R.M.S. error Pressure [Fluid]': rmse_tot[4],
+
+            'VNRMSE [Fluid]': vnrmse[0,0],
+            'VNRMSE [Bound]': vnrmse[0,1],
+            'VNRMSE [Core]': vnrmse[0,2],
+            'VNRMSE [Non-F]': vnrmse[0,3],
+
+            'Directional error [Fluid]': d_error[0,0],
+            'Directional error [Bound]': d_error[0,1],
+            'Directional error [Core]': d_error[0,2],
+            'Directional error [Non-F]': d_error[0,3],
+
+            'Divergence prediction [Fluid]': div_err[0,0],
+            'Divergence prediction [Bound]': div_err[0,1],
+            'Divergence prediction [Core]': div_err[0,2],
+            'Divergence prediction [Non-F]': div_err[0,3],
 
             'PEAK FLOW INDEX:': peak_flow_idx,
             'Relative error [Fluid] Peak': rel_err[peak_flow_idx][0],
