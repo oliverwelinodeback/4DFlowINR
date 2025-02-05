@@ -64,7 +64,6 @@ def train(config=None, run_name=None,use_sweep=False):
         u_ref, v_ref, w_ref, p_ref, mask_ref = load_ref_data(config)
         uvw_data_ref, xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, mask_ref, U_max)
 
-
     # Expand mask
     if config.setup.expand_mask:
         mask_flat = mask_flat + boundary_mask_flat
@@ -104,7 +103,18 @@ def train(config=None, run_name=None,use_sweep=False):
             first_omega_0=config.network.first_omega_0,
             hidden_omega_0=config.network.hidden_omega_0
         ).to(DEVICE)
-    else:
+    elif config.network.arch == "FF_SIREN":
+        model = networks.FF_SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.first_omega_0,
+            hidden_omega_0=config.network.hidden_omega_0,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
+    elif config.network.arch == "FFN":
         model = networks.FFN(
             input_dim=config.network.in_dim,
             output_dim=config.network.out_dim,
@@ -113,6 +123,8 @@ def train(config=None, run_name=None,use_sweep=False):
             fourier_mapping_size=config.network.fourier_mapping_size,
             scale=config.network.fourier_scale
         ).to(DEVICE)
+    else:
+        raise ValueError("Unknown network.")
 
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config.training.lr)

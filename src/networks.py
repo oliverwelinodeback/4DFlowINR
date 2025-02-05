@@ -2,6 +2,40 @@ import torch.nn as nn
 import torch
 import numpy as np
 
+class FF_SIREN(nn.Module):
+    def __init__(self, in_dim=4, out_dim=4, depth=6, hidden_features=128, first_omega_0=30, hidden_omega_0=30, 
+                 outermost_linear=True, fourier_mapping_size=128, scale = 1.0):
+
+        super(FF_SIREN, self).__init__()
+
+        # Fourier Encoding
+        self.fourier_encoder = FourierFeatureEncoding(in_dim, fourier_mapping_size,scale=scale)
+        encoded_dim = fourier_mapping_size * 2
+
+        self.net = []
+        self.net.append(SineLayer(in_dim, hidden_features, is_first=True, omega_0=first_omega_0))
+        
+        for i in range(depth):
+            self.net.append(SineLayer(hidden_features, hidden_features, is_first=False, omega_0=hidden_omega_0))
+
+        if outermost_linear:
+            final_linear = nn.Linear(hidden_features, out_dim)
+            
+            with torch.no_grad():
+                final_linear.weight.uniform_(-np.sqrt(6 / hidden_features) / hidden_omega_0, 
+                                            np.sqrt(6 / hidden_features) / hidden_omega_0)
+                
+            self.net.append(final_linear)
+        else:
+            self.net.append(SineLayer(hidden_features, out_dim, 
+                                    is_first=False, omega_0=hidden_omega_0))
+        
+        self.net = nn.Sequential(*self.net)
+
+    def forward(self, x):
+        x_enc = self.fourier_encoder(x)
+        output = self.net(x_enc)
+        return output 
 
 class SIREN(nn.Module):
     def __init__(self, in_dim=4, out_dim=4, depth=6, hidden_features=128, first_omega_0=30, hidden_omega_0=30, outermost_linear=True):

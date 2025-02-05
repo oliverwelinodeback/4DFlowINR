@@ -162,7 +162,6 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
         if config.global_normalization:
 
             ranges = [np.ptp(arr) for arr in (x, y, z)]
-            print(ranges)
             idx_largest = np.argmax(ranges)
 
             if idx_largest == 0:
