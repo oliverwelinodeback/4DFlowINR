@@ -253,6 +253,18 @@ def linreg(sr, hr, mask):
     reg = stats.linregress(hr_vals, sr_vals)
     return reg.slope, reg.intercept, reg.rvalue**2
 
+def calculate_divergence(f,h, mask=None):
+      """
+      Computes the divergence of the vector field f, corresponding to dFx/dx + dFy/dy + ...
+      :param f: List of ndarrays, where every item of the list is one dimension of the vector field
+      :return: Single ndarray ,of the same shape as each of the items in f, which corresponds to a scalar field
+      """
+      num_dims = len(f)
+    #   div =  np.ufunc.reduce(np.add, [np.gradient(f[i], h[i], axis=i) for i in range(num_dims)])
+      div =  np.ufunc.reduce(np.add, [np.gradient(f[i], axis=i) for i in range(num_dims)])
+      mean_div = np.sum(np.abs(div)*mask) / (np.sum(mask) + 1) if mask is not None else np.mean(div)
+      return mean_div
+
 def calculate_gradient_absolute_error(px_pred, py_pred, pz_pred, px_ref, py_ref, pz_ref, mask):
     diff_x = px_pred - px_ref
     diff_y = py_pred - py_ref
