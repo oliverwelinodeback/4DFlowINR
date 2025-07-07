@@ -488,7 +488,7 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
     metrics_filename = f"{directory}/metrics.csv"
     metrics_df.to_csv(metrics_filename, index=False)
 
-    return 
+    return metrics
 
 def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr, w_lr, p_lr, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors):
 

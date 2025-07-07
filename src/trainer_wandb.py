@@ -8,8 +8,10 @@ from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sam
 import networks
 from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
-def train(config, run_name=None):
+
+def train(config=None, run_name=None, use_sweep=False):
 
     print("Starting script")
 
@@ -90,14 +92,24 @@ def train(config, run_name=None):
 
     # Initialize network
     DEVICE = torch.device('cuda')
-    model = SIREN.SIREN(
-        in_dim=config.network.in_dim,
-        out_dim=config.network.out_dim,
-        depth=config.network.depth,
-        hidden_features=config.network.hidden_features,
-        first_omega_0=config.network.first_omega_0,
-        hidden_omega_0=config.network.hidden_omega_0
-    ).to(DEVICE)
+    if config.network.arch == "SIREN":
+        model = networks.SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0
+        ).to(DEVICE)
+    else:
+        model = networks.FFN(
+            input_dim=config.network.in_dim,
+            output_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_dim=config.network.hidden_features,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
 
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config.training.lr)
@@ -274,7 +286,7 @@ def train(config, run_name=None):
         for key, value in metrics.items():
             writer.add_scalar(key, value, it)
         if (it + 1) % config.training.log_iter == 0:
-            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f}, physics_loss={physics_loss.item():.4E}, it_time={round((time.time()-it_start_time)/config.training.log_iter, 5)} s total_time={round((time.time()-start_time)/60, 1)} min")
+            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f}, physics_loss={physics_loss.item():.4E}, it_time={round((time.time()-start_epoch)/config.training.log_iter, 5)} s total_time={round((time.time()-start_time)/60, 1)} min")
 
             wandb.log({
                 "Loss/Train": total_loss.item(),
