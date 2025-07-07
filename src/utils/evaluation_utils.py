@@ -186,9 +186,7 @@ def calculate_absolute_error(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, mask=None
 
 def calculate_absolute_error_pressure(p_pred, p_hi, mask=None):
     p_diff = np.square(p_pred - p_hi)
-
     diff_speed = np.sqrt(p_diff)
-
     abs_err = np.sum(diff_speed*mask) / (np.sum(mask) + 1) if mask is not None else np.mean(diff_speed)
     return abs_err
 
@@ -254,3 +252,33 @@ def linreg(sr, hr, mask):
     sr_vals = sr[mask > 0.5]
     reg = stats.linregress(hr_vals, sr_vals)
     return reg.slope, reg.intercept, reg.rvalue**2
+
+def calculate_gradient_absolute_error(px_pred, py_pred, pz_pred, px_ref, py_ref, pz_ref, mask):
+    diff_x = px_pred - px_ref
+    diff_y = py_pred - py_ref
+    diff_z = pz_pred - pz_ref
+    mag = np.sqrt(diff_x**2 + diff_y**2 + diff_z**2)
+    return np.mean(mag[mask==1])
+
+def calculate_gradient_relative_error(px_pred, py_pred, pz_pred, px_ref, py_ref, pz_ref, mask, eps=1e-6):
+    error_mag = np.sqrt((px_pred - px_ref)**2 + (py_pred - py_ref)**2 + (pz_pred - pz_ref)**2)
+    ref_mag = np.sqrt(px_ref**2 + py_ref**2 + pz_ref**2)
+    rel = error_mag / (ref_mag + eps)
+    return np.mean(rel[mask==1])
+
+def calculate_gradient_directional_error(px_pred, py_pred, pz_pred, px_ref, py_ref, pz_ref, mask):
+    pred_vec = np.stack([px_pred, py_pred, pz_pred], axis=-1)
+    ref_vec = np.stack([px_ref, py_ref, pz_ref], axis=-1)
+    dot = np.sum(pred_vec * ref_vec, axis=-1)
+    pred_norm = np.linalg.norm(pred_vec, axis=-1)
+    ref_norm = np.linalg.norm(ref_vec, axis=-1)
+    cos_theta = np.clip(dot / (pred_norm * ref_norm + 1e-6), -1.0, 1.0)
+    angle = np.arccos(cos_theta)  # radians
+    return np.degrees(np.mean(angle[mask==1]))
+
+def calculate_gradient_nrmse(px_pred, py_pred, pz_pred, px_ref, py_ref, pz_ref, mask):
+    pred_mag = np.sqrt(px_pred**2 + py_pred**2 + pz_pred**2)
+    ref_mag = np.sqrt(px_ref**2 + py_ref**2 + pz_ref**2)
+    mse = np.mean(((pred_mag - ref_mag)**2)[mask==1])
+    nrmse = np.sqrt(mse) / (np.max(ref_mag[mask==1]) + 1e-6)
+    return nrmse

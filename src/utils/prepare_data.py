@@ -32,6 +32,28 @@ def load_data(config):
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
                                 ) if config.setup.include_pressure else None
+
+            px = np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
+                                config.domain.x_start:config.domain.x_end, 
+                                config.domain.y_start:config.domain.y_end, 
+                                config.domain.z_start:config.domain.z_end]
+                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+
+            py = np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
+                                config.domain.x_start:config.domain.x_end, 
+                                config.domain.y_start:config.domain.y_end, 
+                                config.domain.z_start:config.domain.z_end]
+                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+
+            pz = np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
+                                config.domain.x_start:config.domain.x_end, 
+                                config.domain.y_start:config.domain.y_end, 
+                                config.domain.z_start:config.domain.z_end]
+                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+
+            #px *= 1000 # Pa /mm --> Pa /m
+            #py *= 1000
+            #pz *= 1000
         else:
             t_index = config.domain.t_start
 
@@ -54,6 +76,8 @@ def load_data(config):
                                 config.domain.z_start:config.domain.z_end]
                                 ) if config.setup.include_pressure else None
 
+            ## TODO - fix pressure gradients loading
+            
         # T×h×w×d = (126, 81, 57, 50)
 
         mask = np.asarray(hf['mask'])
@@ -65,7 +89,14 @@ def load_data(config):
                     config.domain.z_start:config.domain.z_end]
         # h×w×d = (81, 57, 50)
 
-    return u, v, w, p, mask
+        if config.resolution.from_file:
+            config.resolution.dx = hf.attrs['spacing'][0]
+            config.resolution.dy = hf.attrs['spacing'][1]
+            config.resolution.dz = hf.attrs['spacing'][2]
+            config.resolution.dt = hf.attrs['dt']
+            print(f"Loaded resolution from file: {config.resolution.dx}, {config.resolution.dy}, {config.resolution.dz}, {config.resolution.dt}")	
+
+    return u, v, w, p, px, py, pz, mask, config
 
 def load_ref_data(config):
     
@@ -92,6 +123,27 @@ def load_ref_data(config):
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
                                 ) if config.setup.include_pressure else None
+
+            px = np.asarray(hf['px'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
+                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
+                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
+                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
+                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
+            py = np.asarray(hf['py'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
+                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
+                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
+                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
+                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
+            pz = np.asarray(hf['pz'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
+                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
+                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
+                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
+                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
+            
+            #px *= 1000 # Pa /mm --> Pa /m
+            #py *= 1000
+            #pz *= 1000
+
         else:
             t_index = config.domain.t_start
 
@@ -122,7 +174,7 @@ def load_ref_data(config):
                     config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                     config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
 
-    return u, v, w, p, mask
+    return u, v, w, p, px, py, pz, mask
 
 def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
     
@@ -267,37 +319,7 @@ def upsample_1d(arr, factor=2, mode='extend'):
     else:
         raise ValueError("Unknown mode. Use 'extend' or 'centered'.")
 
-def prepare_data(config, u, v, w, p, mask):
-
-    U_max = max(u.max(), v.max(), w.max())
-
-    # Normalize velocity data
-    if config.vel_normalization == "characteristic":
-        U = config.constants.U
-        u_normalized = u / U
-        v_normalized = v / U
-        w_normalized = w / U
-
-    elif config.vel_normalization == "max_velocity":
-        u_normalized = u / U_max
-        v_normalized = v / U_max
-        w_normalized = w / U_max
-
-    # Flatten data into pointwise prediction
-    u_flat = u_normalized.ravel()   # T×h×w×d --> T*h*w*d = (29087100,)
-    v_flat = v_normalized.ravel()
-    w_flat = w_normalized.ravel()
-
-    velocities = [u_flat, v_flat, w_flat]
-
-    if config.setup.include_pressure:
-        rho, U = config.constants.rho, config.constants.U
-        p_normalized = p / (rho*(U**2))
-        p_flat = p_normalized.reshape(-1)
-        velocities.append(p_flat)
-
-    # Ground truth data
-    uvw_data = np.stack(velocities, axis=1) # (T*h*w*d, 4) = (29087100, 4)
+def prepare_data(config, u, v, w, p, px, py, pz, mask):
 
     # Prepare coordinates
     if config.setup.include_time:
@@ -357,9 +379,59 @@ def prepare_data(config, u, v, w, p, mask):
         mask_flat = mask.ravel()
         boundary_mask_flat = boundary_mask.ravel()
 
+    U_max = max(u.max(), v.max(), w.max())
+
+    # Normalize velocity data
+    if config.vel_normalization == "characteristic":
+        U = config.constants.U
+        u_normalized = u / U
+        v_normalized = v / U
+        w_normalized = w / U
+
+    elif config.vel_normalization == "max_velocity":
+
+        u_normalized = u / U_max
+        v_normalized = v / U_max
+        w_normalized = w / U_max
+
+    # Flatten data into pointwise prediction
+    u_flat = u_normalized.ravel()   # T×h×w×d --> T*h*w*d = (29087100,)
+    v_flat = v_normalized.ravel()
+    w_flat = w_normalized.ravel()
+
+    velocities = [u_flat, v_flat, w_flat]
+
+    if (config.setup.include_pressure and config.training.predict_gradients):
+        rho, U, L = config.constants.rho, config.constants.U, config.constants.L
+        p_normalized = p / (rho*(U**2))
+        p_flat = p_normalized.reshape(-1)
+        velocities.append(p_flat)
+
+        _, _, _, std_x, _, std_y, _, std_z = standardization_factors
+
+        px_normalized = px * L * std_x / (rho*(U**2))
+        py_normalized = py * L * std_y / (rho*(U**2))
+        pz_normalized = pz * L * std_z / (rho*(U**2))
+
+        px_flat = px_normalized.reshape(-1)
+        py_flat = py_normalized.reshape(-1)
+        pz_flat = pz_normalized.reshape(-1)
+        velocities.append(px_flat)
+        velocities.append(py_flat)
+        velocities.append(pz_flat)
+
+    elif config.setup.include_pressure:
+        rho, U = config.constants.rho, config.constants.U
+        p_normalized = p / (rho*(U**2))
+        p_flat = p_normalized.reshape(-1)
+        velocities.append(p_flat)
+
+    # Ground truth data
+    uvw_data = np.stack(velocities, axis=1) # (T*h*w*d, 4) = (29087100, 4)
+
     return uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max
 
-def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, mask, U_max):
+def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask, U_max):
 
     # Prepare coordinates
     if config.setup.include_time:
@@ -416,19 +488,37 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, mask, U_max):
     velocities = [u_flat, v_flat, w_flat]
 
     if config.setup.include_pressure:
-        rho, U = config.constants.rho, config.constants.U
+        rho, U, L = config.constants.rho, config.constants.U, config.constants.L
         p_normalized = p_ref / (rho*(U**2))
         p_flat = p_normalized.reshape(-1)
         velocities.append(p_flat)
+
+    if config.training.reference_gradients:
+
+        #_, _, _, std_x, _, std_y, _, std_z = standardization_factors
+        # px_normalized = px_ref * L * std_x / (rho*(U**2))
+        # py_normalized = py_ref * L * std_y / (rho*(U**2))
+        # pz_normalized = pz_ref * L * std_z / (rho*(U**2))
+
+        px_flat = px_ref.reshape(-1)
+        py_flat = py_ref.reshape(-1)
+        pz_flat = pz_ref.reshape(-1)
+        velocities.append(px_flat)
+        velocities.append(py_flat)
+        velocities.append(pz_flat)
 
     # Ground truth data
     uvw_data_ref = np.stack(velocities, axis=1) # (T*h*w*d, 4) = (29087100, 4)
     
     return uvw_data_ref, xyz_data, mask_flat, boundary_mask_flat
 
-def extract_fluid_region(uvw_data, xyz_data, mask_flat):
+def extract_fluid_region(uvw_data, xyz_data, mask_flat, print_fluid_points=False):
 
     fluid_indices = mask_flat == 1
+
+    if print_fluid_points:
+        print(f"Number of fluid-containing points per timestep: {np.sum(fluid_indices)}")
+        print(f"Out of: {mask_flat.size}")
 
     uvw_fluid = uvw_data[fluid_indices]
     xyz_fluid = xyz_data[fluid_indices]
@@ -460,8 +550,32 @@ def sample_collocation_points(config, xyz_data, mask):
 
         # Sample random points in fluid region
         xyz_fluid = xyz_data[mask == 1]
-        indices = np.random.choice(len(xyz_fluid), size=config.collocation_points, replace=True)
-        sampled_points = xyz_fluid[indices]
+        
+        # Sample without replacement
+        #indices = np.random.choice(len(xyz_fluid), size=config.collocation_points, replace=True) 
+        #sampled_points = xyz_fluid[indices]
+
+
+        # Sample with replacement
+        data_voxels = len(xyz_fluid)
+        N_c = config.collocation_points
+
+        # Compute repeats and leftovers
+        repeat_times = N_c // data_voxels
+        remaining_points = N_c - (repeat_times * data_voxels)
+
+        # Repeated indices
+        repeated_indices = np.tile(np.arange(data_voxels), repeat_times)
+
+        # Remaining indices sampled without replacement
+        if remaining_points > 0:
+            random_indices = np.random.choice(data_voxels, size=remaining_points, replace=False)
+            all_indices = np.concatenate([repeated_indices, random_indices])
+        else:
+            all_indices = repeated_indices
+
+        # Shuffle indices so repetitions are mixed
+        sampled_points = xyz_fluid[all_indices]        
 
         # Add noise to sampled fluid points
         unique_vals = [np.unique(xyz_data[:, i]) for i in range(xyz_data.shape[1])]

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-def mse_loss(uvw_data, uvw_pred, config):
+def mse_loss(uvw_pred, uvw_data, config):
     
     u_pred, v_pred, w_pred = uvw_pred[..., 0], uvw_pred[..., 1], uvw_pred[..., 2]
     u, v, w = uvw_data[..., 0], uvw_data[..., 1], uvw_data[..., 2]
@@ -13,14 +13,55 @@ def mse_loss(uvw_data, uvw_pred, config):
     mse_vel = torch.mean(config.training.u_weight*mse_u + config.training.v_weight*mse_v + config.training.w_weight*mse_w)
 
     if config.training.pressure_in_data_loss:
+        if config.training.reference_gradients:
+            px_pred = uvw_pred[..., 3]
+            py_pred = uvw_pred[..., 4]
+            pz_pred = uvw_pred[..., 5]
+
+            px_data = uvw_data[..., 4]
+            py_data = uvw_data[..., 5]
+            pz_data = uvw_data[..., 6]
+
+            mse_px = mse(px_pred, px_data)
+            mse_py = mse(py_pred, py_data)
+            mse_pz = mse(pz_pred, pz_data)
+            
+            mse_vel += config.training.p_weight*torch.mean(mse_px + mse_py + mse_pz)
+
+        else:
+            p_pred = uvw_pred[..., 3]
+            p = uvw_data[..., 3]
+            mse_p = (p_pred - p) ** 2
+
+            mse_vel += config.training.p_weight*torch.mean(mse_p)
+
+    return mse_vel
+
+def mse(data, pred):
+    mse = (data - pred) ** 2
+    return torch.mean(mse)
+
+def cosine_loss(uvw_data, uvw_pred, config):
+    
+    u_pred, v_pred, w_pred = uvw_pred[..., 0]*config.U_max, uvw_pred[..., 1]*config.U_max, uvw_pred[..., 2]*config.U_max
+    u, v, w = uvw_data[..., 0]*config.U_max, uvw_data[..., 1]*config.U_max, uvw_data[..., 2]*config.U_max
+
+    Kv = torch.pi / config.constants.venc
+    cosine_u = 1 - torch.cos(Kv * (u_pred - u))
+    cosine_v = 1 - torch.cos(Kv * (v_pred - v))
+    cosine_w = 1 - torch.cos(Kv * (w_pred - w))
+
+    cosine_vel = torch.mean(config.training.u_weight*cosine_u + config.training.v_weight*cosine_v + config.training.w_weight*cosine_w)
+
+    if config.training.pressure_in_data_loss:
         p_pred = uvw_pred[..., 3]
         p = uvw_data[..., 3]
 
-        mse_p = (p_pred - p) ** 2
-
-        mse_vel += config.training.p_weight*torch.mean(mse_p)
-
-    return mse_vel
+        cosine_p = 1 - torch.cos(Kv * (p_pred - p))
+        
+        cosine_vel += config.training.p_weight*torch.mean(cosine_p)
+    
+    return cosine_vel
 
 def fluid_weighted_mse_loss(uvw_data, uvw_pred, mask, config):
     
@@ -129,7 +170,15 @@ def compute_gradient(outputs, inputs, grad_dim):
 def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, config):
 
     # Unpack velocity and pressure
-    u, v, w, p = uvw_pred[..., 0], uvw_pred[..., 1], uvw_pred[..., 2], uvw_pred[..., 3]
+    if not config.training.predict_gradients:
+        u, v, w, p = uvw_pred[..., 0], uvw_pred[..., 1], uvw_pred[..., 2], uvw_pred[..., 3]
+
+        dp_dx = compute_gradient(p, xyz_collocation, 1)
+        dp_dy = compute_gradient(p, xyz_collocation, 2)
+        dp_dz = compute_gradient(p, xyz_collocation, 3)
+
+    else:
+        u, v, w, dp_dx, dp_dy, dp_dz = uvw_pred[..., 0], uvw_pred[..., 1], uvw_pred[..., 2], uvw_pred[..., 3], uvw_pred[..., 4], uvw_pred[..., 5]
 
     # First derivatives
     du_dt = compute_gradient(u, xyz_collocation, 0)
@@ -146,10 +195,6 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     dw_dx = compute_gradient(w, xyz_collocation, 1)
     dw_dy = compute_gradient(w, xyz_collocation, 2)
     dw_dz = compute_gradient(w, xyz_collocation, 3)
-
-    dp_dx = compute_gradient(p, xyz_collocation, 1)
-    dp_dy = compute_gradient(p, xyz_collocation, 2)
-    dp_dz = compute_gradient(p, xyz_collocation, 3)
 
     # Second derivatives
     d2u_dx2 = compute_gradient(du_dx, xyz_collocation, 1)
@@ -175,18 +220,8 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     if config.coords_normalization == "standardize":
         # Extract standardization factors
         _, std_t, _, std_x, _, std_y, _, std_z = standardization_factors
-        adj_t = 1/std_t
-        adj_x = 1/std_x
-        adj_y = 1/std_y
-        adj_z = 1/std_z
-    elif config.coords_normalization == "min_max":
-        min_t, max_t, min_x, max_x, min_y, max_y, min_z, max_z = standardization_factors
-        adj_t = 1/(max_t - min_t)
-        adj_x = 1/(max_x - min_x)
-        adj_y = 1/(max_y - min_y)
-        adj_z = 1/(max_z - min_z)
-    else: 
-        adj_t, adj_x, adj_y, adj_z = 1.0, 1.0, 1.0, 1.0
+    else: # TODO - integrate minmax normalization
+        std_t, std_x, std_y, std_z = 1.0, 1.0, 1.0, 1.0
 
     # Calculate residuals based on Navier-Stokes Equations
     momentum_u = (
@@ -211,7 +246,6 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     ) 
 
     # Calculate divergence
-    div = adj_x*du_dx + adj_y*dv_dy + adj_z*dw_dz
 
     # Calculate MSE
     momentum_loss_u = momentum_u ** 2
@@ -219,7 +253,48 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     momentum_loss_w = momentum_w ** 2
 
     momentum_loss = torch.mean(momentum_loss_u + momentum_loss_v + momentum_loss_w)
-    div_loss = torch.mean(div ** 2)
+    
+    if config.training.use_divergence:
+        div = (du_dx / std_x) + (dv_dy / std_y) + (dw_dz / std_z)
+        div_loss = torch.mean(div ** 2)
+    else:
+        div_loss = torch.tensor(0.0)
+
+    if config.training.use_PPE:
+        
+        # Compute pressure Laplacian ∇²p
+        d2p_dx2 = compute_gradient(dp_dx, xyz_collocation, 1)
+        d2p_dy2 = compute_gradient(dp_dy, xyz_collocation, 2)
+        d2p_dz2 = compute_gradient(dp_dz, xyz_collocation, 3)
+
+        laplace_p = (
+            (1 / std_x**2) * d2p_dx2 +
+            (1 / std_y**2) * d2p_dy2 +
+            (1 / std_z**2) * d2p_dz2
+        )
+
+        # Compute convective acceleration terms: u·∇u, v·∇v, w·∇w
+        conv_x = (1 / std_x) * u * du_dx + (1 / std_y) * v * du_dy + (1 / std_z) * w * du_dz
+        conv_y = (1 / std_x) * u * dv_dx + (1 / std_y) * v * dv_dy + (1 / std_z) * w * dv_dz
+        conv_z = (1 / std_x) * u * dw_dx + (1 / std_y) * v * dw_dy + (1 / std_z) * w * dw_dz
+
+        # Compute divergence of convective term
+        dconv_x_dx = compute_gradient(conv_x, xyz_collocation, 1)
+        dconv_y_dy = compute_gradient(conv_y, xyz_collocation, 2)
+        dconv_z_dz = compute_gradient(conv_z, xyz_collocation, 3)
+
+        div_conv = (
+            (1 / std_x) * dconv_x_dx +
+            (1 / std_y) * dconv_y_dy +
+            (1 / std_z) * dconv_z_dz
+        )
+
+        # Pressure Poisson residual
+        residual_ppe = laplace_p + Re * div_conv   # nondimensionalized form
+
+        # PPE loss
+        ppe_loss = torch.mean(residual_ppe**2)
+        momentum_loss += config.training.PPE_weight*ppe_loss
 
     return momentum_loss, div_loss
 
@@ -366,20 +441,70 @@ def update_loss_weights(config, model, loss_weights, it, xyz_data_batch, uvw_dat
 
     # Calculate and update weights
     weights_old = loss_weights
-    weights_new = np.array([sum(grad_norms) / (grad_norm + 1e-7) for grad_norm in grad_norms])
+    #weights_new = np.array([sum(grad_norms) / (grad_norm + 1e-7) for grad_norm in grad_norms])
+    if config.sample_boundary:
+        #eights_new = np.array([1.0, grad_norm_physics/grad_norm_data, grad_norm_physics/grad_norm_boundary])
+        weights_new = np.array([grad_norm_physics/grad_norm_data, 1.0, grad_norm_physics/grad_norm_boundary])
+
+    else:
+        #weights_new = np.array([1.0, grad_norm_physics/grad_norm_data])
+        weights_new = np.array([grad_norm_physics/grad_norm_data, 1.0])
+
     loss_weights = config.training.alpha*weights_old + (1-config.training.alpha)*weights_new
 
     return loss_weights
 
-def compute_data_loss(config, model, xyz_data, uvw_data, mask):
-
+def compute_data_loss(config, model, xyz_data, uvw_data, mask, standardization_factors, denormalize=False, reference=False):
+    
     # Predict data points
     uvw_pred = model(xyz_data)
     
     # Transform potential to velocity
     if config.training.use_vector_potential:
         uvw_pred = vector_potential_fn(uvw_pred, xyz_data)
-    
+
+    if denormalize: # TODO - fix denormalization for training loss
+        # Denormalize predictions
+        if config.vel_normalization == "characteristic":
+            uvw_pred[:, 0] *= config.constants.U  # u
+            uvw_pred[:, 1] *= config.constants.U  # v
+            uvw_pred[:, 2] *= config.constants.U  # w
+
+            uvw_data[:, 0] *= config.constants.U  # u
+            uvw_data[:, 1] *= config.constants.U  # v
+            uvw_data[:, 2] *= config.constants.U  # w
+
+            #if config.setup.include_pressure:
+            #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
+            if (config.setup.include_pressure and config.training.reference_gradients):
+                _, _, _, std_x, _, std_y, _, std_z = standardization_factors
+
+                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x  # px
+                uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y  # py
+                uvw_pred[:, 5] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z  # pz
+            elif config.setup.include_pressure: 
+                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)
+
+        elif config.vel_normalization == "max_velocity":
+            uvw_pred[:, 0] *= config.U_max  # u
+            uvw_pred[:, 1] *= config.U_max  # v
+            uvw_pred[:, 2] *= config.U_max  # w
+
+            uvw_data[:, 0] *= config.U_max  # u
+            uvw_data[:, 1] *= config.U_max  # v
+            uvw_data[:, 2] *= config.U_max  # w
+
+            #if config.setup.include_pressure:
+            #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
+            if (config.setup.include_pressure and config.training.reference_gradients):
+                _, _, _, std_x, _, std_y, _, std_z = standardization_factors
+
+                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x  # px
+                uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y  # py
+                uvw_pred[:, 5] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z  # pz
+            elif config.setup.include_pressure: 
+                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)
+
     # Compute data loss
     if config.training.use_mse:
         if config.setup.fluid_region:
@@ -388,8 +513,17 @@ def compute_data_loss(config, model, xyz_data, uvw_data, mask):
             data_loss = fluid_weighted_mse_loss(uvw_pred, uvw_data, mask, config)
     else:
         raise ValueError("No recognized data loss mode. Check config.training.use_mse or other flags.")
+    
+    if config.training.reference_gradients and reference:
+        mse_px = mse(uvw_pred[:, 3], uvw_data[:, 4])
+        mse_py = mse(uvw_pred[:, 4], uvw_data[:, 5])
+        mse_pz = mse(uvw_pred[:, 5], uvw_data[:, 6])
+    else:
+        mse_px = None
+        mse_py = None
+        mse_pz = None
 
-    return data_loss, uvw_pred
+    return data_loss, uvw_pred, mse_px, mse_py, mse_pz
 
 def compute_physics_loss(config, iter, model, xyz_collocation, xyz_data, standardization_factors):
 

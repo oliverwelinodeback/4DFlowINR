@@ -8,13 +8,21 @@ from scipy.ndimage import zoom
 from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract_fluid_region, compute_outer_boundary_mask
 from utils.evaluation_utils import (
     create_boundary_and_core_masks, calculate_relative_error, calculate_absolute_error, 
-    calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure, linreg)
+    calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure, linreg,
+    calculate_divergence, calculate_directional_error, calculate_vnrmse, 
+    calculate_gradient_absolute_error, calculate_gradient_relative_error,
+    calculate_gradient_directional_error, calculate_gradient_nrmse
+    )
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, load_ref_data, prepare_ref_data
 from utils.utils import save_to_h5
 from utils.loss_utils import vector_potential_fn
 from utils.preprocessing_utils import compute_outer_boundary_mask
-import SIREN
-from configs.SIREN_1t_VP import get_config
+import networks
+from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
+from utils.loss_utils import vector_potential_fn
+
+import h5py
+
 
 if __name__ == "__main__":
 
@@ -23,37 +31,54 @@ if __name__ == "__main__":
     config = get_config()
 
     # Path to stored weights
-    network_path = "../models/250124_Testing/SIREN_1t_VP_20250124-1119/SIREN_1t_VP_final.pth"
-    results_directory = "../results/250124_Testing/SIREN_1t_VP_20250124-1119"
+    # network_path = "/proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/models/250129_AoModel/FFN_1t_20250130-1713/checkpoints/FFN_1t_it1000.pth"
+    # results_directory = "../results/250130_Tests/FFN_1t_1"
+
+    # network_path = "/proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/models/250131_00100833_HNCM_V150_sys/FFN_1t_20250131-1052/checkpoints/FFN_1t_it44000.pth"
+    #network_path = "../models/250530_PINN_PG_test/Config_1x_HV01_highSNR_PG_correctNorm_2000_wScheme_phys1_20250530-1803/checkpoints/Config_1x_HV01_highSNR_PG_correctNorm_2000_wScheme_phys1_it50000.pth"
+    #results_directory = "../results/250530_PINN_PG_test/Config_1x_HV01_highSNR_PG_correctNorm_2000_wScheme_phys1_20250530-1803/Config_1x_HV01_highSNR_PG_correctNorm_2000_wScheme_phys1_it50000"
+
+    #network_path = "../models/250618_PG_seed_collpoints_boundary_test/Config_1x_HV01_highSNR_PG_1000_10_000_000collpoints_seed128_noBoundary_ActuallyNoDiv_correctedWeightScheme_20250619-1343/checkpoints/Config_1x_HV01_highSNR_PG_1000_10_000_000collpoints_seed128_noBoundary_ActuallyNoDiv_correctedWeightScheme_it100000.pth"
+    #results_directory = "../results/250618_PG_seed_collpoints_boundary_test/Config_1x_HV01_highSNR_PG_1000_10_000_000collpoints_seed128_noBoundary_ActuallyNoDiv_correctedWeightScheme_20250619-1343/checkpoints/Config_1x_HV01_highSNR_PG_1000_10_000_000collpoints_seed128_noBoundary_ActuallyNoDiv_correctedWeightScheme_it100000"
+
+    #network_path = "../models/250623_PG_coord_pressure_test/Config_1x_HV01_highSNR_AbsolutePressure_20250623-1052/checkpoints/Config_1x_HV01_highSNR_AbsolutePressure_it100000.pth"
+    #results_directory = "../results/250623_PG_coord_pressure_test/Config_1x_HV01_highSNR_AbsolutePressure_20250623-1052/checkpoints/Config_1x_HV01_highSNR_AbsolutePressure_it100000"
+
+    network_path = "../models/250625_PG_ReTests/LowRe_2.65_U0.1_L0.0001_20250625-1725/checkpoints/LowRe_2.65_U0.1_L0.0001_it95000.pth"
+    results_directory = "../results/250625_PG_ReEvaluations/LowRe_2.65_U0.1_L0.0001_20250625-1723/checkpoints/LowRe_2.65_U0.1_L0.0001_it95000"
+
     if not os.path.exists(results_directory):
         os.makedirs(results_directory)
 
     # Load data
-    u, v, w, p, mask = load_data(config)
+    u, v, w, p, px, py, pz, mask, config = load_data(config)
 
     # Save noisy data truth to results directory
     #save_to_h5(f"{results_directory}/healthy-05mm3_LR_SNR5_x1.h5", "u", u*mask)
     #save_to_h5(f"{results_directory}/healthy-05mm3_LR_SNR5_x1.h5", "v", v*mask)
     #save_to_h5(f"{results_directory}/healthy-05mm3_LR_SNR5_x1.h5", "w", w*mask)
     #save_to_h5(f"{results_directory}/healthy-05mm3_LR_SNR5_x1.h5", "p", p*mask)
-    save_to_h5(f"{results_directory}/healthy-05mm3_t24_26_250120_TSNR12_x1.h5", "u", u*mask)
-    save_to_h5(f"{results_directory}/healthy-05mm3_t24_26_250120_TSNR12_x1.h5", "v", v*mask)
-    save_to_h5(f"{results_directory}/healthy-05mm3_t24_26_250120_TSNR12_x1.h5", "w", w*mask)
-    #save_to_h5(f"{results_directory}/healthy-05mm3_t24_26_250120_TSNR12_x1.h5", "p", p*mask)
+    ## save_to_h5(f"{results_directory}/healthy-05mm3_LR_dv_241211.h5", "u", u*mask)
+    ## save_to_h5(f"{results_directory}/healthy-05mm3_LR_dv_241211.h5", "v", v*mask)
+    ## save_to_h5(f"{results_directory}/healthy-05mm3_LR_dv_241211.h5", "w", w*mask)
+    ## save_to_h5(f"{results_directory}/healthy-05mm3_LR_dv_241211.h5", "p", p*mask)
+
+    # Save to vtk file
+    #h5_to_paraview(u, v, w, p, (config.resolution.dx, config.resolution.dy, config.resolution.dz), f"{results_directory}/healthy-05mm3_LR_SNR5_x1.vti")
 
     # Prepare data
-    uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, mask)
+    uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, px, py, pz, mask)
 
     # Load and prepare reference data
     if config.include_ref:
-        u_ref, v_ref, w_ref, p_ref, mask_ref = load_ref_data(config)
-        xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, mask_ref)
+        u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref = load_ref_data(config)
+        uvw_data_ref, xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, U_max)
 
         # Save noisy data truth to results directory
-        save_to_h5(f"{results_directory}/healthy-05mm3.h5", "u", u_ref)
-        save_to_h5(f"{results_directory}/healthy-05mm3.h5", "v", v_ref)
-        save_to_h5(f"{results_directory}/healthy-05mm3.h5", "w", w_ref)
-        #save_to_h5(f"{results_directory}/healthy-05mm3.h5", "p", p_ref)
+        ## save_to_h5(f"{results_directory}/healthy-05mm3.h5", "u", u_ref)
+        ## save_to_h5(f"{results_directory}/healthy-05mm3.h5", "v", v_ref)
+        ## save_to_h5(f"{results_directory}/healthy-05mm3.h5", "w", w_ref)
+        ## save_to_h5(f"{results_directory}/healthy-05mm3.h5", "p", p_ref)
 
     # Expand mask
     ## if config.setup.expand_mask:
@@ -73,14 +98,29 @@ if __name__ == "__main__":
 
     # Initialize network
     DEVICE = torch.device('cuda')
-    model = SIREN.SIREN(
-        in_dim=config.network.in_dim,
-        out_dim=config.network.out_dim,
-        depth=config.network.depth,
-        hidden_features=config.network.hidden_features,
-        first_omega_0=config.network.first_omega_0,
-        hidden_omega_0=config.network.hidden_omega_0
-    ).to(DEVICE)
+    if config.network.arch == "SIREN":
+        model = networks.SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0= 30.0, #config.network.first_omega_0,
+            hidden_omega_0= 30.0, #config.network.hidden_omega_0
+        ).to(DEVICE)
+    else:
+        model = networks.FFN(
+            input_dim=config.network.in_dim,
+            output_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_dim=config.network.hidden_features,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
+
+    # # Print model weights before loading
+    # print("Model weights before loading:")
+    # for name, param in model.named_parameters():
+    #     print(f"{name}: {param.data}")
 
     # Load trained model
     checkpoint = torch.load(network_path, map_location=DEVICE)
@@ -121,13 +161,25 @@ if __name__ == "__main__":
                 uvw_pred[:, 0] *= config.constants.U  # u
                 uvw_pred[:, 1] *= config.constants.U  # v
                 uvw_pred[:, 2] *= config.constants.U  # w
-                if config.setup.include_pressure:
+                if (config.setup.include_pressure and config.training.reference_gradients):
+                    _, _, _, std_x, _, std_y, _, std_z = standardization_factors
+                    print(std_x, std_y, std_z)
+
+                    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x  # px
+                    uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y # py
+                    uvw_pred[:, 5] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z # pz
+                elif config.setup.include_pressure and not config.training.reference_gradients:
                     uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
+
             elif config.vel_normalization == "max_velocity":
                 uvw_pred[:, 0] *= U_max  # u
                 uvw_pred[:, 1] *= U_max  # v
                 uvw_pred[:, 2] *= U_max  # w
-                if config.setup.include_pressure:
+                if (config.setup.include_pressure and config.training.reference_gradients):
+                    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L  # px
+                    uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L # py
+                    uvw_pred[:, 5] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L # pz
+                elif config.setup.include_pressure and not config.training.reference_gradients:
                     uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
 
         # Define dimensions based on include_time
@@ -149,13 +201,44 @@ if __name__ == "__main__":
         u_pred = uvw_pred[:, :, :, :, 0]
         v_pred = uvw_pred[:, :, :, :, 1]
         w_pred = uvw_pred[:, :, :, :, 2]
-        p_pred = uvw_pred[:, :, :, :, 3] if config.setup.include_pressure else None
+        #p_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 3] if config.setup.include_pressure else None
+        p_pred_x = uvw_pred[:, :, :, :, 3] if config.training.reference_gradients else None
+        p_pred_y = uvw_pred[:, :, :, :, 4] if config.training.reference_gradients else None
+        p_pred_z = uvw_pred[:, :, :, :, 5] if config.training.reference_gradients else None
+
+        p_pred = uvw_pred[:, :, :, :, 3] if (config.setup.include_pressure and not config.training.reference_gradients) else None
 
         # Save ref predictions to results directory
         save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "u", u_pred)
         save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "v", v_pred)
         save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "w", w_pred)
-        #save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p", p_pred)
+        if (config.setup.include_pressure and not config.training.reference_gradients):
+            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p", p_pred)
+        elif config.training.reference_gradients:
+            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_x", p_pred_x)
+            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_y", p_pred_y)
+            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_z", p_pred_z)
+
+        # -----------------
+        # Mean normalize p_ref
+        ## print(uvw_data_ref)
+        ## print(uvw_data_ref.shape)
+        ## print(mask_ref.shape)
+        ## #mask_tiled = np.tile(mask_ref.ravel(), T)
+        ## mask_tiled = np.stack([mask_ref]*T, axis=0)
+        ## print('hejeeeeee')
+        ## print(T)
+        ## print(mask_tiled.shape)
+        ## mean_p = np.mean(p_ref[mask_tiled==1])
+        ## print('mean p: ', mean_p)
+        ## mean_p_pred = np.mean(p_pred[mask_tiled==1])
+        ## print('mean p pred: ', mean_p_pred)
+        ## mean_diff = mean_p_pred - mean_p
+        ## print('mean diff: ', mean_diff)
+        ## p_normalized = p_pred
+        ## p_normalized[mask_tiled==1] -= mean_diff
+        ## save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_normalized", p_normalized)
+        # -----------------
 
         # Get metrics
         peak_flow_idx = config.predictions.peak_flow_idx
@@ -183,7 +266,17 @@ if __name__ == "__main__":
         Ms = np.zeros((T,3,3))
         Rs = np.zeros((T,3,3))
 
+        Ks_pgrad = np.zeros((T,3,3))
+        Ms_pgrad = np.zeros((T,3,3))
+        Rs_pgrad = np.zeros((T,3,3))
+
+        grad_abs_err = np.zeros((T,3))
+        grad_rel_err = np.zeros((T,3))
+        grad_dir_err = np.zeros((T,3))
+        grad_nrmse =   np.zeros((T,3))
+
         for t in range(T):
+
             rel_err[t,0] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
             rel_err[t,1] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
             rel_err[t,2] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
@@ -192,13 +285,11 @@ if __name__ == "__main__":
             abs_err[t,1] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
             abs_err[t,2] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
             abs_err[t,3] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
-            #abs_err[t,4] = (calculate_absolute_error_pressure(p_pred[t], p_ref[t], mask_ref))
 
             rmse[t,0] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
             rmse[t,1] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
             rmse[t,2] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
             rmse[t,3] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
-            #rmse[t,4] = (calculate_rmse_pressure(p_pred[t], p_ref[t], mask_ref))
 
             Ks[t][0][0], Ms[t][0][0], Rs[t][0][0] = linreg(u_pred[t], u_ref[t], mask_ref)
             Ks[t][1][0], Ms[t][1][0], Rs[t][1][0] = linreg(v_pred[t], v_ref[t], mask_ref)
@@ -211,6 +302,38 @@ if __name__ == "__main__":
             Ks[t][0][2], Ms[t][0][2], Rs[t][0][2] = linreg(u_pred[t], u_ref[t], core_mask)
             Ks[t][1][2], Ms[t][1][2], Rs[t][1][2] = linreg(v_pred[t], v_ref[t], core_mask)
             Ks[t][2][2], Ms[t][2][2], Rs[t][2][2] = linreg(w_pred[t], w_ref[t], core_mask)
+
+            # px
+            Ks_pgrad[t][0][0], Ms_pgrad[t][0][0], Rs_pgrad[t][0][0] = linreg(p_pred_x[t], px_ref[t], mask_ref)
+            Ks_pgrad[t][0][1], Ms_pgrad[t][0][1], Rs_pgrad[t][0][1] = linreg(p_pred_x[t], px_ref[t], boundary_mask)
+            Ks_pgrad[t][0][2], Ms_pgrad[t][0][2], Rs_pgrad[t][0][2] = linreg(p_pred_x[t], px_ref[t], core_mask)
+
+            # py
+            Ks_pgrad[t][1][0], Ms_pgrad[t][1][0], Rs_pgrad[t][1][0] = linreg(p_pred_y[t], py_ref[t], mask_ref)
+            Ks_pgrad[t][1][1], Ms_pgrad[t][1][1], Rs_pgrad[t][1][1] = linreg(p_pred_y[t], py_ref[t], boundary_mask)
+            Ks_pgrad[t][1][2], Ms_pgrad[t][1][2], Rs_pgrad[t][1][2] = linreg(p_pred_y[t], py_ref[t], core_mask)
+
+            # pz
+            Ks_pgrad[t][2][0], Ms_pgrad[t][2][0], Rs_pgrad[t][2][0] = linreg(p_pred_z[t], pz_ref[t], mask_ref)
+            Ks_pgrad[t][2][1], Ms_pgrad[t][2][1], Rs_pgrad[t][2][1] = linreg(p_pred_z[t], pz_ref[t], boundary_mask)
+            Ks_pgrad[t][2][2], Ms_pgrad[t][2][2], Rs_pgrad[t][2][2] = linreg(p_pred_z[t], pz_ref[t], core_mask)
+
+            # Pressure gradient errors
+            grad_abs_err[t, 0] = calculate_gradient_absolute_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], mask_ref)
+            grad_abs_err[t, 1] = calculate_gradient_absolute_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], boundary_mask)
+            grad_abs_err[t, 2] = calculate_gradient_absolute_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], core_mask)
+
+            grad_rel_err[t, 0] = calculate_gradient_relative_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], mask_ref)
+            grad_rel_err[t, 1] = calculate_gradient_relative_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], boundary_mask)
+            grad_rel_err[t, 2] = calculate_gradient_relative_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], core_mask)
+
+            grad_dir_err[t, 0] = calculate_gradient_directional_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], mask_ref)
+            grad_dir_err[t, 1] = calculate_gradient_directional_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], boundary_mask)
+            grad_dir_err[t, 2] = calculate_gradient_directional_error(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], core_mask)
+
+            grad_nrmse[t, 0] = calculate_gradient_nrmse(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], mask_ref)
+            grad_nrmse[t, 1] = calculate_gradient_nrmse(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], boundary_mask)
+            grad_nrmse[t, 2] = calculate_gradient_nrmse(p_pred_x[t], p_pred_y[t], p_pred_z[t], px_ref[t], py_ref[t], pz_ref[t], core_mask)
         
         print('Total avg')
         ## TODO - other losses (DE, nRMSE)
@@ -248,6 +371,42 @@ if __name__ == "__main__":
         print(f'  [Bound] k: {Ks[peak_flow_idx][2][1]:.4f} \t m: {Ms[peak_flow_idx][2][1]:.4f} \t r^2: {Rs[peak_flow_idx][2][1]:.4f}')
         print(f'  [Core] k: {Ks[peak_flow_idx][2][2]:.4f} \t m: {Ms[peak_flow_idx][2][2]:.4f} \t r^2: {Rs[peak_flow_idx][2][2]:.4f}')
 
+        print(' ')
+        print(f'PX [Fluid] k: {Ks_pgrad[peak_flow_idx][0][0]:.4f} \t m: {Ms_pgrad[peak_flow_idx][0][0]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][0][0]:.4f}')
+        print(f'   [Bound] k: {Ks_pgrad[peak_flow_idx][0][1]:.4f} \t m: {Ms_pgrad[peak_flow_idx][0][1]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][0][1]:.4f}')
+        print(f'   [Core] k: {Ks_pgrad[peak_flow_idx][0][2]:.4f} \t m: {Ms_pgrad[peak_flow_idx][0][2]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][0][2]:.4f}')
+
+        print(' ')
+        print(f'PY [Fluid] k: {Ks_pgrad[peak_flow_idx][1][0]:.4f} \t m: {Ms_pgrad[peak_flow_idx][1][0]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][1][0]:.4f}')
+        print(f'   [Bound] k: {Ks_pgrad[peak_flow_idx][1][1]:.4f} \t m: {Ms_pgrad[peak_flow_idx][1][1]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][1][1]:.4f}')
+        print(f'   [Core] k: {Ks_pgrad[peak_flow_idx][1][2]:.4f} \t m: {Ms_pgrad[peak_flow_idx][1][2]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][1][2]:.4f}')
+
+        print(' ')
+        print(f'PZ [Fluid] k: {Ks_pgrad[peak_flow_idx][2][0]:.4f} \t m: {Ms_pgrad[peak_flow_idx][2][0]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][2][0]:.4f}')
+        print(f'   [Bound] k: {Ks_pgrad[peak_flow_idx][2][1]:.4f} \t m: {Ms_pgrad[peak_flow_idx][2][1]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][2][1]:.4f}')
+        print(f'   [Core] k: {Ks_pgrad[peak_flow_idx][2][2]:.4f} \t m: {Ms_pgrad[peak_flow_idx][2][2]:.4f} \t r^2: {Rs_pgrad[peak_flow_idx][2][2]:.4f}')
+
+        print(' ')
+
+        grad_abs_err_tot = np.mean(grad_abs_err, axis=0)
+        print(f'Absolute error Pressure Gradient [Fluid] {grad_abs_err_tot[0]:.4f}')
+        print(f'Absolute error Pressure Gradient [Bound] {grad_abs_err_tot[1]:.4f}')
+        print(f'Absolute error Pressure Gradient [Core] {grad_abs_err_tot[2]:.4f}')
+
+        grad_rel_err_tot = np.mean(grad_rel_err, axis=0)
+        print(f'Relative error Pressure Gradient [Fluid] {grad_rel_err_tot[0]*100:.4f} %')
+        print(f'Relative error Pressure Gradient [Bound] {grad_rel_err_tot[1]*100:.4f} %')
+        print(f'Relative error Pressure Gradient [Core] {grad_rel_err_tot[2]*100:.4f} %')
+
+        grad_nrmse_tot = np.mean(grad_nrmse, axis=0)
+        print(f'Pressure Gradient NRMSE [Fluid] {grad_nrmse_tot[0]*100:.2f} %')
+        print(f'Pressure Gradient NRMSE [Bound] {grad_nrmse_tot[1]*100:.2f} %')
+        print(f'Pressure Gradient NRMSE [Core] {grad_nrmse_tot[2]*100:.2f} %')
+
+        grad_dir_err_tot = np.mean(grad_dir_err, axis=0)
+        print(f'Pressure Gradient Directional Error [Fluid] {grad_dir_err_tot[0]:.2f} deg')
+        print(f'Pressure Gradient Directional Error [Bound] {grad_dir_err_tot[1]:.2f} deg')
+        print(f'Pressure Gradient Directional Error [Core] {grad_dir_err_tot[2]:.2f} deg')
 
         # Save metrics to csv
         metrics = {
@@ -267,6 +426,22 @@ if __name__ == "__main__":
             'R.M.S. error [Non-F]': rmse_tot[3],
             'R.M.S. error Pressure [Fluid]': rmse_tot[4],
 
+            'Absolute error Pressure Gradient [Fluid]': grad_abs_err_tot[0],
+            'Absolute error Pressure Gradient [Bound]': grad_abs_err_tot[1],
+            'Absolute error Pressure Gradient [Core]': grad_abs_err_tot[2],
+
+            'Relative error Pressure Gradient [%] [Fluid]': grad_rel_err_tot[0]*100,
+            'Relative error Pressure Gradient [%] [Bound]': grad_rel_err_tot[1]*100,
+            'Relative error Pressure Gradient [%] [Core]': grad_rel_err_tot[2]*100,
+
+            'Pressure Gradient NRMSE [%] [Fluid]': grad_nrmse_tot[0]*100,
+            'Pressure Gradient NRMSE [%] [Bound]': grad_nrmse_tot[1]*100,
+            'Pressure Gradient NRMSE [%] [Core]': grad_nrmse_tot[2]*100,
+
+            'Pressure Gradient Directional Error (deg) [Fluid]': grad_dir_err_tot[0],
+            'Pressure Gradient Directional Error (deg) [Bound]': grad_dir_err_tot[1],
+            'Pressure Gradient Directional Error (deg) [Core]': grad_dir_err_tot[2],
+
             'PEAK FLOW INDEX:': peak_flow_idx,
             'Relative error [Fluid] Peak': rel_err[peak_flow_idx][0],
             'Relative error [Bound] Peak': rel_err[peak_flow_idx][1],
@@ -279,6 +454,37 @@ if __name__ == "__main__":
             'R.M.S. error [Bound] Peak': rmse[peak_flow_idx][1],
             'R.M.S. error [Core] Peak': rmse[peak_flow_idx][2],
             'R.M.S. error [Non-F] Peak': rmse[peak_flow_idx][3],
+
+            'VNRMSE [Fluid]': vnrmse[peak_flow_idx,0],
+            'VNRMSE [Bound]': vnrmse[peak_flow_idx,1],
+            'VNRMSE [Core]':  vnrmse[peak_flow_idx,2],
+            'VNRMSE [Non-F]': vnrmse[peak_flow_idx,3],
+
+            'Directional error [Fluid]': d_error[peak_flow_idx,0],
+            'Directional error [Bound]': d_error[peak_flow_idx,1],
+            'Directional error [Core]':  d_error[peak_flow_idx,2],
+            'Directional error [Non-F]': d_error[peak_flow_idx,3],
+
+            'Divergence prediction [Fluid]': div_err[peak_flow_idx,0],
+            'Divergence prediction [Bound]': div_err[peak_flow_idx,1],
+            'Divergence prediction [Core]':  div_err[peak_flow_idx,2],
+            'Divergence prediction [Non-F]': div_err[peak_flow_idx,3],
+
+            'Absolute error Pressure Gradient [Fluid] Peak': grad_abs_err[peak_flow_idx][0],
+            'Absolute error Pressure Gradient [Bound] Peak': grad_abs_err[peak_flow_idx][1],
+            'Absolute error Pressure Gradient [Core] Peak': grad_abs_err[peak_flow_idx][2],
+
+            'Relative error Pressure Gradient [%] [Fluid] Peak': grad_rel_err[peak_flow_idx][0]*100,
+            'Relative error Pressure Gradient [%] [Bound] Peak': grad_rel_err[peak_flow_idx][1]*100,
+            'Relative error Pressure Gradient [%] [Core] Peak': grad_rel_err[peak_flow_idx][2]*100,
+
+            'Pressure Gradient NRMSE [%] [Fluid] Peak': grad_nrmse[peak_flow_idx][0]*100,
+            'Pressure Gradient NRMSE [%] [Bound] Peak': grad_nrmse[peak_flow_idx][1]*100,
+            'Pressure Gradient NRMSE [%] [Core] Peak': grad_nrmse[peak_flow_idx][2]*100,
+
+            'Pressure Gradient Directional Error (deg) [Fluid] Peak': grad_dir_err[peak_flow_idx][0],
+            'Pressure Gradient Directional Error (deg) [Bound] Peak': grad_dir_err[peak_flow_idx][1],
+            'Pressure Gradient Directional Error (deg) [Core] Peak': grad_dir_err[peak_flow_idx][2],
 
             'U [Fluid] k': Ks[peak_flow_idx][0][0],
             'U [Bound] k': Ks[peak_flow_idx][0][1],
@@ -310,6 +516,36 @@ if __name__ == "__main__":
             'W [Fluid] r^2': Rs[peak_flow_idx][2][0],
             'W [Bound] r^2': Rs[peak_flow_idx][2][1],
             'W [Core] r^2': Rs[peak_flow_idx][2][2],
+
+            'PX [Fluid] k': Ks_pgrad[peak_flow_idx][0][0],
+            'PX [Bound] k': Ks_pgrad[peak_flow_idx][0][1],
+            'PX [Core] k': Ks_pgrad[peak_flow_idx][0][2],
+            'PX [Fluid] m': Ms_pgrad[peak_flow_idx][0][0],
+            'PX [Bound] m': Ms_pgrad[peak_flow_idx][0][1],
+            'PX [Core] m': Ms_pgrad[peak_flow_idx][0][2],
+            'PX [Fluid] r^2': Rs_pgrad[peak_flow_idx][0][0],
+            'PX [Bound] r^2': Rs_pgrad[peak_flow_idx][0][1],
+            'PX [Core] r^2': Rs_pgrad[peak_flow_idx][0][2],
+
+            'PY [Fluid] k': Ks_pgrad[peak_flow_idx][1][0],
+            'PY [Bound] k': Ks_pgrad[peak_flow_idx][1][1],
+            'PY [Core] k': Ks_pgrad[peak_flow_idx][1][2],
+            'PY [Fluid] m': Ms_pgrad[peak_flow_idx][1][0],
+            'PY [Bound] m': Ms_pgrad[peak_flow_idx][1][1],
+            'PY [Core] m': Ms_pgrad[peak_flow_idx][1][2],
+            'PY [Fluid] r^2': Rs_pgrad[peak_flow_idx][1][0],
+            'PY [Bound] r^2': Rs_pgrad[peak_flow_idx][1][1],
+            'PY [Core] r^2': Rs_pgrad[peak_flow_idx][1][2],
+
+            'PZ [Fluid] k': Ks_pgrad[peak_flow_idx][2][0],
+            'PZ [Bound] k': Ks_pgrad[peak_flow_idx][2][1],
+            'PZ [Core] k': Ks_pgrad[peak_flow_idx][2][2],
+            'PZ [Fluid] m': Ms_pgrad[peak_flow_idx][2][0],
+            'PZ [Bound] m': Ms_pgrad[peak_flow_idx][2][1],
+            'PZ [Core] m': Ms_pgrad[peak_flow_idx][2][2],
+            'PZ [Fluid] r^2': Rs_pgrad[peak_flow_idx][2][0],
+            'PZ [Bound] r^2': Rs_pgrad[peak_flow_idx][2][1],
+            'PZ [Core] r^2': Rs_pgrad[peak_flow_idx][2][2],
 
         }
 
@@ -409,7 +645,7 @@ if __name__ == "__main__":
         save_to_h5(f"{SR_directory}/healthy-05mm3_SR.h5", "u", u_pred)
         save_to_h5(f"{SR_directory}/healthy-05mm3_SR.h5", "v", v_pred)
         save_to_h5(f"{SR_directory}/healthy-05mm3_SR.h5", "w", w_pred)
-        #save_to_h5(f"{SR_directory}/healthy-05mm3_SR.h5", "p", p_pred)
+        save_to_h5(f"{SR_directory}/healthy-05mm3_SR.h5", "p", p_pred)
 
     if config.predictions.compare_noisy_vs_ref:
 

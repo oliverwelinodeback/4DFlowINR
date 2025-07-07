@@ -200,24 +200,24 @@ def flow_dualvenc_reconstruction(vel_lv, vel_hv, venc_l, venc_h):
 
 if __name__ == '__main__':
 
-    tSNR = 2
+    tSNR = 8
     downsample = 1
     template_idx = 3
-    case_name = 'patient3-PreOp-05mm3'
+    case_name = 'HV01_pg_05mm3'
 
     # tSNR = 12 (high), 8 (med), 4 (low) for downsample = 2
     # tSNR = 8 (high), 4 (med), 2 (low) for downsample = 1
     # Mag template - 0 healthy, 1 patient1, 2 patient3-PostOp, 3 patient3-PreOp 
 
     # Update your path here
-    base_path = '../../../data/data_05mm_incl_pressure' 
-    output_dir = '../../../data/data_05mm_incl_pressure'
+    base_path = '../../../data/KI_simulated_CFD' 
+    output_dir = '../../../data/KI_simulated_CFD'
 
     template_filepath = '../../../data/mag_templates.h5'
 
     # -----------------------
     input_filepath  =   f'{base_path}/{case_name}.h5'
-    outputLR_filename = f'{base_path}/{case_name}_dv_lowSNR_x1.h5'
+    outputLR_filename = f'{base_path}/{case_name}_dv_highSNR_x1.h5'
     
     # Change your case name, template idx (see mag_template_aligned.h5), and target SNR here
 
@@ -283,10 +283,17 @@ if __name__ == '__main__':
 
             p = np.asarray(hf['p'][idx])
 
+            px = np.asarray(hf['px'][idx])
+            py = np.asarray(hf['py'][idx])
+            pz = np.asarray(hf['pz'][idx])
+
             hr_u = pad(hr_u, pad_x, pad_y, pad_z)
             hr_v = pad(hr_v, pad_x, pad_y, pad_z) 
             hr_w = pad(hr_w, pad_x, pad_y, pad_z)
             hr_p = pad(p, pad_x, pad_y, pad_z)
+            hr_px = pad(px, pad_x, pad_y, pad_z)
+            hr_py = pad(py, pad_x, pad_y, pad_z)
+            hr_pz = pad(pz, pad_x, pad_y, pad_z)
 
             max_u = np.asarray(hf['max_u'][idx])
             max_v = np.asarray(hf['max_v'][idx])
@@ -372,9 +379,33 @@ if __name__ == '__main__':
             h5utils.save_to_h5(outputLR_filename, "p", p_lr)
             print("p lr shape:")
             print(p_lr.shape)
+
+            px_lr = ndimage.zoom(hr_px, crop_ratio, order=3)
+            px_lr = unpad(px_lr, pad_x // downsample, pad_y // downsample, pad_z // downsample)
+            h5utils.save_to_h5(outputLR_filename, "px", px_lr)
+            print("px lr shape:")
+            print(px_lr.shape)
+            py_lr = ndimage.zoom(hr_py, crop_ratio, order=3)
+            py_lr = unpad(py_lr, pad_x // downsample, pad_y // downsample, pad_z // downsample)
+            h5utils.save_to_h5(outputLR_filename, "py", py_lr)          
+            print("py lr shape:")
+            print(py_lr.shape)
+            pz_lr = ndimage.zoom(hr_pz, crop_ratio, order=3)
+            pz_lr = unpad(pz_lr, pad_x // downsample, pad_y // downsample, pad_z // downsample)
+            h5utils.save_to_h5(outputLR_filename, "pz", pz_lr)
+            print("pz lr shape:")
+            print(pz_lr.shape)
+
+
         else:
             p = unpad(hr_p, pad_x // downsample, pad_y // downsample, pad_z // downsample)
             h5utils.save_to_h5(outputLR_filename, 'p', p)
+            px = unpad(hr_px, pad_x // downsample, pad_y // downsample, pad_z // downsample)
+            h5utils.save_to_h5(outputLR_filename, 'px', px)
+            py = unpad(hr_py, pad_x // downsample, pad_y // downsample, pad_z // downsample)
+            h5utils.save_to_h5(outputLR_filename, 'py', py)
+            pz = unpad(hr_pz, pad_x // downsample, pad_y // downsample, pad_z // downsample)
+            h5utils.save_to_h5(outputLR_filename, 'pz', pz)
         
         if idx == 0:
             if crop_ratio != 1.0: 

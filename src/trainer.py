@@ -1,48 +1,52 @@
 # Imports
 import time
 import torch
+#import wandb
 from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_boundary_loss, update_loss_weights
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
-import SIREN
-from configs.SIREN_1t import get_config
+import networks
+from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 if __name__ == "__main__":
-
-    print("Starting script")
+    
 
     config = get_config()
 
     # Store source files
-    #copy_cource_code(config.log_dir, directory_to_backup= [".", "configs"])
+    copy_cource_code(config.log_dir, directory_to_backup= [".", "configs"])
 
     # Set random seed
     set_seed(config.random_seed)
 
     # Load data
-    u, v, w, p, mask = load_data(config)
+    u, v, w, p, mask, config = load_data(config)  # TODO - fix pressure gradients loading
 
     # Prepare data
     uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, mask)
 
+    config.U_max = U_max
+
     # Load and prepare reference data
     if config.include_ref:
-        u_ref, v_ref, w_ref, p_ref, mask_ref = load_ref_data(config)
-        uvw_data_ref, xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, mask_ref, U_max)
+        u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref = load_ref_data(config)
+        uvw_data_ref, xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, u_ref, v_ref, w_ref, 
+                                                                                             p_ref, px_ref, py_ref, pz_ref,
+                                                                                             mask_ref, U_max)
 
     # Expand mask
     if config.setup.expand_mask:
         mask_flat = mask_flat + boundary_mask_flat
-        if config.include_ref:
-            mask_flat_ref = mask_flat_ref + boundary_mask_flat_ref
+        if config.include_ref: # Don't expand reference mask
+            mask_flat_ref = mask_flat_ref.astype(np.uint8)
 
     # Include fluid region data
     if config.setup.fluid_region:
-        uvw_train, xyz_train = extract_fluid_region(uvw_data, xyz_data, mask_flat)
+        uvw_train, xyz_train = extract_fluid_region(uvw_data, xyz_data, mask_flat, print_fluid_points=True)
         if config.include_ref:
             uvw_ref, xyz_ref = extract_fluid_region(uvw_data_ref, xyz_data_ref, mask_flat_ref)
-
     else:
         uvw_train, xyz_train = uvw_data, xyz_data
         if config.include_ref:
@@ -52,6 +56,7 @@ if __name__ == "__main__":
     xyz_collocation = None
     if config.sample_collocation:
         xyz_collocation = sample_collocation_points(config, xyz_data, mask_flat)
+    ### xyz_collocation = np.copy(xyz_train)
 
     # Sample boundary points
     xyz_boundary = None
@@ -60,14 +65,37 @@ if __name__ == "__main__":
 
     # Initialize network
     DEVICE = torch.device('cuda')
-    model = SIREN.SIREN(
-        in_dim=config.network.in_dim,
-        out_dim=config.network.out_dim,
-        depth=config.network.depth,
-        hidden_features=config.network.hidden_features,
-        first_omega_0=config.network.first_omega_0,
-        hidden_omega_0=config.network.hidden_omega_0
-    ).to(DEVICE)
+    if config.network.arch == "SIREN":
+        model = networks.SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0
+        ).to(DEVICE)
+    elif config.network.arch == "FF_SIREN":
+        model = networks.FF_SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
+    elif config.network.arch == "FFN":
+        model = networks.FFN(
+            input_dim=config.network.in_dim,
+            output_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_dim=config.network.hidden_features,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
+    else:
+        raise ValueError("Unknown network.")
 
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config.training.lr)
@@ -83,7 +111,7 @@ if __name__ == "__main__":
                 model.train()
 
                 # Data loss
-                data_loss, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch)
+                data_loss, _, _, _, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch)
 
                 # PDE residuals (physics loss)
                 physics_losses = compute_physics_loss(
@@ -131,9 +159,9 @@ if __name__ == "__main__":
     # Start training
     start_time = time.time()
     for it in range(config.training.iterations):
-
-        # Time epoch
-        start_epoch = time.time()
+        
+        # Time iteration
+        it_start_time = time.time()
 
         # Train
         model.train()
@@ -159,7 +187,7 @@ if __name__ == "__main__":
                                                xyz_boundary_batch, standardization_factors)
 
         # Predict and calculate data loss
-        data_loss, uvw_pred_data = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch)
+        data_loss, _, _, _, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch)
 
         # Predict and calculate PDE residuals (physics loss)
         physics_losses = compute_physics_loss(
@@ -213,15 +241,14 @@ if __name__ == "__main__":
                 for param_group in Adam_optimizer.param_groups:
                     param_group['lr'] *= config.training.lr_decay_factor
 
-
         if config.include_ref_loss:
             # Sample random points and set to device
             xyz_ref_batch, uvw_ref_batch, mask_ref_batch = sample_ref_to_device(config, xyz_ref, uvw_ref, mask_flat_ref, DEVICE)
             if config.training.use_vector_potential:
                 xyz_ref_batch.requires_grad = True
-            ref_loss, _ = compute_data_loss(config, model, xyz_ref_batch, uvw_ref_batch, mask_ref_batch)
+            ref_loss, _, mse_px, mse_py, mse_pz = compute_data_loss(config, model, xyz_ref_batch, uvw_ref_batch, mask_ref_batch, denormalize=True, reference=True)
         else:
-            ref_loss = torch.tensor(0.0)
+            ref_loss, mse_px, mse_py, mse_pz = torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0)
 
         # Logging
         metrics = {
@@ -234,13 +261,16 @@ if __name__ == "__main__":
             "Loss/Physics_data": physics_loss_data.item(),
             "Loss/Momentum_data": momentum_loss_data.item(),
             "Loss/Divergence_data": div_loss_data.item(),
+            "Loss/Pressure_x": mse_px.item(),
+            "Loss/Pressure_y": mse_py.item(),
+            "Loss/Pressure_z": mse_pz.item(),
             "Loss/Ref": ref_loss.item(),
         }
         for key, value in metrics.items():
             writer.add_scalar(key, value, it)
         if (it + 1) % config.training.log_iter == 0:
-            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f} , physics_loss={physics_loss.item():.4f}, time={round((time.time()-start_time)/60, 1)} min")
-
+            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f}, physics_loss={physics_loss.item():.4E}, it_time={round((time.time()-it_start_time)/config.training.log_iter, 5)} s total_time={round((time.time()-start_time)/60, 1)} min")
+            
         # Plot current model predictions
         if (it + 1) % config.plot.iter == 0:
             plot_predictions(config, model, DEVICE, it+1, u, mask, U_max)
@@ -248,15 +278,18 @@ if __name__ == "__main__":
         # Compare with reference data
         if config.include_ref:
             if (it + 1) % config.training.error_iter == 0 or it == 0:
-                evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, mask_ref, mask_flat_ref, U_max)
-                plot_predictions_vs_reference(config, model, DEVICE, it+1, xyz_ref, 
-                                            u, v, w, p, u_ref, v_ref, w_ref, p_ref, mask_ref, 
-                                            mask_flat_ref, U_max)
                 
+                metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max)
+                
+                plot_predictions_vs_reference(config, model, DEVICE, it+1, xyz_ref, 
+                                            u, v, w, p, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, 
+                                            mask_flat_ref, U_max)
+                    
         # Save model at checkpoint
         if (it + 1) % config.training.summary_iter == 0:
             save_checkpoint(model, it+1, config)
 
         # Save model at end of training
         if (it + 1) == config.training.iterations:
-            save_checkpoint(model, it+1, config, final=True) 
+            save_checkpoint(model, it+1, config, final=True)
+
