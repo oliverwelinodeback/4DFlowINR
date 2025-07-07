@@ -22,10 +22,10 @@ if __name__ == "__main__":
     set_seed(config.random_seed)
 
     # Load data
-    u, v, w, p, mask, config = load_data(config)  # TODO - fix pressure gradients loading
+    u, v, w, p, px, py, pz, mask, config = load_data(config)  # TODO - fix pressure gradients loading
 
     # Prepare data
-    uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, mask)
+    uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, px, py, pz, mask)
 
     config.U_max = U_max
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
                 model.train()
 
                 # Data loss
-                data_loss, _, _, _, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch)
+                data_loss, _, _, _, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch, standardization_factors)
 
                 # PDE residuals (physics loss)
                 physics_losses = compute_physics_loss(
@@ -187,7 +187,7 @@ if __name__ == "__main__":
                                                xyz_boundary_batch, standardization_factors)
 
         # Predict and calculate data loss
-        data_loss, _, _, _, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch)
+        data_loss, _, _, _, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch, standardization_factors)
 
         # Predict and calculate PDE residuals (physics loss)
         physics_losses = compute_physics_loss(
@@ -246,7 +246,7 @@ if __name__ == "__main__":
             xyz_ref_batch, uvw_ref_batch, mask_ref_batch = sample_ref_to_device(config, xyz_ref, uvw_ref, mask_flat_ref, DEVICE)
             if config.training.use_vector_potential:
                 xyz_ref_batch.requires_grad = True
-            ref_loss, _, mse_px, mse_py, mse_pz = compute_data_loss(config, model, xyz_ref_batch, uvw_ref_batch, mask_ref_batch, denormalize=True, reference=True)
+            ref_loss, _, mse_px, mse_py, mse_pz = compute_data_loss(config, model, xyz_ref_batch, uvw_ref_batch, mask_ref_batch, standardization_factors, denormalize=True, reference=True)
         else:
             ref_loss, mse_px, mse_py, mse_pz = torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0)
 
@@ -279,11 +279,11 @@ if __name__ == "__main__":
         if config.include_ref:
             if (it + 1) % config.training.error_iter == 0 or it == 0:
                 
-                metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max)
+                metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors)
                 
                 plot_predictions_vs_reference(config, model, DEVICE, it+1, xyz_ref, 
                                             u, v, w, p, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, 
-                                            mask_flat_ref, U_max)
+                                            mask_flat_ref, U_max, standardization_factors)
                     
         # Save model at checkpoint
         if (it + 1) % config.training.summary_iter == 0:
