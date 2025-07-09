@@ -16,7 +16,7 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250627_PG_correctedDenorm" ## Change this
+    networks_folder = "../models/250709_Testing"
     config.network_name = "OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_AdjustedCollo_Divergence" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
@@ -49,7 +49,7 @@ def get_config(sweep_config=None):
     config.setup.include_pressure = True
     config.setup.include_time = True
     config.setup.fluid_region = True
-    config.setup.expand_mask = True
+    config.setup.expand_mask = False
 
     # Collocation & Boundary points sampling
     config.sample_collocation = True
@@ -63,7 +63,10 @@ def get_config(sweep_config=None):
     config.coords_characteristic = True
     config.coords_normalization = "standardize" # min_max
     config.global_normalization = True
-
+    
+    config.constants = ml_collections.ConfigDict()
+    config.constants.U = 1.0
+    config.constants.L = 0.005
     config.constants.T = config.constants.L / config.constants.U
     config.constants.rho = 1060
     config.constants.mu = 0.004
@@ -114,7 +117,7 @@ def get_config(sweep_config=None):
     config.training.use_physics_loss = True
     config.training.physics_loss_on_data_points = True
     config.training.use_navier_stokes = True
-    config.training.use_divergence = True
+    config.training.use_divergence = False
     config.training.use_PPE = False
     config.training.PPE_weight = 0.001
     config.training.predict_gradients = True

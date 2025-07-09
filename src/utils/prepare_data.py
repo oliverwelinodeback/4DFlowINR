@@ -75,6 +75,24 @@ def load_data(config):
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
                                 ) if config.setup.include_pressure else None
+            
+            px = np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
+                                config.domain.x_start:config.domain.x_end, 
+                                config.domain.y_start:config.domain.y_end, 
+                                config.domain.z_start:config.domain.z_end]
+                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+
+            py = np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
+                                config.domain.x_start:config.domain.x_end, 
+                                config.domain.y_start:config.domain.y_end, 
+                                config.domain.z_start:config.domain.z_end]
+                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+
+            pz = np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
+                                config.domain.x_start:config.domain.x_end, 
+                                config.domain.y_start:config.domain.y_end, 
+                                config.domain.z_start:config.domain.z_end]
+                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
 
             ## TODO - fix pressure gradients loading
             
@@ -165,6 +183,22 @@ def load_ref_data(config):
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
                                 ) if config.setup.include_pressure else None
+            
+            px = np.asarray(hf['px'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
+                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
+                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
+                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
+                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
+            py = np.asarray(hf['py'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
+                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
+                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
+                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
+                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
+            pz = np.asarray(hf['pz'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
+                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
+                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
+                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
+                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
 
         mask = np.asarray(hf['mask'])
         if len(mask.shape) == 4: 
@@ -554,7 +588,6 @@ def sample_collocation_points(config, xyz_data, mask):
         # Sample without replacement
         #indices = np.random.choice(len(xyz_fluid), size=config.collocation_points, replace=True) 
         #sampled_points = xyz_fluid[indices]
-
 
         # Sample with replacement
         data_voxels = len(xyz_fluid)

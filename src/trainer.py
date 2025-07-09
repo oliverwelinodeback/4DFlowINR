@@ -7,6 +7,7 @@ from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sa
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
 from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
+#from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
@@ -36,21 +37,8 @@ if __name__ == "__main__":
                                                                                              p_ref, px_ref, py_ref, pz_ref,
                                                                                              mask_ref, U_max)
 
-    # Expand mask
-    if config.setup.expand_mask:
-        mask_flat = mask_flat + boundary_mask_flat
-        if config.include_ref: # Don't expand reference mask
-            mask_flat_ref = mask_flat_ref.astype(np.uint8)
-
-    # Include fluid region data
-    if config.setup.fluid_region:
-        uvw_train, xyz_train = extract_fluid_region(uvw_data, xyz_data, mask_flat, print_fluid_points=True)
-        if config.include_ref:
-            uvw_ref, xyz_ref = extract_fluid_region(uvw_data_ref, xyz_data_ref, mask_flat_ref)
-    else:
-        uvw_train, xyz_train = uvw_data, xyz_data
-        if config.include_ref:
-            uvw_ref, xyz_ref = uvw_data_ref, xyz_data_ref
+    mask_flat = mask_flat.astype(np.uint8)
+    mask_flat_ref = mask_flat_ref.astype(np.uint8)
 
     # Sample collocation points
     xyz_collocation = None
@@ -62,6 +50,20 @@ if __name__ == "__main__":
     xyz_boundary = None
     if config.sample_boundary:
         xyz_boundary = sample_boundary_points(config, xyz_data, boundary_mask_flat)
+
+    # Expand mask
+    if config.setup.expand_mask:
+        mask_flat = mask_flat + boundary_mask_flat
+
+    # Include fluid region data
+    if config.setup.fluid_region:
+        uvw_train, xyz_train = extract_fluid_region(uvw_data, xyz_data, mask_flat, print_fluid_points=True)
+        if config.include_ref:
+            uvw_ref, xyz_ref = extract_fluid_region(uvw_data_ref, xyz_data_ref, mask_flat_ref)
+    else:
+        uvw_train, xyz_train = uvw_data, xyz_data
+        if config.include_ref:
+            uvw_ref, xyz_ref = uvw_data_ref, xyz_data_ref
 
     # Initialize network
     DEVICE = torch.device('cuda')
@@ -261,9 +263,9 @@ if __name__ == "__main__":
             "Loss/Physics_data": physics_loss_data.item(),
             "Loss/Momentum_data": momentum_loss_data.item(),
             "Loss/Divergence_data": div_loss_data.item(),
-            "Loss/Pressure_x": mse_px.item(),
-            "Loss/Pressure_y": mse_py.item(),
-            "Loss/Pressure_z": mse_pz.item(),
+            "Loss/Pressure_x": mse_px.item() if mse_px is not None else 0.0,
+            "Loss/Pressure_y": mse_py.item() if mse_px is not None else 0.0,
+            "Loss/Pressure_z": mse_pz.item() if mse_px is not None else 0.0,
             "Loss/Ref": ref_loss.item(),
         }
         for key, value in metrics.items():

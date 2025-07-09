@@ -6,10 +6,11 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
+#from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
+from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
+
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-
 
 def train(config=None, run_name=None, use_sweep=False):
 
@@ -51,10 +52,12 @@ def train(config=None, run_name=None, use_sweep=False):
     set_seed(config.random_seed)
 
     # Load data
-    u, v, w, p, px, py, pz, mask, config = load_data(config) 
+    u, v, w, p, px, py, pz, mask, config = load_data(config)
 
     # Prepare data
     uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, px, py, pz, mask)
+
+    config.U_max = U_max
 
     # Load and prepare reference data
     if config.include_ref:
@@ -101,7 +104,18 @@ def train(config=None, run_name=None, use_sweep=False):
             first_omega_0=config.network.omega_0,
             hidden_omega_0=config.network.omega_0
         ).to(DEVICE)
-    else:
+    elif config.network.arch == "FF_SIREN":
+        model = networks.FF_SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
+    elif config.network.arch == "FFN":
         model = networks.FFN(
             input_dim=config.network.in_dim,
             output_dim=config.network.out_dim,
@@ -110,7 +124,9 @@ def train(config=None, run_name=None, use_sweep=False):
             fourier_mapping_size=config.network.fourier_mapping_size,
             scale=config.network.fourier_scale
         ).to(DEVICE)
-
+    else:
+        raise ValueError("Unknown network.")
+    
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config.training.lr)
     if config.training.use_LBFGS:
@@ -174,8 +190,8 @@ def train(config=None, run_name=None, use_sweep=False):
     start_time = time.time()
     for it in range(config.training.iterations):
 
-        # Time epoch
-        start_epoch = time.time()
+        # Time iteration
+        it_start_time = time.time()
 
         # Train
         model.train()
@@ -286,7 +302,7 @@ def train(config=None, run_name=None, use_sweep=False):
         for key, value in metrics.items():
             writer.add_scalar(key, value, it)
         if (it + 1) % config.training.log_iter == 0:
-            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f}, physics_loss={physics_loss.item():.4E}, it_time={round((time.time()-start_epoch)/config.training.log_iter, 5)} s total_time={round((time.time()-start_time)/60, 1)} min")
+            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f}, physics_loss={physics_loss.item():.4E}, it_time={round((time.time()-it_start_time)/config.training.log_iter, 5)} s total_time={round((time.time()-start_time)/60, 1)} min")
 
             wandb.log({
                 "Loss/Train": total_loss.item(),
@@ -379,6 +395,47 @@ if __name__ == "__main__":
                 },
             }
         }
+
+        # Nerea - Sweep (FFN/SIREN)
+        # sweep_configuration = {
+        #     'method': 'grid', #
+        #     'metric': {'name': 'Loss/Ref', 'goal': 'minimize'},
+        #     'parameters': { 
+        #         'network_arch': {
+        #             'value': 'SIREN'
+        #         },
+        #         ''
+        #         'training_use_vector_potential' : { 
+        #             'values': [True, False]
+        #         },  
+        #         'training_use_physics_loss'  : { 
+        #             'values': [True, False]
+        #         }, 
+        #         'network_omega'   :   { 
+        #             'values': [0.1, 1.0, 10.0, 30.0, 70.0, 200.0]
+        #         }, 
+        #     }
+        # }
+        # sweep_configuration = {
+        #    'method': 'grid', #
+        #    'metric': {'name': 'Loss/Ref', 'goal': 'minimize'},
+        #    'parameters': { 
+        #        'network_arch': {
+        #            'value': 'FFN'
+        #        },
+        #        'training_use_vector_potential' : { 
+        #            'values': [True, False]
+        #        },  
+        #        'training_use_physics_loss'  : { 
+        #            'values': [True, False]
+        #        }, 
+        #        'network_fourier_scale'   :   { 
+        #            'values': [0.1, 1.0, 3.0, 5.0, 7.0, 10.0, 50.0, 100.0]
+        #        }, 
+        #    }
+        # }
+
+
         
         sweep_id = wandb.sweep(sweep=sweep_configuration, project="SRFlowNIR")
         wandb.agent(sweep_id, function=lambda: train(use_sweep=True),count=1)#1000)

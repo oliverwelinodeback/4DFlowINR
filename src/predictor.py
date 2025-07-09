@@ -19,10 +19,9 @@ from utils.loss_utils import vector_potential_fn
 from utils.preprocessing_utils import compute_outer_boundary_mask
 import networks
 from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
+#from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
 from utils.loss_utils import vector_potential_fn
-
 import h5py
-
 
 if __name__ == "__main__":
 
@@ -31,6 +30,7 @@ if __name__ == "__main__":
     config = get_config()
 
     # Path to stored weights
+    # --------------------------------
     # network_path = "/proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/models/250129_AoModel/FFN_1t_20250130-1713/checkpoints/FFN_1t_it1000.pth"
     # results_directory = "../results/250130_Tests/FFN_1t_1"
 
@@ -44,8 +44,12 @@ if __name__ == "__main__":
     #network_path = "../models/250623_PG_coord_pressure_test/Config_1x_HV01_highSNR_AbsolutePressure_20250623-1052/checkpoints/Config_1x_HV01_highSNR_AbsolutePressure_it100000.pth"
     #results_directory = "../results/250623_PG_coord_pressure_test/Config_1x_HV01_highSNR_AbsolutePressure_20250623-1052/checkpoints/Config_1x_HV01_highSNR_AbsolutePressure_it100000"
 
-    network_path = "../models/250625_PG_ReTests/LowRe_2.65_U0.1_L0.0001_20250625-1725/checkpoints/LowRe_2.65_U0.1_L0.0001_it95000.pth"
-    results_directory = "../results/250625_PG_ReEvaluations/LowRe_2.65_U0.1_L0.0001_20250625-1723/checkpoints/LowRe_2.65_U0.1_L0.0001_it95000"
+    #network_path = "../models/250625_PG_ReTests/LowRe_2.65_U0.1_L0.0001_20250625-1725/checkpoints/LowRe_2.65_U0.1_L0.0001_it95000.pth"
+    #results_directory = "../results/250625_PG_ReEvaluations/LowRe_2.65_U0.1_L0.0001_20250625-1723/checkpoints/LowRe_2.65_U0.1_L0.0001_it95000"
+
+    network_path = "../models/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/checkpoints/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_it95000.pth"
+    results_directory = "../results/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/"
+    # --------------------------------
 
     if not os.path.exists(results_directory):
         os.makedirs(results_directory)
@@ -104,8 +108,8 @@ if __name__ == "__main__":
             out_dim=config.network.out_dim,
             depth=config.network.depth,
             hidden_features=config.network.hidden_features,
-            first_omega_0= 30.0, #config.network.first_omega_0,
-            hidden_omega_0= 30.0, #config.network.hidden_omega_0
+            first_omega_0= config.network.omega_0,
+            hidden_omega_0= config.network.omega_0
         ).to(DEVICE)
     else:
         model = networks.FFN(
@@ -125,6 +129,13 @@ if __name__ == "__main__":
     # Load trained model
     checkpoint = torch.load(network_path, map_location=DEVICE)
     model.load_state_dict(checkpoint['model_state_dict'])
+    if config.network.arch == "FFN":
+        model.fourier_encoder.B = checkpoint['fourier_B']
+
+    # # Print model weights after loading
+    # print("\nModel weights after loading:")
+    # for name, param in model.named_parameters():
+    #     print(f"{name}: {param.data}")
 
     # Predict and compare with reference data
     if config.predictions.predict_reference_data:
@@ -136,22 +147,22 @@ if __name__ == "__main__":
 
         # Predict reference coordinates
         model.eval()
-        xyz_ref = torch.from_numpy(xyz_ref).float().to(DEVICE)
-        xyz_ref.requires_grad = config.training.use_vector_potential
+        xyz_train = torch.from_numpy(xyz_train).float().to(DEVICE)
+        xyz_train.requires_grad = config.training.use_vector_potential
 
         if config.training.use_vector_potential:
             with torch.set_grad_enabled(True):
-                uvw_pred = model(xyz_ref)
-                uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
+                uvw_pred = model(xyz_train)
+                uvw_pred = vector_potential_fn(uvw_pred, xyz_train)
                 uvw_pred = uvw_pred.detach().cpu().numpy()
         else:
             with torch.no_grad():
-                uvw_pred = model(xyz_ref)
+                uvw_pred = model(xyz_train)
                 uvw_pred = uvw_pred.cpu().numpy()
 
         if config.predictions.fluid_region:
-            fluid_indices = mask_flat_ref==1
-            uvw_pred_full = np.zeros(((len(mask_flat_ref), len(uvw_pred[0]))))
+            fluid_indices = mask_flat==1
+            uvw_pred_full = np.zeros(((len(mask_flat), len(uvw_pred[0]))))
             uvw_pred_full[fluid_indices] = uvw_pred
             uvw_pred = uvw_pred_full
 
@@ -262,6 +273,10 @@ if __name__ == "__main__":
         abs_err = np.zeros((T,5))
         rmse = np.zeros((T,5))
 
+        vnrmse = np.zeros((T,4))
+        d_error = np.zeros((T,4))
+        div_err = np.zeros((T,4))
+
         Ks = np.zeros((T,3,3))
         Ms = np.zeros((T,3,3))
         Rs = np.zeros((T,3,3))
@@ -290,6 +305,21 @@ if __name__ == "__main__":
             rmse[t,1] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
             rmse[t,2] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
             rmse[t,3] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            vnrmse[t,0] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+            vnrmse[t,1] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+            vnrmse[t,2] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+            vnrmse[t,3] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            d_error[t,0] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+            d_error[t,1] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+            d_error[t,2] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+            d_error[t,3] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            div_err[t,0] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
+            div_err[t,1] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
+            div_err[t,2] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
+            div_err[t,3] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
 
             Ks[t][0][0], Ms[t][0][0], Rs[t][0][0] = linreg(u_pred[t], u_ref[t], mask_ref)
             Ks[t][1][0], Ms[t][1][0], Rs[t][1][0] = linreg(v_pred[t], v_ref[t], mask_ref)
@@ -357,6 +387,7 @@ if __name__ == "__main__":
         print(f'R.M.S.   error Pressure [Fluid] {rmse_tot[4]:.4f}')
 
         print(' ')
+        print(peak_flow_idx, 'Peak')
         print(f'U [Fluid] k: {Ks[peak_flow_idx][0][0]:.4f} \t m: {Ms[peak_flow_idx][0][0]:.4f} \t r^2: {Rs[peak_flow_idx][0][0]:.4f}')
         print(f'  [Bound] k: {Ks[peak_flow_idx][0][1]:.4f} \t m: {Ms[peak_flow_idx][0][1]:.4f} \t r^2: {Rs[peak_flow_idx][0][1]:.4f}')
         print(f'  [Core] k: {Ks[peak_flow_idx][0][2]:.4f} \t m: {Ms[peak_flow_idx][0][2]:.4f} \t r^2: {Rs[peak_flow_idx][0][2]:.4f}')
@@ -692,6 +723,10 @@ if __name__ == "__main__":
         abs_err = np.zeros((T,5))
         rmse = np.zeros((T,5))
 
+        vnrmse = np.zeros((T,4))
+        d_error = np.zeros((T,4))
+        div_err = np.zeros((T,4))
+
         Ks = np.zeros((T,3,3))
         Ms = np.zeros((T,3,3))
         Rs = np.zeros((T,3,3))
@@ -712,6 +747,21 @@ if __name__ == "__main__":
             rmse[t,2] = (calculate_rmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
             rmse[t,3] = (calculate_rmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
             # rmse[t,4] = (calculate_rmse_pressure(p[t], p_ref[t], mask_ref))
+
+            vnrmse[t,0] = (calculate_vnrmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+            vnrmse[t,1] = (calculate_vnrmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+            vnrmse[t,2] = (calculate_vnrmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+            vnrmse[t,3] = (calculate_vnrmse(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            d_error[t,0] = (calculate_directional_error(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+            d_error[t,1] = (calculate_directional_error(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+            d_error[t,2] = (calculate_directional_error(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+            d_error[t,3] = (calculate_directional_error(u[t], v[t], w[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
+
+            div_err[t,0] = (calculate_divergence([u[t], v[t], w[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
+            div_err[t,1] = (calculate_divergence([u[t], v[t], w[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
+            div_err[t,2] = (calculate_divergence([u[t], v[t], w[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
+            div_err[t,3] = (calculate_divergence([u[t], v[t], w[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
 
             Ks[t][0][0], Ms[t][0][0], Rs[t][0][0] = linreg(u[t], u_ref[t], mask_ref)
             Ks[t][1][0], Ms[t][1][0], Rs[t][1][0] = linreg(v[t], v_ref[t], mask_ref)
@@ -778,6 +828,21 @@ if __name__ == "__main__":
             'R.M.S. error [Core]': rmse_tot[2],
             'R.M.S. error [Non-F]': rmse_tot[3],
             # 'R.M.S. error Pressure [Fluid]': rmse_tot[4],
+
+            'VNRMSE [Fluid]': vnrmse[0,0],
+            'VNRMSE [Bound]': vnrmse[0,1],
+            'VNRMSE [Core]': vnrmse[0,2],
+            'VNRMSE [Non-F]': vnrmse[0,3],
+
+            'Directional error [Fluid]': d_error[0,0],
+            'Directional error [Bound]': d_error[0,1],
+            'Directional error [Core]': d_error[0,2],
+            'Directional error [Non-F]': d_error[0,3],
+
+            'Divergence prediction [Fluid]': div_err[0,0],
+            'Divergence prediction [Bound]': div_err[0,1],
+            'Divergence prediction [Core]': div_err[0,2],
+            'Divergence prediction [Non-F]': div_err[0,3],
 
             'PEAK FLOW INDEX:': peak_flow_idx,
             'Relative error [Fluid] Peak': rel_err[peak_flow_idx][0],
