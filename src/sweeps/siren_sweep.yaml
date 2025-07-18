@@ -1,0 +1,18 @@
+program: trainer.py
+method: grid
+metric:
+  name: Loss/Ref
+  goal: minimize
+parameters:
+  network:
+    parameters:
+      arch:
+        value: 'SIREN'
+      omega_0:
+        values: [0.1, 1.0, 10.0, 30.0, 70.0, 200.0]
+  training:
+    parameters:
+      use_vector_potential:
+        values: [True, False]
+      use_physics_loss:
+        values: [True, False]

@@ -1,0 +1,30 @@
+program: trainer.py
+method: random
+metric:
+  name: Loss/Ref
+  goal: minimize
+parameters:
+  # coords_normalization: "standardize" or "min_max"
+  coords_normalization:
+    values: ["standardize"]
+  # global_normalization: True or False
+  global_normalization:
+    values: [True]
+  training:
+    parameters:
+      # epochs_before_PDE: 0 or 100
+      epochs_before_PDE:
+        values: [0]
+      # grad_weight_scheme: True or False
+      grad_weight_scheme:
+        values: [True] 
+      # training.use_LBFGS: True or False
+      use_LBFGS:
+        values: [True]
+      physics_weight:
+        values: [1.0]
+  training:
+    parameters:
+      # network.omega_0: 10, 30, or 50
+      omega_0:
+        values: [30]

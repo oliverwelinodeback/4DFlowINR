@@ -6,7 +6,6 @@ def get_config(sweep_config=None):
     """Get the default hyperparameter configuration."""
     config = ml_collections.ConfigDict()
 
-    config.sweep = False
     # Data
     config.data_file = "../../data/KI_simulated_CFD/HV01_pg_05mm3_dv_highSNR_x1.h5"
     #config.data_file = "../../data/icad_sim/HV01_05mm_dv_lowSNR_x2.h5"
