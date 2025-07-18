@@ -13,7 +13,6 @@ import numpy as np
 
 if __name__ == "__main__":
     
-
     config = get_config()
 
     # Store source files

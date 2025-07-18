@@ -234,8 +234,8 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
         z = z / L
 
     t_normalized = None
-
     standardization_factors = None
+
     if config.coords_normalization == "standardize":
 
         if config.global_normalization:
@@ -581,6 +581,8 @@ def sample_collocation_points(config, xyz_data, mask):
         return coll_points
     
     else:
+        
+        # Think about other appraoches - SA-PINN, adaptive resampling, etc.
 
         # Sample random points in fluid region
         xyz_fluid = xyz_data[mask == 1]
@@ -619,6 +621,7 @@ def sample_collocation_points(config, xyz_data, mask):
         noise = random_vals * min_distances
         coll_points = sampled_points + noise
 
+        # (4, 10_000_000)
         return coll_points
     
 def sample_boundary_points(config, xyz_data, boundary_mask):

@@ -218,7 +218,7 @@ def train(config=None, run_name=None, use_sweep=False):
 
         # Predict and calculate data loss
         data_loss, _, _, _, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch, standardization_factors)
-
+#########
         # Predict and calculate PDE residuals (physics loss)
         physics_losses = compute_physics_loss(
             config,
@@ -435,8 +435,6 @@ if __name__ == "__main__":
         #    }
         # }
 
-
-        
         sweep_id = wandb.sweep(sweep=sweep_configuration, project="SRFlowNIR")
         wandb.agent(sweep_id, function=lambda: train(use_sweep=True),count=1)#1000)
     else:
