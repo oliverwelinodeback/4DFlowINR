@@ -10,89 +10,89 @@ import h5py
 def load_data(config):
     
     # Load data
-    with h5py.File(config.data_file, mode='r') as hf:
+    with h5py.File(config["data_file"], mode='r') as hf:
         
         # Crop the data
-        if config.setup.include_time:
-            u = np.asarray(hf['u'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
-            v = np.asarray(hf['v'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
-            w = np.asarray(hf['w'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+        if config["setup"]["include_time"]:
+            u = np.asarray(hf['u'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]])
+            v = np.asarray(hf['v'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]])
+            w = np.asarray(hf['w'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]])
             
-            p = np.asarray(hf['p'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                ) if config.setup.include_pressure else None
+            p = np.asarray(hf['p'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]]
+                                ) if config["setup"]["include_pressure"] else None
 
-            px = np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+            px = np.asarray(hf['px'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]]
+                                )*1000 if (config["setup"]["include_pressure"] and config["training"]["predict_gradients"]) else None
 
-            py = np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+            py = np.asarray(hf['py'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]]
+                                )*1000 if (config["setup"]["include_pressure"] and config["training"]["predict_gradients"]) else None
 
-            pz = np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+            pz = np.asarray(hf['pz'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]]
+                                )*1000 if (config["setup"]["include_pressure"] and config["training"]["predict_gradients"]) else None
 
             #px *= 1000 # Pa /mm --> Pa /m
             #py *= 1000
             #pz *= 1000
         else:
-            t_index = config.domain.t_start
+            t_index = config["domain"]["t_start"]
 
             u = np.asarray(hf['u'][t_index, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]])
             v = np.asarray(hf['v'][t_index, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]])
             w = np.asarray(hf['w'][t_index, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]])
             
             p = np.asarray(hf['p'][t_index,
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                ) if config.setup.include_pressure else None
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]]
+                                ) if config["setup"]["include_pressure"] else None
             
-            px = np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+            px = np.asarray(hf['px'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]]
+                                )*1000 if (config["setup"]["include_pressure"] and config["training"]["predict_gradients"]) else None
 
-            py = np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+            py = np.asarray(hf['py'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]]
+                                )*1000 if (config["setup"]["include_pressure"] and config["training"]["predict_gradients"]) else None
 
-            pz = np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+            pz = np.asarray(hf['pz'][config["domain"]["t_start"]:config["domain"]["t_end"], 
+                                config["domain"]["x_start"]:config["domain"]["x_end"], 
+                                config["domain"]["y_start"]:config["domain"]["y_end"], 
+                                config["domain"]["z_start"]:config["domain"]["z_end"]]
+                                )*1000 if (config["setup"]["include_pressure"] and config["training"]["predict_gradients"]) else None
 
             ## TODO - fix pressure gradients loading
             
@@ -102,119 +102,119 @@ def load_data(config):
         if len(mask.shape) == 4: 
             mask = mask[0]
 
-        mask = mask[config.domain.x_start:config.domain.x_end, 
-                    config.domain.y_start:config.domain.y_end, 
-                    config.domain.z_start:config.domain.z_end]
+        mask = mask[config["domain"]["x_start"]:config["domain"]["x_end"], 
+                    config["domain"]["y_start"]:config["domain"]["y_end"], 
+                    config["domain"]["z_start"]:config["domain"]["z_end"]]
         # h×w×d = (81, 57, 50)
 
-        if config.resolution.from_file:
-            config.resolution.dx = hf.attrs['spacing'][0]
-            config.resolution.dy = hf.attrs['spacing'][1]
-            config.resolution.dz = hf.attrs['spacing'][2]
-            config.resolution.dt = hf.attrs['dt']
-            print(f"Loaded resolution from file: {config.resolution.dx}, {config.resolution.dy}, {config.resolution.dz}, {config.resolution.dt}")	
+        if config["resolution"]["from_file"]:
+            config["resolution"]["dx"] = hf.attrs['spacing'][0]
+            config["resolution"]["dy"] = hf.attrs['spacing'][1]
+            config["resolution"]["dz"] = hf.attrs['spacing'][2]
+            config["resolution"]["dt"] = hf.attrs['dt']
+            print(f"Loaded resolution from file: {config['resolution']['dx']}, {config['resolution']['dy']}, {config['resolution']['dz']}, {config['resolution']['dt']}")
 
     return u, v, w, p, px, py, pz, mask, config
 
 def load_ref_data(config):
     
     # Load data
-    with h5py.File(config.data_file_ref, mode='r') as hf:
+    with h5py.File(config["data_file_ref"], mode='r') as hf:
         
         # Crop the data
-        if config.setup.include_time:
-            u = np.asarray(hf['u'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
-            v = np.asarray(hf['v'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
-            w = np.asarray(hf['w'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+        if config["setup"]["include_time"]:
+            u = np.asarray(hf['u'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"],
+                                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]])
+            v = np.asarray(hf['v'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"],
+                                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]])
+            w = np.asarray(hf['w'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"],
+                                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]])
             
-            p = np.asarray(hf['p'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                                ) if config.setup.include_pressure else None
+            p = np.asarray(hf['p'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"], 
+                                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
+                                ) if config["setup"]["include_pressure"] else None
 
-            px = np.asarray(hf['px'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
-                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
-            py = np.asarray(hf['py'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
-            pz = np.asarray(hf['pz'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
+            px = np.asarray(hf['px'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"], 
+                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
+                )*1000 if (config["setup"]["include_pressure"] and config["training"]["reference_gradients"]) else None
+            py = np.asarray(hf['py'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"],
+                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
+                )*1000 if (config["setup"]["include_pressure"] and config["training"]["reference_gradients"]) else None
+            pz = np.asarray(hf['pz'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"],
+                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
+                )*1000 if (config["setup"]["include_pressure"] and config["training"]["reference_gradients"]) else None
             
             #px *= 1000 # Pa /mm --> Pa /m
             #py *= 1000
             #pz *= 1000
 
         else:
-            t_index = config.domain.t_start
+            t_index = config["domain"]["t_start"]
 
             u = np.asarray(hf['u'][t_index, 
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]])
             v = np.asarray(hf['v'][t_index, 
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]])
             w = np.asarray(hf['w'][t_index, 
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]])
             
             p = np.asarray(hf['p'][t_index,
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                                ) if config.setup.include_pressure else None
+                                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
+                                ) if config["setup"]["include_pressure"] else None
             
-            px = np.asarray(hf['px'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
-                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
-            py = np.asarray(hf['py'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
-            pz = np.asarray(hf['pz'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
+            px = np.asarray(hf['px'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"], 
+                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
+                )*1000 if (config["setup"]["include_pressure"] and config["training"]["reference_gradients"]) else None
+            py = np.asarray(hf['py'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"],
+                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
+                )*1000 if (config["setup"]["include_pressure"] and config["training"]["reference_gradients"]) else None
+            pz = np.asarray(hf['pz'][config["domain"]["t_start"]*config["ref_temporal_factor"]:config["domain"]["t_end"]*config["ref_temporal_factor"],
+                config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
+                )*1000 if (config["setup"]["include_pressure"] and config["training"]["reference_gradients"]) else None
 
         mask = np.asarray(hf['mask'])
         if len(mask.shape) == 4: 
             mask = mask[0]
 
-        mask = mask[config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                    config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                    config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
+        mask = mask[config["domain"]["x_start"]*config["ref_spatial_factor"]:config["domain"]["x_end"]*config["ref_spatial_factor"], 
+                    config["domain"]["y_start"]*config["ref_spatial_factor"]:config["domain"]["y_end"]*config["ref_spatial_factor"], 
+                    config["domain"]["z_start"]*config["ref_spatial_factor"]:config["domain"]["z_end"]*config["ref_spatial_factor"]]
 
     return u, v, w, p, px, py, pz, mask
 
 def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
     
     # Extract resolutions
-    dx, dy, dz = config.resolution.dx, config.resolution.dy, config.resolution.dz
-    dt = config.resolution.dt
+    dx, dy, dz = config["resolution"]["dx"], config["resolution"]["dy"], config["resolution"]["dz"]
+    dt = config["resolution"]["dt"]
 
     # Create linspaces
     t = np.linspace(dt, t_len * dt, t_len)
@@ -226,8 +226,8 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
     # FOV ends at 0.04075 = x_len * dx + dx/2
 
     # Normalize coordinates
-    if config.coords_characteristic:
-        L, T = config.constants.L, config.constants.T
+    if config["coords_characteristic"]:
+        L, T = config["constants"]["L"], config["constants"]["T"]
         t = t / T
         x = x / L
         y = y / L
@@ -236,9 +236,9 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
     t_normalized = None
 
     standardization_factors = None
-    if config.coords_normalization == "standardize":
+    if config["coords_normalization"] == "standardize":
 
-        if config.global_normalization:
+        if config["global_normalization"]:
 
             ranges = [np.ptp(arr) for arr in (x, y, z)]
             print(ranges)
@@ -265,7 +265,7 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
             y_normalized, mean_y, std_y = standardize(y)
             z_normalized, mean_z, std_z = standardize(z)
 
-        if config.setup.include_time:
+        if config["setup"]["include_time"]:
             t_normalized, mean_t, std_t = standardize(t)
             standardization_factors = [
                 mean_t, std_t, mean_x, std_x, 
@@ -278,9 +278,9 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
                 mean_z, std_z
             ]
 
-    elif config.coords_normalization == "min_max":
+    elif config["coords_normalization"] == "min_max":
 
-        if config.global_normalization:
+        if config["global_normalization"]:
             max_x, min_x = x.max(), x.min()
             max_y, min_y = y.max(), y.min()
             max_z, min_z = z.max(), z.min()
@@ -300,7 +300,7 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
         y_normalized = (y - min_y) / (max_y - min_y)
         z_normalized = (z - min_z) / (max_z - min_z)
 
-        if config.setup.include_time:
+        if config["setup"]["include_time"]:
             t_normalized, min_t, max_t = min_max_normalize(t)
             standardization_factors = [
                 min_t, max_t, min_x, max_x, 
@@ -356,7 +356,7 @@ def upsample_1d(arr, factor=2, mode='extend'):
 def prepare_data(config, u, v, w, p, px, py, pz, mask):
 
     # Prepare coordinates
-    if config.setup.include_time:
+    if config["setup"]["include_time"]:
         t_len, x_len, y_len, z_len = u.shape # (T, h, w, d)
     else:
         x_len, y_len, z_len = u.shape # (h, w, d)
@@ -365,7 +365,7 @@ def prepare_data(config, u, v, w, p, px, py, pz, mask):
     t_normalized, x_normalized, y_normalized, z_normalized, standardization_factors = create_and_normalize_coords(config, t_len, x_len, y_len, z_len)
 
     # Create coordinate grid
-    if config.setup.include_time:
+    if config["setup"]["include_time"]:
         grids = np.meshgrid(t_normalized, x_normalized, y_normalized, z_normalized, indexing='ij')
     else:
         grids = np.meshgrid(x_normalized, y_normalized, z_normalized, indexing='ij')
@@ -405,7 +405,7 @@ def prepare_data(config, u, v, w, p, px, py, pz, mask):
     # Extract boundaries
     boundary_mask = compute_outer_boundary_mask(mask) # h×w×d = (81, 57, 50)
 
-    if config.setup.include_time:
+    if config["setup"]["include_time"]:
         # Tile the masks
         mask_flat = np.tile(mask.ravel(), t_len)
         boundary_mask_flat = np.tile(boundary_mask.ravel(), t_len)
@@ -416,13 +416,13 @@ def prepare_data(config, u, v, w, p, px, py, pz, mask):
     U_max = max(u.max(), v.max(), w.max())
 
     # Normalize velocity data
-    if config.vel_normalization == "characteristic":
-        U = config.constants.U
+    if config["vel_normalization"] == "characteristic":
+        U = config["constants"]["U"]
         u_normalized = u / U
         v_normalized = v / U
         w_normalized = w / U
 
-    elif config.vel_normalization == "max_velocity":
+    elif config["vel_normalization"] == "max_velocity":
 
         u_normalized = u / U_max
         v_normalized = v / U_max
@@ -435,8 +435,8 @@ def prepare_data(config, u, v, w, p, px, py, pz, mask):
 
     velocities = [u_flat, v_flat, w_flat]
 
-    if (config.setup.include_pressure and config.training.predict_gradients):
-        rho, U, L = config.constants.rho, config.constants.U, config.constants.L
+    if (config["setup"]["include_pressure"] and config["training"]["predict_gradients"]):
+        rho, U, L = config["constants"]["rho"], config["constants"]["U"], config["constants"]["L"]
         p_normalized = p / (rho*(U**2))
         p_flat = p_normalized.reshape(-1)
         velocities.append(p_flat)
@@ -454,8 +454,8 @@ def prepare_data(config, u, v, w, p, px, py, pz, mask):
         velocities.append(py_flat)
         velocities.append(pz_flat)
 
-    elif config.setup.include_pressure:
-        rho, U = config.constants.rho, config.constants.U
+    elif config["setup"]["include_pressure"]:
+        rho, U = config["constants"]["rho"], config["constants"]["U"]
         p_normalized = p / (rho*(U**2))
         p_flat = p_normalized.reshape(-1)
         velocities.append(p_flat)
@@ -468,7 +468,7 @@ def prepare_data(config, u, v, w, p, px, py, pz, mask):
 def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask, U_max):
 
     # Prepare coordinates
-    if config.setup.include_time:
+    if config["setup"]["include_time"]:
         t_len, x_len, y_len, z_len = u.shape # (T, h, w, d)
     else:
         x_len, y_len, z_len = u.shape # (h, w, d)
@@ -477,13 +477,13 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
     t_normalized, x_normalized, y_normalized, z_normalized, _ = create_and_normalize_coords(config, t_len, x_len, y_len, z_len)
 
     # Upsample coordinates
-    t_ups = upsample_1d(t_normalized, config.ref_temporal_factor, 'extend') if config.setup.include_time else []
-    x_ups = upsample_1d(x_normalized, config.ref_spatial_factor, mode='centered')
-    y_ups = upsample_1d(y_normalized, config.ref_spatial_factor, mode='centered')
-    z_ups = upsample_1d(z_normalized, config.ref_spatial_factor, mode='centered')
+    t_ups = upsample_1d(t_normalized, config["ref_temporal_factor"], 'extend') if config["setup"]["include_time"] else []
+    x_ups = upsample_1d(x_normalized, config["ref_spatial_factor"], mode='centered')
+    y_ups = upsample_1d(y_normalized, config["ref_spatial_factor"], mode='centered')
+    z_ups = upsample_1d(z_normalized, config["ref_spatial_factor"], mode='centered')
 
     # Create coordinate grid
-    if config.setup.include_time:
+    if config["setup"]["include_time"]:
         grids = np.meshgrid(t_ups, x_ups, y_ups, z_ups, indexing='ij')
     else:
         grids = np.meshgrid(x_ups, y_ups, z_ups, indexing='ij')
@@ -494,7 +494,7 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
     # Extract boundaries
     boundary_mask = compute_outer_boundary_mask(mask) # h×w×d = (81, 57, 50)
 
-    if config.setup.include_time:
+    if config["setup"]["include_time"]:
         # Tile the masks
         mask_flat = np.tile(mask.ravel(), t_len)
         boundary_mask_flat = np.tile(boundary_mask.ravel(), t_len)
@@ -503,13 +503,13 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
         boundary_mask_flat = boundary_mask.ravel()
 
     # Normalize velocity data
-    if config.vel_normalization == "characteristic":
-        U = config.constants.U
+    if config["vel_normalization"] == "characteristic":
+        U = config["constants"]["U"]
         u_normalized = u_ref / U
         v_normalized = v_ref / U
         w_normalized = w_ref / U
 
-    elif config.vel_normalization == "max_velocity":
+    elif config["vel_normalization"] == "max_velocity":
         u_normalized = u_ref / U_max
         v_normalized = v_ref / U_max
         w_normalized = w_ref / U_max
@@ -521,13 +521,13 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
 
     velocities = [u_flat, v_flat, w_flat]
 
-    if config.setup.include_pressure:
-        rho, U, L = config.constants.rho, config.constants.U, config.constants.L
+    if config["setup"]["include_pressure"]:
+        rho, U, L = config["constants"]["rho"], config["constants"]["U"], config["constants"]["L"]
         p_normalized = p_ref / (rho*(U**2))
         p_flat = p_normalized.reshape(-1)
         velocities.append(p_flat)
 
-    if config.training.reference_gradients:
+    if config["training"]["reference_gradients"]:
 
         #_, _, _, std_x, _, std_y, _, std_z = standardization_factors
         # px_normalized = px_ref * L * std_x / (rho*(U**2))
@@ -563,20 +563,20 @@ def sample_collocation_points(config, xyz_data, mask):
 
     # np.random.seed(123)
 
-    if not config.collocation_in_fluid:
+    if not config["collocation_in_fluid"]:
 
         # Sample random points
         for dim in range(xyz_data.shape[1]):
 
             # Initialize output array
-            coll_points = np.empty((config.collocation_points, xyz_data.shape[1])) # (N, 4)
+            coll_points = np.empty((config["collocation_points"], xyz_data.shape[1])) # (N, 4)
 
             # Extract min & max values
             mins = xyz_data.min(axis=0)
             maxs = xyz_data.max(axis=0)
 
             # Sample points random
-            coll_points[:, dim] = np.random.uniform(low=mins[dim], high=maxs[dim], size=config.collocation_points)
+            coll_points[:, dim] = np.random.uniform(low=mins[dim], high=maxs[dim], size=config["collocation_points"])
 
         return coll_points
     
@@ -591,7 +591,7 @@ def sample_collocation_points(config, xyz_data, mask):
 
         # Sample with replacement
         data_voxels = len(xyz_fluid)
-        N_c = config.collocation_points
+        N_c = config["collocation_points"]
 
         # Compute repeats and leftovers
         repeat_times = N_c // data_voxels
@@ -628,14 +628,14 @@ def sample_boundary_points(config, xyz_data, boundary_mask):
     # Sample random points in boundary region
     bound_points = xyz_data[boundary_mask == 1]
 
-    if config.setup.include_time:
+    if config["setup"]["include_time"]:
 
         # Sample random timesteps
-        random_times = np.random.uniform(low=xyz_data[:, 0].min(), high=xyz_data[:, 0].max(), size=config.boundary_repetitions)
+        random_times = np.random.uniform(low=xyz_data[:, 0].min(), high=xyz_data[:, 0].max(), size=config["boundary_repetitions"])
         
         # Repeat boundary points at each random timestep
         boundary_spatial = np.unique(bound_points[:, 1:], axis=0)
-        repeated_spatial = np.tile(boundary_spatial, (config.boundary_repetitions, 1))
+        repeated_spatial = np.tile(boundary_spatial, (config["boundary_repetitions"], 1))
         repeated_times = np.repeat(random_times, boundary_spatial.shape[0])  
         bound_points = np.column_stack((repeated_times, repeated_spatial)) 
 
