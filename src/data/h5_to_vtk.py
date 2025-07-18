@@ -27,13 +27,24 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25):
     origin = (0.0, 0.0, 0.0)
     spacing = (1.0, 1.0, 1.0)
 
+    # imageToVTK(
+    #     output_basename,
+    #     origin=origin,
+    #     spacing=spacing,
+    #     pointData={
+    #         "velocity": (u, v, w),
+    #         #"mask": mask  
+    #     }
+    # )
+
     imageToVTK(
         output_basename,
         origin=origin,
         spacing=spacing,
-        pointData={
+        pointData={},  
+        cellData={
             "velocity": (u, v, w),
-            #"mask": mask  
+            mask_name: binary_mask
         }
     )
 
