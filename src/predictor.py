@@ -147,7 +147,7 @@ if __name__ == "__main__":
 
         # Predict reference coordinates
         model.eval()
-        xyz_train = torch.from_numpy(xyz_train).float().to(DEVICE)
+        xyz_train = torch.from_numpy(xyz_train).float().to(DEVICE) ## cahnge to xyz_ref
         xyz_train.requires_grad = config.training.use_vector_potential
 
         if config.training.use_vector_potential:

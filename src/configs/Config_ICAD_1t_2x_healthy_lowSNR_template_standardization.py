@@ -18,22 +18,22 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250709_Testing"
-    config.network_name = "ConfigICAD_1t_2x_healthy_lowSNR_boundary" 
+    networks_folder = "../models/250818_Testing"
+    config.network_name = "ConfigICAD_1t_2x_healthy_lowSNR_boundary_NOTemplateStandardization" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
 
     # Domain
     config.domain = ml_collections.ConfigDict()
-    config.domain.t_start = 0
+    config.domain.t_start = 10
     config.domain.t_end = 33
-    config.domain.x_start = 0
-    config.domain.x_end = 126
-    config.domain.y_start = 0
-    config.domain.y_end = 80
-    config.domain.z_start = 0
-    config.domain.z_end = 50
+    config.domain.x_start = 35
+    config.domain.x_end = 48
+    config.domain.y_start = 48
+    config.domain.y_end = 60
+    config.domain.z_start = 6
+    config.domain.z_end = 16
     #config.domain.t_start = 14
     #config.domain.t_end =   int(120/2)
     #config.domain.x_start = int(0/2)
@@ -56,7 +56,7 @@ def get_config(sweep_config=None):
     config.setup.include_pressure = False
     config.setup.include_time = False
     config.setup.fluid_region = True
-    config.setup.expand_mask = True
+    config.setup.expand_mask = False
 
     # Collocation & Boundary points sampling
     config.sample_collocation = True
@@ -98,14 +98,14 @@ def get_config(sweep_config=None):
     config.network.hidden_features = 128
     config.network.arch = "SIREN"
     # SIREN parameters
-    config.network.omega_0 = 17
+    config.network.omega_0 = 60 #17
     # Fourier Feature Encoding parameters
     config.network.fourier_mapping_size = 128
     config.network.fourier_scale = 2.5
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 5000
+    config.training.iterations = 2000
     config.training.data_points_per_batch = None # None to use all
     config.training.coll_points_per_batch = 20000 # None to use all
     config.training.boundary_points_per_batch = None # None to use all
@@ -144,23 +144,23 @@ def get_config(sweep_config=None):
     config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
-    config.training.summary_iter = 1000
+    config.training.summary_iter = 100
     config.training.log_iter = 10
-    config.training.error_iter = 1000
+    config.training.error_iter = 100
     config.training.denormalize = True
     # Plotting
     config.plot = ml_collections.ConfigDict()
-    config.plot.iter = 1000
+    config.plot.iter = 100
     config.plot.gt = True
     config.plot.t_step = None
-    config.plot.z_slice = 26 # 20
-    config.plot.spatial_factor = 1
+    config.plot.z_slice = 5 # 20
+    config.plot.spatial_factor = 2
     config.plot.temporal_factor = 1
     config.plot.temp_upsampling_mode = 'extend'
     config.plot.spat_upsampling_mode = 'centered'
     config.plot.fluid_region = True
     config.plot.non_fluid_value = 0
-    config.plot.expand_mask = True
+    config.plot.expand_mask = False
     config.plot.denormalize = True
 
     # Prediction

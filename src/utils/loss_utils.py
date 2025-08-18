@@ -44,6 +44,7 @@ def mse(data, pred):
 def cosine_loss(uvw_data, uvw_pred, config):
     
     u_pred, v_pred, w_pred = uvw_pred[..., 0]*config.U_max, uvw_pred[..., 1]*config.U_max, uvw_pred[..., 2]*config.U_max
+    ## Adapted for "characteristic" normalization (instead of U_max, multiply by config.U)
     u, v, w = uvw_data[..., 0]*config.U_max, uvw_data[..., 1]*config.U_max, uvw_data[..., 2]*config.U_max
 
     Kv = torch.pi / config.constants.venc
@@ -359,6 +360,7 @@ def data_loss_fn(model, xyz_data, uvw_data, mask, config):
         else:
             return fluid_weighted_mse_loss(uvw_pred, uvw_data, mask, config)    
     else:
+        ## if config.training.use_cosine: 
         raise ValueError("No data loss specified, check config.training")
 
 def physics_loss_fn(model, xyz_collocation, standardization_factors, config):

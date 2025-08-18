@@ -44,7 +44,7 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25):
         pointData={},  
         cellData={
             "velocity": (u, v, w),
-            mask_name: binary_mask
+            #mask: mask
         }
     )
 

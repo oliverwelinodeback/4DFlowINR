@@ -63,7 +63,8 @@ def get_config(sweep_config=None):
     config.coords_characteristic = True
     config.coords_normalization = "standardize" # min_max
     config.global_normalization = True
-    
+    config.use_baseline_normalization = False
+
     config.constants = ml_collections.ConfigDict()
     config.constants.U = 1.0
     config.constants.L = 0.005

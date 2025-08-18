@@ -10,11 +10,15 @@ def standardize(data, mean=None, std=None):
         normalized_data = (data - mean) / std
     return normalized_data, mean, std
 
-def min_max_normalize(data):
+def min_max_normalize(data, min_val=None, max_val=None):
     """Normalize the data to a [0, 1] range using min-max scaling."""
-    min_val = np.min(data)
-    max_val = np.max(data)
-    return (data - min_val) / (max_val - min_val), min_val, max_val
+    if min_val==None:
+        min_val = np.min(data)
+        max_val = np.max(data)
+        normalized_data = (data - min_val) / (max_val - min_val)
+    else:
+        normalized_data = (data - min_val) / (max_val - min_val)
+    return normalized_data, min_val, max_val
 
 def compute_boundary_mask(mask):
     t, x, y, z = mask.shape
