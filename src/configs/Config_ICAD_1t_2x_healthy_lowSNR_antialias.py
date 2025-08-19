@@ -8,7 +8,8 @@ def get_config(sweep_config=None):
 
     config.sweep = False
     # Data
-    config.data_file = "../../data/KI_simulated_CFD/HV01_pg_05mm3_dv_highSNR_x1.h5"
+    #config.data_file = "../../data/KI_simulated_CFD/HV01_pg_05mm3_dv_highSNR_x1.h5"
+    config.data_file = "../../data/KI_simulated_CFD/HV01_pg_05mm3_dv_highSNR_x1_aliased.h5"
     #config.data_file = "../../data/icad_sim/HV01_05mm_dv_lowSNR_x2.h5"
     config.include_ref = True
     config.include_ref_loss = True
@@ -18,8 +19,8 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 1
 
     # Model 
-    networks_folder = "../models/250818_Testing"
-    config.network_name = "ConfigICAD_1t_2x_healthy_lowSNR_boundary_TemplateStandardization" 
+    networks_folder = "../models/250819_Testing"
+    config.network_name = "ConfigICAD_1t_2x_healthy_lowSNR_boundary_TemplateStandardization_Antialias" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
@@ -28,12 +29,12 @@ def get_config(sweep_config=None):
     config.domain = ml_collections.ConfigDict()
     config.domain.t_start = 10
     config.domain.t_end = 33
-    config.domain.x_start = 35
-    config.domain.x_end = 48
-    config.domain.y_start = 48
-    config.domain.y_end = 60
-    config.domain.z_start = 6
-    config.domain.z_end = 16
+    config.domain.x_start = 0
+    config.domain.x_end = 126
+    config.domain.y_start = 0
+    config.domain.y_end = 80
+    config.domain.z_start = 0
+    config.domain.z_end = 50
     #config.domain.t_start = 14
     #config.domain.t_end =   int(120/2)
     #config.domain.x_start = int(0/2)
@@ -71,12 +72,12 @@ def get_config(sweep_config=None):
     config.coords_normalization = "min_max" 
     config.global_normalization = True
     
-    config.use_baseline_normalization = True
+    config.use_baseline_normalization = False
     config.template = ml_collections.ConfigDict()
     config.template.dx = 0.001 # m
     config.template.dy = config.template.dx
     config.template.dz = config.template.dx
-    config.template.dt = 0.1 # s
+    config.template.dt = 0.01 # s
     config.template.x_len = 200
     config.template.y_len = config.template.x_len
     config.template.z_len = 50
@@ -88,7 +89,8 @@ def get_config(sweep_config=None):
     config.constants.T = config.constants.L / config.constants.U
     config.constants.rho = 1060
     config.constants.mu = 0.004
-    config.constants.venc = 1.2
+    #config.constants.venc = 1.2
+    config.constants.venc = 0.1
 
     # Network architecture
     config.network = ml_collections.ConfigDict()
@@ -121,8 +123,8 @@ def get_config(sweep_config=None):
     config.training.grad_weight_scheme = False
     config.training.alpha = 0.95
     # Data loss options
-    config.training.use_mse = True
-    config.training.use_cosine = False
+    config.training.use_mse = False
+    config.training.use_cosine = True # TODO - name loss instead of True False options?
     config.training.use_vector_potential = True
     config.training.pressure_in_data_loss = False
     config.training.u_weight = 1.0
@@ -144,16 +146,16 @@ def get_config(sweep_config=None):
     config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
-    config.training.summary_iter = 100
+    config.training.summary_iter = 250
     config.training.log_iter = 10
-    config.training.error_iter = 100
+    config.training.error_iter = 250
     config.training.denormalize = True
     # Plotting
     config.plot = ml_collections.ConfigDict()
-    config.plot.iter = 100
+    config.plot.iter = 250
     config.plot.gt = True
     config.plot.t_step = None
-    config.plot.z_slice = 5 # 20
+    config.plot.z_slice = 20 # 5
     config.plot.spatial_factor = 2
     config.plot.temporal_factor = 1
     config.plot.temp_upsampling_mode = 'extend'

@@ -6,7 +6,7 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.Config_ICAD_1t_2x_healthy_lowSNR_template_standardization import get_config
+from configs.Config_ICAD_1t_2x_healthy_lowSNR_antialias import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     set_seed(config.random_seed)
 
     # Load data
-    u, v, w, p, px, py, pz, mask, config = load_data(config)  # TODO - fix pressure gradients loading
+    u, v, w, p, px, py, pz, mask, config = load_data(config)
 
     # Prepare data
     uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, px, py, pz, mask)

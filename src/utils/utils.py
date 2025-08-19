@@ -825,23 +825,23 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
 
     plt.subplot(2, 2, 1)
     plt.title('Predicted u')
-    plt.imshow(u_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()], vmin=0)
+    plt.imshow(u_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
 
     plt.subplot(2, 2, 2)
     plt.title('Predicted v')
-    plt.imshow(v_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()], vmin=0)
+    plt.imshow(v_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
     
     plt.subplot(2, 2, 3)
     plt.title('Predicted w')
-    plt.imshow(w_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()], vmin=0)
+    plt.imshow(w_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
 
     if config.setup.include_pressure and p_pred is not None:
         plt.subplot(2, 2, 4)
         plt.title('Predicted px')
-        plt.imshow(p_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()], vmin=0)
+        plt.imshow(p_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
         plt.colorbar()
 
     plt.savefig(os.path.join(directory, f"predictions.png"))

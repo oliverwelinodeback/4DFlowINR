@@ -43,9 +43,12 @@ def mse(data, pred):
 
 def cosine_loss(uvw_data, uvw_pred, config):
     
-    u_pred, v_pred, w_pred = uvw_pred[..., 0]*config.U_max, uvw_pred[..., 1]*config.U_max, uvw_pred[..., 2]*config.U_max
-    ## Adapted for "characteristic" normalization (instead of U_max, multiply by config.U)
-    u, v, w = uvw_data[..., 0]*config.U_max, uvw_data[..., 1]*config.U_max, uvw_data[..., 2]*config.U_max
+    if config.vel_normalization == "characteristic":
+        u_pred, v_pred, w_pred = uvw_pred[..., 0]*config.constants.U, uvw_pred[..., 1]*config.constants.U, uvw_pred[..., 2]*config.constants.U
+        u, v, w = uvw_data[..., 0]*config.constants.U, uvw_data[..., 1]*config.constants.U, uvw_data[..., 2]*config.constants.U
+    elif config.vel_normalization == "max_velocity":
+        u_pred, v_pred, w_pred = uvw_pred[..., 0]*config.U_max, uvw_pred[..., 1]*config.U_max, uvw_pred[..., 2]*config.U_max
+        u, v, w = uvw_data[..., 0]*config.U_max, uvw_data[..., 1]*config.U_max, uvw_data[..., 2]*config.U_max
 
     Kv = torch.pi / config.constants.venc
     cosine_u = 1 - torch.cos(Kv * (u_pred - u))
@@ -358,9 +361,13 @@ def data_loss_fn(model, xyz_data, uvw_data, mask, config):
         if config.setup.fluid_region:
             return mse_loss(uvw_pred, uvw_data, config)
         else:
-            return fluid_weighted_mse_loss(uvw_pred, uvw_data, mask, config)    
+            return fluid_weighted_mse_loss(uvw_pred, uvw_data, mask, config)  
+    elif config.training.use_cosine:
+        if config.setup.fluid_region:
+            return cosine_loss(uvw_data, uvw_pred, config) 
+        else:
+            raise ValueError("Cosine loss not supported for non-fluid regions, check config.training")
     else:
-        ## if config.training.use_cosine: 
         raise ValueError("No data loss specified, check config.training")
 
 def physics_loss_fn(model, xyz_collocation, standardization_factors, config):
@@ -513,6 +520,11 @@ def compute_data_loss(config, model, xyz_data, uvw_data, mask, standardization_f
             data_loss = mse_loss(uvw_pred, uvw_data, config)
         else:
             data_loss = fluid_weighted_mse_loss(uvw_pred, uvw_data, mask, config)
+    elif config.training.use_cosine:
+        if config.setup.fluid_region:
+            data_loss = cosine_loss(uvw_data, uvw_pred, config)
+        else:
+            raise ValueError("Cosine loss not supported for non-fluid region, check config.training")
     else:
         raise ValueError("No recognized data loss mode. Check config.training.use_mse or other flags.")
     
