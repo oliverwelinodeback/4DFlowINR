@@ -1,0 +1,18 @@
+program: trainer.py
+project: "SRFlowNIR"
+method: "bayes"  # or bayes or random
+
+metric:
+  name: Loss/Ref
+  goal: minimize
+
+parameters:
+  network:
+    parameters:
+      arch:
+        value: 'WIRE'
+      omega_0:
+        values: [0.5, 1, 2, 4, 6]
+      sigma_0:
+        values: [1, 2, 5, 10]
+      

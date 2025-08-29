@@ -210,6 +210,81 @@ def load_ref_data(config):
 
     return u, v, w, p, px, py, pz, mask
 
+def compute_template_parameters(config): 
+    """Compute the template parameters for baseline normalization."""
+    
+    print('Computing template parameters for baseline normalization...')
+    
+    # Extract resolutions
+    dx, dy, dz, dt = (
+        config["template"]["dx"], config["template"]["dy"], config["template"]["dz"], config["template"]["dt"]
+    )
+    x_len, y_len, z_len, t_len = (
+        config["template"]["x_len"], config["template"]["y_len"],
+        config["template"]["z_len"], config["template"]["t_len"]
+    )
+
+    # Create linspaces
+    t = np.linspace(dt, t_len * dt, t_len)
+    x = np.linspace(dx, x_len * dx, x_len)
+    y = np.linspace(dy, y_len * dy, y_len)
+    z = np.linspace(dz, z_len * dz, z_len)
+
+    # Normalize coordinates
+    if config["coords_characteristic"]:
+        L, T = config["constants"]["L"], config["constants"]["T"]
+        t = t / T
+        x = x / L
+        y = y / L
+        z = z / L
+
+    tf = {}  # template_factors dict to return
+
+    if config["coords_normalization"] == "standardize":
+        # per-axis factors
+        _, tf['mean_x'], tf['std_x'] = standardize(x)
+        _, tf['mean_y'], tf['std_y'] = standardize(y)
+        _, tf['mean_z'], tf['std_z'] = standardize(z)
+        if config["setup"]["include_time"]:
+            _, tf['mean_t'], tf['std_t'] = standardize(t)
+
+        # optional global factors (replicates your runtime "largest span" policy)
+        if config["global_normalization"]:
+            # choose reference axis by largest span (using template spans)
+            ranges = [np.ptp(arr) for arr in (x, y, z)]
+            idx_largest = np.argmax(ranges)
+
+            if idx_largest == 0:
+                tf['global_mean'] = tf['mean_x']
+                tf['global_std']  = tf['std_x']
+            elif idx_largest == 1:
+                tf['global_mean'] = tf['mean_y']
+                tf['global_std']  = tf['std_y']
+            else:
+                tf['global_mean'] = tf['mean_z']
+                tf['global_std']  = tf['std_z']
+
+    elif config["coords_normalization"] == "min_max":
+        # per-axis bounds
+        _, tf['min_x'], tf['max_x'] = min_max_normalize(x)
+        _, tf['min_y'], tf['max_y'] = min_max_normalize(y)
+        _, tf['min_z'], tf['max_z'] = min_max_normalize(z)
+        if config["setup"]["include_time"]:
+            _, tf['min_t'], tf['max_t'] = min_max_normalize(t)
+
+        # optional global bounds (shared across x,y,z)
+        if config["global_normalization"]:
+            tf['global_min'] = min(tf['min_x'], tf['min_y'], tf['min_z'])
+            tf['global_max'] = max(tf['max_x'], tf['max_y'], tf['max_z'])
+
+    else:
+        raise ValueError("Unknown coords_normalization in config.")
+    # Print the computed factors
+    print("Template factors:")
+    for key, value in tf.items():
+        print(f"{key}: {value}")
+    return tf
+
 def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
     
     # Extract resolutions
@@ -234,39 +309,60 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
         z = z / L
 
     t_normalized = None
-
     standardization_factors = None
+
+    template_factors = None
+    if config["use_baseline_normalization"]:
+        template_factors = compute_template_parameters(config)
+    
     if config["coords_normalization"] == "standardize":
 
         if config["global_normalization"]:
+            if config["use_baseline_normalization"]:
+                global_mean = template_factors['global_mean']
+                global_std = template_factors['global_std']
 
-            ranges = [np.ptp(arr) for arr in (x, y, z)]
-            print(ranges)
-            idx_largest = np.argmax(ranges)
-
-            if idx_largest == 0:
-                ref_data = x
-            elif idx_largest == 1:
-                ref_data = y
+                # Standardize all coordinate arrays using the global factors:
+                x_normalized, mean_x, std_x = standardize(x, global_mean, global_std)
+                y_normalized, mean_y, std_y = standardize(y, global_mean, global_std)
+                z_normalized, mean_z, std_z = standardize(z, global_mean, global_std)
             else:
-                ref_data = z
+                ranges = [np.ptp(arr) for arr in (x, y, z)]
+                print(ranges)
+                idx_largest = np.argmax(ranges)
 
-            # Compute global mean and std from the largest array:
-            global_mean = np.mean(ref_data)
-            global_std = np.std(ref_data)
+                if idx_largest == 0:
+                    ref_data = x
+                elif idx_largest == 1:
+                    ref_data = y
+                else:
+                    ref_data = z
 
-            # Standardize all coordinate arrays using the global factors:
-            x_normalized, mean_x, std_x = standardize(x, global_mean, global_std)
-            y_normalized, mean_y, std_y = standardize(y, global_mean, global_std)
-            z_normalized, mean_z, std_z = standardize(z, global_mean, global_std)
+                # Compute global mean and std from the largest array:
+                global_mean = np.mean(ref_data)
+                global_std = np.std(ref_data)
+
+                # Standardize all coordinate arrays using the global factors:
+                x_normalized, mean_x, std_x = standardize(x, global_mean, global_std)
+                y_normalized, mean_y, std_y = standardize(y, global_mean, global_std)
+                z_normalized, mean_z, std_z = standardize(z, global_mean, global_std)
 
         else:
-            x_normalized, mean_x, std_x = standardize(x)
-            y_normalized, mean_y, std_y = standardize(y)
-            z_normalized, mean_z, std_z = standardize(z)
+            if config["use_baseline_normalization"]:
+                # Standardize all coordinate arrays using the global factors:
+                x_normalized, mean_x, std_x = standardize(x, template_factors['mean_x'], template_factors['std_x'])
+                y_normalized, mean_y, std_y = standardize(y, template_factors['mean_y'], template_factors['std_y'])
+                z_normalized, mean_z, std_z = standardize(z, template_factors['mean_z'], template_factors['std_z'])
+            else:
+                x_normalized, mean_x, std_x = standardize(x)
+                y_normalized, mean_y, std_y = standardize(y)
+                z_normalized, mean_z, std_z = standardize(z)
 
         if config["setup"]["include_time"]:
-            t_normalized, mean_t, std_t = standardize(t)
+            if config["use_baseline_normalization"]:
+                t_normalized, mean_t, std_t = standardize(t, template_factors['mean_t'], template_factors['std_t'])
+            else:
+                t_normalized, mean_t, std_t = standardize(t)
             standardization_factors = [
                 mean_t, std_t, mean_x, std_x, 
                 mean_y, std_y, mean_z, std_z, 
@@ -281,27 +377,37 @@ def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
     elif config["coords_normalization"] == "min_max":
 
         if config["global_normalization"]:
-            max_x, min_x = x.max(), x.min()
-            max_y, min_y = y.max(), y.min()
-            max_z, min_z = z.max(), z.min()
-            max_C = max(max_x, max_y, max_z)
-            min_C = min(min_x, min_y, min_z)
+            if config["use_baseline_normalization"]:
+                max_C = template_factors['global_max']
+                min_C = template_factors['global_min']
+                
+            else:
+                max_x, min_x = x.max(), x.min()
+                max_y, min_y = y.max(), y.min()
+                max_z, min_z = z.max(), z.min()
+                
+                max_C = max(max_x, max_y, max_z)
+                min_C = min(min_x, min_y, min_z)
 
-            max_x, min_x = max_C, min_C
-            max_y, min_y = max_C, min_C
-            max_z, min_z = max_C, min_C
+            x_normalized, min_x, max_x = min_max_normalize(x, min_C, max_C)
+            y_normalized, min_y, max_y = min_max_normalize(y, min_C, max_C)
+            z_normalized, min_z, max_z = min_max_normalize(z, min_C, max_C)
 
         else:
-            x_normalized, min_x, max_x = min_max_normalize(x)
-            y_normalized, min_y, max_y = min_max_normalize(y)
-            z_normalized, min_z, max_z = min_max_normalize(z)
-
-        x_normalized = (x - min_x) / (max_x - min_x)
-        y_normalized = (y - min_y) / (max_y - min_y)
-        z_normalized = (z - min_z) / (max_z - min_z)
+            if config["use_baseline_normalization"]:
+                x_normalized, min_x, max_x = min_max_normalize(x, template_factors['min_x'], template_factors['max_x'])
+                y_normalized, min_y, max_y = min_max_normalize(y, template_factors['min_y'], template_factors['max_y'])
+                z_normalized, min_z, max_z = min_max_normalize(z, template_factors['min_z'], template_factors['max_z'])
+            else:
+                x_normalized, min_x, max_x = min_max_normalize(x)
+                y_normalized, min_y, max_y = min_max_normalize(y)
+                z_normalized, min_z, max_z = min_max_normalize(z)
 
         if config["setup"]["include_time"]:
-            t_normalized, min_t, max_t = min_max_normalize(t)
+            if config["use_baseline_normalization"]:
+                t_normalized, min_t, max_t = min_max_normalize(t, template_factors['min_t'], template_factors['max_t'])
+            else:
+                t_normalized, min_t, max_t = min_max_normalize(t)
             standardization_factors = [
                 min_t, max_t, min_x, max_x, 
                 min_y, max_y, min_z, max_z, 
@@ -482,6 +588,11 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
     y_ups = upsample_1d(y_normalized, config["ref_spatial_factor"], mode='centered')
     z_ups = upsample_1d(z_normalized, config["ref_spatial_factor"], mode='centered')
 
+    print("t_ups shape:", t_ups.shape)
+    print("x_ups shape:", x_ups.shape)
+    print("y_ups shape:", y_ups.shape)
+    print("z_ups shape:", z_ups.shape)
+
     # Create coordinate grid
     if config["setup"]["include_time"]:
         grids = np.meshgrid(t_ups, x_ups, y_ups, z_ups, indexing='ij')
@@ -493,11 +604,13 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
 
     # Extract boundaries
     boundary_mask = compute_outer_boundary_mask(mask) # h×w×d = (81, 57, 50)
-
+    print("u_ref shape:", u_ref.shape)
+    print("v_ref shape:", v_ref.shape)
+    print("w_ref shape:", w_ref.shape)
     if config["setup"]["include_time"]:
         # Tile the masks
-        mask_flat = np.tile(mask.ravel(), t_len)
-        boundary_mask_flat = np.tile(boundary_mask.ravel(), t_len)
+        mask_flat = np.tile(mask.ravel(), len(t_ups))
+        boundary_mask_flat = np.tile(boundary_mask.ravel(), len(t_ups))
     else:
         mask_flat = mask.ravel()
         boundary_mask_flat = boundary_mask.ravel()

@@ -1,8 +1,11 @@
 program: trainer.py
-method: grid
+project: "SRFlowNIR"
+method: "grid"  # or bayes or random
+
 metric:
   name: Loss/Ref
   goal: minimize
+
 parameters:
   network:
     parameters:
@@ -13,6 +16,6 @@ parameters:
   training:
     parameters:
       use_vector_potential:
-        values: [True, False]
+        values: True
       use_physics_loss:
-        values: [True, False]
+        values: True

@@ -7,7 +7,8 @@ from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sa
 from utils.utils import copy_source_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
 #from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
-from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
+#from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
+from configs.Config_ICAD_1t_2x_healthy_lowSNR_template_standardization_WIRE import get_config
 
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -100,6 +101,16 @@ def train(config=None, run_name=None):
             hidden_dim=config["network"]["hidden_features"],
             fourier_mapping_size=config["network"]["fourier_mapping_size"],
             scale=config["network"]["fourier_scale"]
+        ).to(DEVICE)
+    elif config["network"]["arch"] == "WIRE":
+        model = networks.WIRE(
+            in_dim=config["network"]["in_dim"],
+            out_dim=config["network"]["out_dim"],
+            depth=config["network"]["depth"],
+            hidden_features=config["network"]["hidden_features"],
+            first_omega_0=config["network"]["omega_0"],
+            hidden_omega_0=config["network"]["omega_0"],
+            scale=config["network"]["sigma_0"]
         ).to(DEVICE)
     else:
         raise ValueError("Unknown network.")
