@@ -1,0 +1,20 @@
+program: trainer.py
+project: "SRFlowNIR"
+method: random
+metric:
+  name: Loss/Ref
+  goal: minimize
+parameters:
+  network:
+    parameters:
+      arch:
+        value: 'FFN'
+      fourier_scale:
+        distribution: log_uniform
+        min: -0.693                 # ln(0.5) ≈ -0.693
+        max: 3.912                  # ln(50) ≈ 3.912
+      fourier_mapping_size:
+        values:
+          - 64
+          - 128
+          - 256

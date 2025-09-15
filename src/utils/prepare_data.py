@@ -443,10 +443,11 @@ def upsample_1d(arr, factor=2, mode='extend'):
 
     dx = arr[1] - arr[0]
     if mode == 'extend':
-        step = dx / factor
-        # old approach A
         N_new = len(arr) * factor
-        return np.linspace(arr[0], arr[-1] + step, N_new)
+        step = dx / factor
+        start = arr[0]
+        stop  = start + (N_new - 1) * step
+        return np.linspace(start, stop, N_new)
 
     elif mode == 'centered':
         # old approach B
@@ -588,11 +589,6 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
     y_ups = upsample_1d(y_normalized, config["ref_spatial_factor"], mode='centered')
     z_ups = upsample_1d(z_normalized, config["ref_spatial_factor"], mode='centered')
 
-    print("t_ups shape:", t_ups.shape)
-    print("x_ups shape:", x_ups.shape)
-    print("y_ups shape:", y_ups.shape)
-    print("z_ups shape:", z_ups.shape)
-
     # Create coordinate grid
     if config["setup"]["include_time"]:
         grids = np.meshgrid(t_ups, x_ups, y_ups, z_ups, indexing='ij')
@@ -604,9 +600,7 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
 
     # Extract boundaries
     boundary_mask = compute_outer_boundary_mask(mask) # h×w×d = (81, 57, 50)
-    print("u_ref shape:", u_ref.shape)
-    print("v_ref shape:", v_ref.shape)
-    print("w_ref shape:", w_ref.shape)
+
     if config["setup"]["include_time"]:
         # Tile the masks
         mask_flat = np.tile(mask.ravel(), len(t_ups))

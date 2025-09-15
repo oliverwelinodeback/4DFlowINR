@@ -10,9 +10,8 @@ parameters:
   network:
     parameters:
       arch:
-        value: 'WIRE'
+        value: 'SIREN'
       omega_0:
-        values: [0.5, 1, 2, 4, 6]
-      sigma_0:
-        values: [1, 2, 5, 10]
-      
+        distribution: log_uniform
+        min: 0.0     # ln(1) = 0
+        max: 3.689   # ln(40) ≈ 3.689

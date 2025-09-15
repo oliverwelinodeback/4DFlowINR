@@ -222,7 +222,8 @@ class WIRE(nn.Module):
             self.net.append(ComplexGaborLayer(hidden_features,
                                         hidden_features, 
                                         omega0=hidden_omega_0,
-                                        sigma0=scale))
+                                        sigma0=scale,
+                                        trainable=False))
 
         final_linear = nn.Linear(hidden_features,
                                  out_dim,
@@ -233,6 +234,47 @@ class WIRE(nn.Module):
     
     def forward(self, coords):
         output = self.net(coords)
+        return output.real
+
+class FF_WIRE(nn.Module):
+    def __init__(self, in_dim=4, out_dim=4, depth=6, hidden_features=128, first_omega_0=10.0, hidden_omega_0=10.0, fourier_mapping_size=128, scale=10.0):
+        
+        super(FF_WIRE, self).__init__()
+
+        # Fourier Encoding
+        self.fourier_encoder = FourierFeatureEncoding(in_dim, fourier_mapping_size,scale=scale)
+        encoded_dim = fourier_mapping_size * 2
+        
+        # Since complex numbers are two real numbers, reduce the number of 
+        # hidden parameters by 2
+        hidden_features = int(hidden_features/np.sqrt(2))
+        dtype = torch.cfloat  
+            
+        self.net = []
+        self.net.append(ComplexGaborLayer(encoded_dim,
+                                    hidden_features, 
+                                    omega0=first_omega_0,
+                                    is_first=True, 
+                                    sigma0=scale,
+                                    trainable=False))
+
+        for i in range(depth):
+            self.net.append(ComplexGaborLayer(hidden_features,
+                                        hidden_features, 
+                                        omega0=hidden_omega_0,
+                                        sigma0=scale,
+                                        trainable=False))
+
+        final_linear = nn.Linear(hidden_features,
+                                 out_dim,
+                                 dtype=dtype)          
+        self.net.append(final_linear)
+        
+        self.net = nn.Sequential(*self.net)
+    
+    def forward(self, coords):
+        x_enc = self.fourier_encoder(coords)
+        output = self.net(x_enc)
         return output.real
 
 

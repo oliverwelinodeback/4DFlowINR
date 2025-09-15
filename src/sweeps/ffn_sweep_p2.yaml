@@ -1,0 +1,18 @@
+program: trainer.py
+project: "SRFlowNIR"
+method: bayes
+metric:
+  name: Loss/Ref
+  goal: minimize
+parameters:
+  network:
+    parameters:
+      arch:
+        value: 'FFN'
+      fourier_scale:
+        distribution: log_uniform
+        min: 0.0            # ln(1) = 0
+        max: 2.996          # ln(20) ≈ 2.996
+      fourier_mapping_size:
+        values: 
+        - 256

@@ -352,18 +352,18 @@ def data_loss_fn(model, xyz_data, uvw_data, mask, config):
     # Predict data points
     uvw_pred = model(xyz_data)
 
-    if config.training.use_vector_potential:
+    if config["training"]["use_vector_potential"]:
         # Transform potential to velocities
         uvw_pred = vector_potential_fn(uvw_pred, xyz_data)
 
     # Calculate loss
-    if config.training.use_mse:
-        if config.setup.fluid_region:
+    if config["training"]["use_mse"]:
+        if config["setup"]["fluid_region"]:
             return mse_loss(uvw_pred, uvw_data, config)
         else:
             return fluid_weighted_mse_loss(uvw_pred, uvw_data, mask, config)  
-    elif config.training.use_cosine:
-        if config.setup.fluid_region:
+    elif config["training"]["use_cosine"]:
+        if config["setup"]["fluid_region"]:
             return cosine_loss(uvw_data, uvw_pred, config) 
         else:
             raise ValueError("Cosine loss not supported for non-fluid regions, check config.training")

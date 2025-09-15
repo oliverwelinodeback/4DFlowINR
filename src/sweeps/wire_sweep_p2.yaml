@@ -1,0 +1,24 @@
+program: trainer.py
+project: "SRFlowNIR"
+method: "grid"  # or bayes or random
+
+metric:
+  name: Loss/Ref
+  goal: minimize
+
+parameters:
+  network:
+    parameters:
+      arch:
+        value: 'WIRE'
+      w0_cycles:
+        values:
+          - 2
+          - 4
+          - 8
+          - 16
+      Q:
+        values:
+          - 1
+          - 2
+          - 4

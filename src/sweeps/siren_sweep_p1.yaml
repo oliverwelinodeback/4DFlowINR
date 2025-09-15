@@ -1,0 +1,17 @@
+program: trainer.py
+project: "SRFlowNIR"
+method: "random"  # or bayes or random
+
+metric:
+  name: Loss/Ref
+  goal: minimize
+
+parameters:
+  network:
+    parameters:
+      arch:
+        value: 'SIREN'
+      omega_0:
+        distribution: log_uniform
+        min: 0.693 # log(2) ~ 2
+        max: 4.605 # log(100) ~ 100

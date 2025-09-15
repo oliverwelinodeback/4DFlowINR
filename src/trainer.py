@@ -8,7 +8,7 @@ from utils.utils import copy_source_code, save_checkpoint, sample_to_device, sam
 import networks
 #from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
-from configs.Config_ICAD_1t_2x_healthy_lowSNR_template_standardization_WIRE import get_config
+from configs.without_pressure.Config_ICAD_1t_2x_healthy_WIRE import get_config
 
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -110,6 +110,17 @@ def train(config=None, run_name=None):
             hidden_features=config["network"]["hidden_features"],
             first_omega_0=config["network"]["omega_0"],
             hidden_omega_0=config["network"]["omega_0"],
+            scale=config["network"]["sigma_0"]
+        ).to(DEVICE)
+    elif config["network"]["arch"] == "FF_WIRE":
+        model = networks.FF_WIRE(
+            in_dim=config["network"]["in_dim"],
+            out_dim=config["network"]["out_dim"],
+            depth=config["network"]["depth"],
+            hidden_features=config["network"]["hidden_features"],
+            first_omega_0=config["network"]["omega_0"],
+            hidden_omega_0=config["network"]["omega_0"],
+            fourier_mapping_size=config["network"]["fourier_mapping_size"],
             scale=config["network"]["sigma_0"]
         ).to(DEVICE)
     else:
@@ -287,6 +298,15 @@ def train(config=None, run_name=None):
             #"Loss/physics_weight": physics_weight,
             #"Loss/boundary_weight": bound_weight if config.sample_boundary else 0.0,
         }
+
+        """ for li, layer in enumerate(model.net):
+            if hasattr(layer, "omega_0") and hasattr(layer, "scale_0"):
+                omega_items = layer.omega_0.detach().float().item()
+                sigma_items = layer.scale_0.detach().float().item()
+                writer.add_scalar(f"hyper/omega_layer_{li}", omega_items, it)
+                writer.add_scalar(f"hyper/sigma_layer_{li}", sigma_items, it)
+                wandb.log({f"hyper/omega_layer_{li}": omega_items, f"hyper/sigma_layer_{li}": sigma_items}, step=it+1) """
+
         for key, value in metrics.items():
             writer.add_scalar(key, value, it)
         if (it + 1) % config["training"]["log_iter"] == 0:

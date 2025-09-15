@@ -19,8 +19,8 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 3
 
     # Model 
-    networks_folder = "../models/250818_Testing"
-    config.network_name = "ConfigICAD_1t_2x_healthy_lowSNR_boundary_TemplateStandardization" 
+    networks_folder = "../models/250903_sweep/FF_SIREN"
+    config.network_name = "Config_ICAD_1t_2x_healthy_FF_SIREN" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
@@ -55,7 +55,7 @@ def get_config(sweep_config=None):
     # Setup / Options
     config.setup = ml_collections.ConfigDict()
     config.setup.include_pressure = False
-    config.setup.include_time = True
+    config.setup.include_time = False
     config.setup.fluid_region = True
     config.setup.expand_mask = False
 
@@ -93,18 +93,18 @@ def get_config(sweep_config=None):
 
     # Network architecture
     config.network = ml_collections.ConfigDict()
-    config.network.in_dim = 4
-    config.network.out_dim = 4
+    config.network.in_dim = 3
+    config.network.out_dim = 3
     config.network.depth = 6
     config.network.hidden_features = 128
-    config.network.arch = "WIRE"
+    config.network.arch = "FF_SIREN"
     # SIREN parameters
-    config.network.omega_0 = 0.5 #17
+    config.network.omega_0 = 10 #17
     # Fourier Feature Encoding parameters
     config.network.fourier_mapping_size = 128
     config.network.fourier_scale = 2.5
     # WIRE parameters
-    config.network.sigma_0 = 0.5
+    config.network.sigma_0 = 10
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
@@ -118,7 +118,7 @@ def get_config(sweep_config=None):
     config.training.lr_decay_factor = 0.5
     config.training.use_LBFGS = False
     config.training.BFGS_lr = 1e-1
-    config.training.iterations_before_BFGS = 1000
+    config.training.iterations_before_BFGS = 2500
     # Loss details
     config.training.epochs_before_PDE = 0
     config.training.grad_weight_scheme = False
