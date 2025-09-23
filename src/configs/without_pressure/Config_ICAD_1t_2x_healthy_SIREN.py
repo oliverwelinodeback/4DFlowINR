@@ -8,19 +8,19 @@ def get_config(sweep_config=None):
 
     config.sweep = False
     # Data
-    config.data_file = "../../data/KI_simulated_CFD/HV01_pg_05mm3_dv_medSNR_x2.h5"
+    config.data_file = "../data/healthy/HV01_05mm3_20ms_LR_dv_tSNR8.h5"
     #config.data_file = "../../data/KI_simulated_CFD/HV01_pg_05mm3_dv_highSNR_x1.h5"
     #config.data_file = "../../data/icad_sim/HV01_05mm_dv_lowSNR_x2.h5"
     config.include_ref = True
     config.include_ref_loss = True
-    config.data_file_ref = "../../data/KI_simulated_CFD/HV01_pg_05mm3.h5"
+    config.data_file_ref = "../data/healthy/HV01_05mm3_20ms.h5"
     #config.data_file_ref = "../../data/icad_sim/HV01_05mm.h5"
     config.ref_spatial_factor = 2
-    config.ref_temporal_factor = 3
+    config.ref_temporal_factor = 2
 
     # Model 
-    networks_folder = "../models/250903_sweep/SIREN_P2"
-    config.network_name = "Config_ICAD_1t_2x_healthy_SIREN" 
+    networks_folder = "../models/250922_test/"
+    config.network_name = "Config_HV01_SIREN_PG" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
@@ -28,13 +28,13 @@ def get_config(sweep_config=None):
     # Domain
     config.domain = ml_collections.ConfigDict()
     config.domain.t_start = 0
-    config.domain.t_end = int(33/3)
-    config.domain.x_start = int(34/2)
-    config.domain.x_end = int(48/2)
-    config.domain.y_start = int(48/2)
-    config.domain.y_end = int(60/2)
-    config.domain.z_start = int(6/2)
-    config.domain.z_end = int(16/2)
+    config.domain.t_end = int(25/2)
+    config.domain.x_start = int(0/2)
+    config.domain.x_end = int(140/2)
+    config.domain.y_start = int(0/2)
+    config.domain.y_end = int(92/2)
+    config.domain.z_start = int(0/2)
+    config.domain.z_end = int(52/2)
     #config.domain.t_start = 14
     #config.domain.t_end =   int(120/2)
     #config.domain.x_start = int(0/2)
@@ -50,12 +50,12 @@ def get_config(sweep_config=None):
     config.resolution.dx = 0.0005*2
     config.resolution.dy = 0.0005*2
     config.resolution.dz = 0.0005*2
-    config.resolution.dt = 0.01*3
+    config.resolution.dt = 0.01*2
 
     # Setup / Options
     config.setup = ml_collections.ConfigDict()
     config.setup.include_pressure = False
-    config.setup.include_time = False
+    config.setup.include_time = True
     config.setup.fluid_region = True
     config.setup.expand_mask = False
 
@@ -93,13 +93,13 @@ def get_config(sweep_config=None):
 
     # Network architecture
     config.network = ml_collections.ConfigDict()
-    config.network.in_dim = 3
-    config.network.out_dim = 3
+    config.network.in_dim = 4
+    config.network.out_dim = 4
     config.network.depth = 6
     config.network.hidden_features = 128
     config.network.arch = "SIREN"
     # SIREN parameters
-    config.network.omega_0 = 10 #17
+    config.network.omega_0 = 22 #17
     # Fourier Feature Encoding parameters
     config.network.fourier_mapping_size = 128
     config.network.fourier_scale = 2.5
@@ -109,9 +109,9 @@ def get_config(sweep_config=None):
     # Training parameters
     config.training = ml_collections.ConfigDict()
     config.training.iterations = 2000
-    config.training.data_points_per_batch = None # None to use all
+    config.training.data_points_per_batch = 20000 # None to use all
     config.training.coll_points_per_batch = 20000 # None to use all
-    config.training.boundary_points_per_batch = None # None to use all
+    config.training.boundary_points_per_batch = 10000 # None to use all
     # Optimizer
     config.training.lr = 1e-4
     config.training.lr_decay_iter = 50000
