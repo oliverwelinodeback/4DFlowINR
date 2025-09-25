@@ -6,7 +6,7 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.Config_ICAD_1t_2x_healthy_lowSNR_antialias import get_config
+from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np

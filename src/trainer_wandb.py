@@ -6,8 +6,8 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-#from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
-from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
+from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
+#from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
 
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -46,7 +46,7 @@ def train(config=None, run_name=None, use_sweep=False):
         config = training_config
 
     # Store source files
-    copy_cource_code(config.log_dir, directory_to_backup= [".", "configs"])
+    copy_cource_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
 
     # Set random seed
     set_seed(config.random_seed)
@@ -218,7 +218,7 @@ def train(config=None, run_name=None, use_sweep=False):
 
         # Predict and calculate data loss
         data_loss, _, _, _, _ = compute_data_loss(config, model, xyz_data_batch, uvw_data_batch, mask_batch, standardization_factors)
-#########
+
         # Predict and calculate PDE residuals (physics loss)
         physics_losses = compute_physics_loss(
             config,
@@ -384,7 +384,15 @@ if __name__ == "__main__":
                 },
                 # network.omega_0: 10, 30, or 50
                 'network_omega_0': {
-                    'values': [30]
+                    'values': [1, 10, 30, 70]
+                },
+
+                'constants_U': {
+                    'values': [1.0, 2.0, 0.2]
+                },
+
+                'constants_L': {
+                    'values': [0.005, 0.1, 0.0005]
                 },
                 # training.use_LBFGS: True or False
                 'training_use_LBFGS': {
@@ -436,7 +444,7 @@ if __name__ == "__main__":
         # }
 
         sweep_id = wandb.sweep(sweep=sweep_configuration, project="SRFlowNIR")
-        wandb.agent(sweep_id, function=lambda: train(use_sweep=True),count=1)#1000)
+        wandb.agent(sweep_id, function=lambda: train(use_sweep=True),count=1)
     else:
         config = get_config()
         run_name = f"{config.network_name}"

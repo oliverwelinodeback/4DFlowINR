@@ -18,7 +18,7 @@ from utils.utils import save_to_h5
 from utils.loss_utils import vector_potential_fn
 from utils.preprocessing_utils import compute_outer_boundary_mask
 import networks
-from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
+from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
 from utils.loss_utils import vector_potential_fn
 import h5py
@@ -47,8 +47,13 @@ if __name__ == "__main__":
     #network_path = "../models/250625_PG_ReTests/LowRe_2.65_U0.1_L0.0001_20250625-1725/checkpoints/LowRe_2.65_U0.1_L0.0001_it95000.pth"
     #results_directory = "../results/250625_PG_ReEvaluations/LowRe_2.65_U0.1_L0.0001_20250625-1723/checkpoints/LowRe_2.65_U0.1_L0.0001_it95000"
 
-    network_path = "../models/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/checkpoints/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_it95000.pth"
-    results_directory = "../results/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/"
+    #network_path = "../models/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/checkpoints/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_it95000.pth"
+    #results_directory = "../results/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/"
+
+    network_path = "../models/250924/HV01_SIREN_momentum_20250924-2333/checkpoints/HV01_SIREN_momentum_it25000.pth"
+    results_directory = "../results/HV01_SIREN_momentum_20250924-2333/HV01_SIREN_momentum_20250924-2333/"
+
+
     # --------------------------------
 
     if not os.path.exists(results_directory):
@@ -147,22 +152,22 @@ if __name__ == "__main__":
 
         # Predict reference coordinates
         model.eval()
-        xyz_train = torch.from_numpy(xyz_train).float().to(DEVICE) ## cahnge to xyz_ref
-        xyz_train.requires_grad = config.training.use_vector_potential
+        xyz_ref = torch.from_numpy(xyz_ref).float().to(DEVICE) ## cahnge to xyz_ref
+        xyz_ref.requires_grad = config.training.use_vector_potential
 
         if config.training.use_vector_potential:
             with torch.set_grad_enabled(True):
-                uvw_pred = model(xyz_train)
-                uvw_pred = vector_potential_fn(uvw_pred, xyz_train)
+                uvw_pred = model(xyz_ref)
+                uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
                 uvw_pred = uvw_pred.detach().cpu().numpy()
         else:
             with torch.no_grad():
-                uvw_pred = model(xyz_train)
+                uvw_pred = model(xyz_ref)
                 uvw_pred = uvw_pred.cpu().numpy()
 
         if config.predictions.fluid_region:
-            fluid_indices = mask_flat==1
-            uvw_pred_full = np.zeros(((len(mask_flat), len(uvw_pred[0]))))
+            fluid_indices = mask_flat_ref==1
+            uvw_pred_full = np.zeros(((len(mask_flat_ref), len(uvw_pred[0]))))
             uvw_pred_full[fluid_indices] = uvw_pred
             uvw_pred = uvw_pred_full
 

@@ -224,29 +224,34 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     if config.coords_normalization == "standardize":
         # Extract standardization factors
         _, std_t, _, std_x, _, std_y, _, std_z = standardization_factors
+        adj_t = 1/std_t
+        adj_x = 1/std_x
+        adj_y = 1/std_y
+        adj_z = 1/std_z
+
     else: # TODO - integrate minmax normalization
-        std_t, std_x, std_y, std_z = 1.0, 1.0, 1.0, 1.0
+        raise(ValueError("Navier-Stokes loss currently only supports standardize normalization."))
 
     # Calculate residuals based on Navier-Stokes Equations
     momentum_u = (
-        std_t * du_dt 
-        + std_x * (u * du_dx) + std_y* (v * du_dy) + std_z * (w * du_dz) 
-        + std_x * dp_dx 
-        - (1/Re) * ((std_x**2) * d2u_dx2 + (std_y**2) * d2u_dy2 + (std_z**2) * d2u_dz2)
+        adj_t * du_dt 
+        + adj_x * (u * du_dx) + adj_y* (v * du_dy) + adj_z * (w * du_dz) 
+        + adj_x * dp_dx 
+        - (1/Re) * ((adj_x**2) * d2u_dx2 + (adj_y**2) * d2u_dy2 + (adj_z**2) * d2u_dz2)
     )    
 
     momentum_v = (
-        std_t * dv_dt 
-        + std_x * (u * dv_dx) + std_y * (v * dv_dy) + std_z * (w * dv_dz) 
-        + std_y * dp_dy 
-        - (1/Re) * ((std_x**2) * d2v_dx2 + (std_y**2) * d2v_dy2 + (std_z**2) * d2v_dz2)
+        adj_t * dv_dt 
+        + adj_x * (u * dv_dx) + adj_y * (v * dv_dy) + adj_z * (w * dv_dz) 
+        + adj_y * dp_dy 
+        - (1/Re) * ((adj_x**2) * d2v_dx2 + (adj_y**2) * d2v_dy2 + (adj_z**2) * d2v_dz2)
     ) 
 
     momentum_w = (
-        std_t * dw_dt 
-        + std_x * (u * dw_dx) + std_y * (v * dw_dy) + std_z * (w * dw_dz) 
-        + std_z * dp_dz 
-        - (1/Re) * ((std_x**2) * d2w_dx2 + (std_y**2) * d2w_dy2 + (std_z**2) * d2w_dz2)
+        adj_t * dw_dt 
+        + adj_x * (u * dw_dx) + adj_y * (v * dw_dy) + adj_z * (w * dw_dz) 
+        + adj_z * dp_dz 
+        - (1/Re) * ((adj_x**2) * d2w_dx2 + (adj_y**2) * d2w_dy2 + (adj_z**2) * d2w_dz2)
     ) 
 
     # Calculate divergence

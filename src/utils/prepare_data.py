@@ -443,11 +443,13 @@ def upsample_1d(arr, factor=2, mode='extend'):
         return arr
 
     dx = arr[1] - arr[0]
+
     if mode == 'extend':
+        N_new = len(arr) * factor-1
         step = dx / factor
-        # old approach A
-        N_new = len(arr) * factor
-        return np.linspace(arr[0], arr[-1] + step, N_new)
+        start = arr[0]
+        stop  = start + (N_new - 1) * step
+        return np.linspace(start, stop, N_new)
 
     elif mode == 'centered':
         # old approach B
@@ -603,8 +605,8 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
 
     if config.setup.include_time:
         # Tile the masks
-        mask_flat = np.tile(mask.ravel(), t_len)
-        boundary_mask_flat = np.tile(boundary_mask.ravel(), t_len)
+        mask_flat = np.tile(mask.ravel(), len(t_ups))
+        boundary_mask_flat = np.tile(boundary_mask.ravel(), len(t_ups))
     else:
         mask_flat = mask.ravel()
         boundary_mask_flat = boundary_mask.ravel()
