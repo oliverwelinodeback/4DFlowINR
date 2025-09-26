@@ -4,3 +4,7 @@
 /src/wandb
 /src/data/geometries/
 /src/data/vti_files/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

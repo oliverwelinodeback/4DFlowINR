@@ -8,7 +8,7 @@ def get_config(sweep_config=None):
 
     config.sweep = False
     # Data
-    config.data_file = "../data/healthy/HV01_05mm3_20ms_LR_dv_tSNR8.h5"
+    config.data_file = "../data/healthy/HV01_05mm3_20ms_sv08_tSNR10.h5"
     config.include_ref = True
     config.include_ref_loss = True
     config.data_file_ref = "../data/healthy/HV01_05mm3_20ms.h5"
@@ -17,7 +17,7 @@ def get_config(sweep_config=None):
 
     # Model 
     networks_folder = "../models/250924_antialias/"
-    config.network_name = "HV01_SIREN_momentum" 
+    config.network_name = "HV01_SIREN_momentum_antialiased_08" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -87,7 +87,7 @@ def get_config(sweep_config=None):
     config.constants.T = config.constants.L / config.constants.U
     config.constants.rho = 1060
     config.constants.mu = 0.004
-    config.constants.venc = 1.2
+    config.constants.venc = 0.8
 
     # Network architecture
     config.network = ml_collections.ConfigDict()

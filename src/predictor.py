@@ -50,8 +50,8 @@ if __name__ == "__main__":
     #network_path = "../models/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/checkpoints/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_it95000.pth"
     #results_directory = "../results/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/"
 
-    network_path = "../models/250924/HV01_SIREN_momentum_20250924-2333/checkpoints/HV01_SIREN_momentum_it25000.pth"
-    results_directory = "../results/HV01_SIREN_momentum_20250924-2333/HV01_SIREN_momentum_20250924-2333/"
+    network_path = "../models/250924_antialias/HV01_SIREN_momentum_antialiased_04_20250925-1642/checkpoints/HV01_SIREN_momentum_antialiased_04_it25000.pth"
+    results_directory = "../results/250924_antialias/HV01_SIREN_momentum_antialiased_04_20250925-1642/"
 
 
     # --------------------------------
