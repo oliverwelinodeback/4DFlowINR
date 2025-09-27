@@ -8,16 +8,16 @@ def get_config(sweep_config=None):
 
     config.sweep = False
     # Data
-    config.data_file = "../data/healthy/HV01_05mm3_20ms_sv08_tSNR10.h5"
+    config.data_file = "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_tSNR8.h5"
     config.include_ref = True
     config.include_ref_loss = True
-    config.data_file_ref = "../data/healthy/HV01_05mm3_20ms.h5"
+    config.data_file_ref = "../data/stenosis_70/ICAD17_05mm3_20ms.h5"
     config.ref_spatial_factor = 2
     config.ref_temporal_factor = 2
 
     # Model 
-    networks_folder = "../models/250924_antialias/"
-    config.network_name = "HV01_SIREN_momentum_antialiased_08" 
+    networks_folder = "../models/250924/"
+    config.network_name = "ICAD17_SIREN_momentum" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -29,13 +29,25 @@ def get_config(sweep_config=None):
     # Domain
     config.domain = ml_collections.ConfigDict()
     config.domain.t_start = 0
-    config.domain.t_end = -(-25 // 2) # Ceiling division
+
+    # HV01
+    #config.domain.t_end = -(-25 // 2) # Ceiling division
+    #config.domain.x_start = int(0/2)
+    #config.domain.x_end = int(140/2)
+    #config.domain.y_start = int(0/2)
+    #config.domain.y_end = int(92/2)
+    #config.domain.z_start = int(0/2)
+    #config.domain.z_end = int(52/2)
+
+    # ICAD17
+    config.domain.t_end = -(-31 // 2) # Ceiling division
     config.domain.x_start = int(0/2)
-    config.domain.x_end = int(140/2)
+    config.domain.x_end = int(150/2)
     config.domain.y_start = int(0/2)
-    config.domain.y_end = int(92/2)
+    config.domain.y_end = int(86/2)
     config.domain.z_start = int(0/2)
-    config.domain.z_end = int(52/2)
+    config.domain.z_end = int(80/2)
+
     #config.domain.t_start = 14
     #config.domain.t_end =   int(120/2)
     #config.domain.x_start = int(0/2)

@@ -18,7 +18,7 @@ from utils.utils import save_to_h5
 from utils.loss_utils import vector_potential_fn
 from utils.preprocessing_utils import compute_outer_boundary_mask
 import networks
-from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
+from configs.Config_250923_KI_HV01_x2_tx2_momentum_TESTING import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
 from utils.loss_utils import vector_potential_fn
 import h5py
@@ -50,8 +50,8 @@ if __name__ == "__main__":
     #network_path = "../models/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/checkpoints/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_it95000.pth"
     #results_directory = "../results/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/"
 
-    network_path = "../models/250924_antialias/HV01_SIREN_momentum_antialiased_04_20250925-1642/checkpoints/HV01_SIREN_momentum_antialiased_04_it25000.pth"
-    results_directory = "../results/250924_antialias/HV01_SIREN_momentum_antialiased_04_20250925-1642/"
+    network_path = "../models/250924/ICAD17_SIREN_momentum_20250925-1216/checkpoints/ICAD17_SIREN_momentum_it25000.pth"
+    results_directory = "../results/250924/ICAD17_SIREN_momentum_20250925-1216/"
 
 
     # --------------------------------
