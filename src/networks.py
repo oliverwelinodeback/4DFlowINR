@@ -37,6 +37,60 @@ class FF_SIREN(nn.Module):
         output = self.net(x_enc)
         return output 
 
+class FourierFeatureEncoding(nn.Module):
+    """
+    Applies Fourier feature mapping to input data.
+    """
+    def __init__(self, input_dim: int, mapping_size: int, scale: float = 1.0):
+        super().__init__()
+        self.B = torch.randn((input_dim, mapping_size)) * scale
+
+    def forward(self, x):
+        x_proj = 2 * np.pi * x @ self.B.to(x.device)
+        return torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
+
+
+class FFN(nn.Module):
+    """
+    Fully connected network with Fourier Feature Encoding.
+    """
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, 
+                 fourier_mapping_size: int, depth: int, scale: float = 1.0, bias: bool = True):
+        # super().__init__()
+
+        super(FFN, self).__init__()
+
+        # Fourier Encoding
+        self.fourier_encoder = FourierFeatureEncoding(input_dim, fourier_mapping_size,scale=scale)
+        encoded_dim = fourier_mapping_size * 2
+
+        # Build the dynamic network layers
+        layers = []
+        
+        # Input layer
+        layers.append(nn.Linear(encoded_dim, hidden_dim,bias=bias))
+        layers.append(nn.GELU())
+
+        # Hidden layers based on depth
+        for _ in range(depth - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.GELU())
+
+        # Output layer
+        layers.append(nn.Linear(hidden_dim, output_dim))
+
+        # Define the sequential network
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x):
+        x_encoded = self.fourier_encoder(x)
+        return self.network(x_encoded)
+
+
+###############
+
+
+
 class SIREN(nn.Module):
     def __init__(self, in_dim=4, out_dim=4, depth=6, hidden_features=128, first_omega_0=30, hidden_omega_0=30, outermost_linear=True):
 
@@ -89,95 +143,169 @@ class SineLayer(nn.Module):
         
     def forward(self, input):
         return torch.sin(self.omega_0 * self.linear(input))
+    
+################
 
 
-class FourierFeatureEncoding(nn.Module):
-    """
-    Applies Fourier feature mapping to input data.
-    """
-    def __init__(self, input_dim: int, mapping_size: int, scale: float = 1.0):
+class RealGaborLayer(nn.Module):
+    '''
+        Implicit representation with Gabor nonlinearity
+    '''
+    
+    def __init__(self, in_features, out_features, bias=True,
+                 is_first=False, omega0=10.0, sigma0=10.0,
+                 trainable=False):
         super().__init__()
-        self.B = torch.randn((input_dim, mapping_size)) * scale
-
-    def forward(self, x):
-        x_proj = 2 * np.pi * x @ self.B.to(x.device)
-        return torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
-
-
-class FFN(nn.Module):
-    """
-    Fully connected network with Fourier Feature Encoding.
-    """
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, 
-                 fourier_mapping_size: int, depth: int, scale: float = 1.0, bias: bool = True):
-        # super().__init__()
-
-        super(FFN, self).__init__()
-
-        # Fourier Encoding
-        self.fourier_encoder = FourierFeatureEncoding(input_dim, fourier_mapping_size,scale=scale)
-        encoded_dim = fourier_mapping_size * 2
-
-        # Build the dynamic network layers
-        layers = []
+        self.omega_0 = omega0
+        self.scale_0 = sigma0
+        self.is_first = is_first
         
-        # Input layer
-        layers.append(nn.Linear(encoded_dim, hidden_dim,bias=bias))
-        layers.append(nn.GELU())
-
-        # Hidden layers based on depth
-        for _ in range(depth - 1):
-            layers.append(nn.Linear(hidden_dim, hidden_dim))
-            layers.append(nn.GELU())
-
-        # Output layer
-        layers.append(nn.Linear(hidden_dim, output_dim))
-
-        # Define the sequential network
-        self.network = nn.Sequential(*layers)
-
-    def forward(self, x):
-        x_encoded = self.fourier_encoder(x)
-        return self.network(x_encoded)
+        self.in_features = in_features
         
+        self.freqs = nn.Linear(in_features, out_features, bias=bias)
+        self.scale = nn.Linear(in_features, out_features, bias=bias)
 
-# class GaussianFourierFeatureTransform(torch.nn.Module):
-#     """
-#     An implementation of Gaussian Fourier feature mapping.
+        initialization(self.freqs, in_features, float(self.omega_0), float(self.scale_0), is_first=self.is_first)
+        initialization(self.scale, in_features, float(self.omega_0), float(self.scale_0), is_first=self.is_first)
+        
+    def forward(self, input):
+        omega = self.omega_0 * self.freqs(input)
+        scale = self.scale(input) * self.scale_0
+        
+        return torch.cos(omega)*torch.exp(-(scale**2))
 
-#     "Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains":
-#        https://arxiv.org/abs/2006.10739
-#        https://people.eecs.berkeley.edu/~bmild/fourfeat/index.html
+class ComplexGaborLayer(nn.Module):
+    '''
+        Implicit representation with complex Gabor nonlinearity
+    '''
+    
+    def __init__(self, in_features, out_features, bias=True,
+                 is_first=False, omega0=10.0, sigma0=40.0,
+                 trainable=False):
+        super().__init__()
+        self.omega_0 = omega0
+        self.scale_0 = sigma0
+        self.is_first = is_first
+        
+        self.in_features = in_features
+        
+        if self.is_first:
+            dtype = torch.float
+        else:
+            dtype = torch.cfloat
+            
+        # Set trainable parameters if they are to be simultaneously optimized
+        self.omega_0 = nn.Parameter(self.omega_0*torch.ones(1), trainable)
+        self.scale_0 = nn.Parameter(self.scale_0*torch.ones(1), trainable)
+        
+        self.linear = nn.Linear(in_features,
+                                out_features,
+                                bias=bias,
+                                dtype=dtype)
 
-#     Given an input of size [batches, num_input_channels, width, height],
-#      returns a tensor of size [batches, mapping_size*2, width, height].
-#     """
+        initialization(self.linear, in_features, float(self.omega_0.item()), float(self.scale_0.item()), is_first=self.is_first)
 
-#     def __init__(self, num_input_channels, mapping_size=256, scale=10):
-#         super().__init__()
 
-#         self._num_input_channels = num_input_channels
-#         self._mapping_size = mapping_size
-#         self._B = torch.randn((num_input_channels, mapping_size)) * scale
+    def forward(self, input):
+        lin = self.linear(input)
+        omega = self.omega_0 * lin
+        scale = self.scale_0 * lin
+        
+        return torch.exp(1j*omega - scale.abs().square())
+    
+class WIRE(nn.Module):
+    def __init__(self, in_dim=4, out_dim=4, depth=6, hidden_features=128, first_omega_0=10.0, hidden_omega_0=10.0, scale=10.0, complex=True):
+        
+        super(WIRE, self).__init__()
+        
+        #hidden_features = int(hidden_features/np.sqrt(2))
+        
+        self.net = []
 
-#     def forward(self, x):
-#         assert x.dim() == 4, 'Expected 4D input (got {}D input)'.format(x.dim())
+        if complex:
+            dtype = torch.cfloat 
 
-#         batches, channels, width, height = x.shape
+            self.net.append(ComplexGaborLayer(in_dim,
+                                        hidden_features, 
+                                        omega0=first_omega_0,
+                                        is_first=True, 
+                                        sigma0=scale,
+                                        trainable=False))
 
-#         assert channels == self._num_input_channels,\
-#             "Expected input to have {} channels (got {} channels)".format(self._num_input_channels, channels)
+            for _ in range(depth):
+                self.net.append(ComplexGaborLayer(hidden_features,
+                                            hidden_features, 
+                                            omega0=hidden_omega_0,
+                                            sigma0=scale,
+                                            trainable=False))
+        
+        else:
+            dtype = torch.float  
 
-#         # Make shape compatible for matmul with _B.
-#         # From [B, C, W, H] to [(B*W*H), C].
-#         x = x.permute(0, 2, 3, 1).reshape(batches * width * height, channels)
+            self.net.append(RealGaborLayer(in_dim,
+                                        hidden_features, 
+                                        omega0=first_omega_0,
+                                        is_first=True, 
+                                        sigma0=scale,
+                                        trainable=False))
 
-#         x = x @ self._B.to(x.device)
+            for _ in range(depth):
+                self.net.append(RealGaborLayer(hidden_features,
+                                            hidden_features, 
+                                            omega0=hidden_omega_0,
+                                            sigma0=scale,
+                                            trainable=False))
 
-#         # From [(B*W*H), C] to [B, W, H, C]
-#         x = x.view(batches, width, height, self._mapping_size)
-#         # From [B, W, H, C] to [B, C, W, H]
-#         x = x.permute(0, 3, 1, 2)
+        final_linear = nn.Linear(hidden_features, out_dim, dtype=dtype)        
+        with torch.no_grad():
+            if hidden_omega_0 != 0:
+                b = (6.0 / hidden_features) ** 0.5 / hidden_omega_0
+            else:
+                b = (6.0 / hidden_features) ** 0.5 / scale
 
-#         x = 2 * pi * x
-#         return torch.cat([torch.sin(x), torch.cos(x)], dim=1)
+            if torch.is_complex(final_linear.weight):
+                final_linear.weight.data.real.uniform_(-b, b)
+                final_linear.weight.data.imag.uniform_(-b, b)
+            else:
+                final_linear.weight.uniform_(-b, b)
+
+            if final_linear.bias is not None:
+                if torch.is_complex(final_linear.weight):
+                    final_linear.bias.real.uniform_(-b, b)
+                    final_linear.bias.imag.uniform_(-b, b)
+                else:
+                    final_linear.bias.uniform_(-b, b)
+
+        self.net.append(final_linear)
+        
+        self.net = nn.Sequential(*self.net)
+    
+    def forward(self, coords):
+        output = self.net(coords)
+        return output.real
+    
+def initialization(linear: nn.Linear, in_features: int, omega_0: float, sigma_0: float, is_first: bool):
+    with torch.no_grad():
+        if is_first:
+            bound = 1.0 / in_features
+        else:
+            if omega_0 != 0:
+                bound = (6.0 / in_features) ** 0.5 / omega_0
+            else:
+                bound = (6.0 / in_features) ** 0.5 / sigma_0
+
+        # weights
+        if torch.is_complex(linear.weight):
+            # Initialize real/imag independently with the same bound
+            linear.weight.data.real.uniform_(-bound, bound)
+            linear.weight.data.imag.uniform_(-bound, bound)
+        else:
+            linear.weight.uniform_(-bound, bound)
+
+        # biases (match SIREN style by using same bound)
+        if linear.bias is not None:
+            if torch.is_complex(linear.bias):
+                linear.bias.data.real.uniform_(-bound, bound)
+                linear.bias.data.imag.uniform_(-bound, bound)
+            else:
+                linear.bias.uniform_(-bound, bound)

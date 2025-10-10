@@ -6,8 +6,13 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.Config_250923_KI_HV01_x2_tx2_momentum_TESTING import get_config
+from configs.sb_tuning_1.Config_251010_sweep_FFN_temporal import get_config, get_sweep_config
+#try:
+#    from configs.Config_251008_sweep_test import get_sweep_config
+#except ImportError:
+#    get_sweep_config = None
 #from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
+from datetime import datetime
 
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -18,35 +23,42 @@ def train(config=None, run_name=None, use_sweep=False):
 
     if use_sweep:
         # Initialize wandb for this run
-        wandb.init(
-            project="SRFlowNIR", 
-        )
-        config = wandb.config
+        run = wandb.init(project="SRFlowNIR")
+        sweep_config = wandb.config
+
+        # Sweep parameters:
+        #omega_0 = sweep_config["network.omega_0"]
+        #sigma_0 = sweep_config["network.sigma_0"]
+        #fourier_mapping_size = sweep_config["network.fourier_mapping_size"]
+        #fourier_scale = sweep_config["network.fourier_scale"]
+
+        t_len = sweep_config["template.t_len"]
+
+        # Run names
+        #run.name = f"SIREN_sweep_Omega{omega_0}"
+        #run.name = f"GAUSS_sweep_Sigma{sigma_0}"+
+        #run.name = f"WIRE_COMPLEX_sweep_Sigma{sigma_0}_Omega{omega_0}"
+        #run.name = f"FFN_bias_sweep_fourier_mapping_size{fourier_mapping_size}_fourier_scale{fourier_scale}"
+
+        run.name = f"FFN_TEMPORAL_sweep_t{t_len}"
+
+        run.log({"run_name": run.name})
+
+        # Sweep overrides
+        #config.network.fourier_mapping_size = fourier_mapping_size
+        #config.network.fourier_scale = fourier_scale
+
+        config.template.t_len = t_len
+
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M')
+        config.log_dir = f"{config.networks_folder}/{run.name}_{timestamp}"
+
     else:
         # Initialize wandb for this run
-        wandb.init(
-            project="SRFlowNIR",
-            name=run_name,
-            config=config.to_dict()
-        )
-        
-    if use_sweep:
-        training_config = get_config()
-        
-        # Sweep overrides:
-        #training_config.training.epochs_before_PDE = config.training_epochs_before_PDE
-        #training_config.training.grad_weight_scheme = config.training_grad_weight_scheme
-        #training_config.coords_normalization = config.coords_normalization
-        #training_config.global_normalization = config.global_normalization
-        #training_config.network.omega_0 = config.network_omega_0
-        #training_config.constants.U = config.constants_U
-        #training_config.constants.L = config.constants_L
-        #training_config.training.use_LBFGS = config.training_use_LBFGS
-        #training_config.training.physics_weight = config.training_physics_weight
-        config = training_config
+        wandb.init(project="SRFlowNIR", name=run_name, config=config.to_dict())
 
     # Store source files
-    copy_cource_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
+    #copy_cource_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
 
     # Set random seed
     set_seed(config.random_seed)
@@ -123,6 +135,17 @@ def train(config=None, run_name=None, use_sweep=False):
             hidden_dim=config.network.hidden_features,
             fourier_mapping_size=config.network.fourier_mapping_size,
             scale=config.network.fourier_scale
+        ).to(DEVICE)
+    elif config.network.arch == "WIRE":
+        model = networks.WIRE(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+            scale=config.network.sigma_0,
+            complex=config.network.complex
         ).to(DEVICE)
     else:
         raise ValueError("Unknown network.")
@@ -249,6 +272,7 @@ def train(config=None, run_name=None, use_sweep=False):
                 total_loss = data_weight*data_loss + physics_weight*config.training.physics_weight*physics_loss
         else:
             total_loss = data_loss + config.training.physics_weight*physics_loss + config.training.boundary_weight*bound_loss
+            data_weight, physics_weight = None, None
 
         # Optimizer Step
         if config.training.use_LBFGS:
@@ -295,8 +319,8 @@ def train(config=None, run_name=None, use_sweep=False):
             "Loss/Pressure_y": mse_py.item() if mse_px is not None else 0.0,
             "Loss/Pressure_z": mse_pz.item() if mse_px is not None else 0.0,
             "Loss/Ref": ref_loss.item(),
-            "Loss/data_weight": data_weight,
-            "Loss/physics_weight": physics_weight,
+            "Loss/data_weight": data_weight if data_weight is not None else 0.0,
+            "Loss/physics_weight": physics_weight if physics_weight is not None else 0.0,
             "Loss/boundary_weight": bound_weight if config.sample_boundary else 0.0,
         }
         for key, value in metrics.items():
@@ -318,10 +342,10 @@ def train(config=None, run_name=None, use_sweep=False):
                 "Loss/Pressure_y": mse_py.item() if mse_px is not None else 0.0,
                 "Loss/Pressure_z": mse_pz.item() if mse_px is not None else 0.0,
                 "Loss/Ref": ref_loss.item(),
-                "Loss/data_weight": data_weight,
-                "Loss/physics_weight": physics_weight,
+                "Loss/data_weight": data_weight if data_weight is not None else 0.0,
+                "Loss/physics_weight": physics_weight if physics_weight is not None else 0.0,
                 "Loss/boundary_weight": bound_weight if config.sample_boundary else 0.0,
-                },step=it+1)
+            }, step=it+1)
             
         # Plot current model predictions
         if (it + 1) % config.plot.iter == 0:
@@ -338,12 +362,30 @@ def train(config=None, run_name=None, use_sweep=False):
                                             mask_flat_ref, U_max, standardization_factors)
                 
             # Log metrics to wandb
-            wandb.log({
+            log_dict = {
+                "Relative Error [Fluid]": metrics_eval['Relative error [Fluid]'],
                 "VNRMSE [Fluid]": metrics_eval['VNRMSE [Fluid]'],
-                "Directional error [Fluid]" : metrics_eval["Directional error [Fluid]"],
-                "Divergence prediction [Fluid]" : metrics_eval["Divergence prediction [Fluid]"],
-                "Divergence reference [Fluid]" : metrics_eval["Divergence reference [Fluid]"]
-            }, step=it+1)
+                "Directional error [Fluid]": metrics_eval["Directional error [Fluid]"],
+                "Divergence prediction [Fluid]": metrics_eval["Divergence prediction [Fluid]"],
+                "Divergence reference [Fluid]": metrics_eval["Divergence reference [Fluid]"],
+                "W k [Core]": metrics_eval['W k [Core]'],
+                "W r^2 [Core]": metrics_eval['W r^2 [Core]'],
+            }
+
+            # Add pressure metrics only if reference gradients are used
+            if config.training.reference_gradients:
+                log_dict.update({
+                    "Pressure Gradient Relative Error [Fluid]": metrics_eval['Relative error Pressure Gradient (%) [Fluid]'],
+                    "Pressure gradient PX k [Core]": metrics_eval['PX k [Core]'],
+                    "Pressure gradient PX r^2 [Core]": metrics_eval['PX r^2 [Core]'],
+                    "Pressure gradient PY k [Core]": metrics_eval['PY k [Core]'],
+                    "Pressure gradient PY r^2 [Core]": metrics_eval['PY r^2 [Core]'],
+                    "Pressure gradient PZ k [Core]": metrics_eval['PZ k [Core]'],
+                    "Pressure gradient PZ r^2 [Core]": metrics_eval['PZ r^2 [Core]'],
+                })
+
+            # Log to W&B
+            wandb.log(log_dict, step=it + 1)
                     
         # Save model at checkpoint
         if (it + 1) % config.training.summary_iter == 0:
@@ -353,99 +395,40 @@ def train(config=None, run_name=None, use_sweep=False):
         if (it + 1) == config.training.iterations:
             save_checkpoint(model, it+1, config, final=True)
 
+            metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors)
+
+            final_log_time = time.time() - start_time
+
+            final_log_dict = {
+                "FINAL Relative Error [Fluid]": metrics_eval['Relative error [Fluid]'],
+                "FINAL VNRMSE [Fluid]": metrics_eval['VNRMSE [Fluid]'],
+                "FINAL training time [min]": round(final_log_time/60, 2),
+                "FINAL W k [Core]": metrics_eval['W k [Core]'],
+                "FINAL W r^2 [Core]": metrics_eval['W r^2 [Core]'],     
+            }
+            if config.training.reference_gradients:
+                final_log_dict.update({
+                    "FINAL Pressure Gradient Relative Error [Fluid]": metrics_eval['Relative error Pressure Gradient (%) [Fluid]'],
+                    "FINAL Pressure gradient PZ k [Core]": metrics_eval['PZ k [Core]'],
+                    "FINAL Pressure gradient PZ r^2 [Core]": metrics_eval['PZ r^2 [Core]'],
+                })
+
+            # Log metrics to wandb
+            wandb.log(final_log_dict)
+
     wandb.finish()
 
 if __name__ == "__main__":
+    
+    config = get_config()
+    
+    if config.sweep:
 
-    sweep = True
-
-    if sweep:
         # Define sweep configuration
-        sweep_configuration = {
-            'method': 'random', #
-            'metric': {'name': 'Loss/Ref', 'goal': 'minimize'},
-            'parameters': { 
+        sweep_config = get_sweep_config()
+        sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlowNIR")
+        wandb.agent(sweep_id, function=lambda: train(config=config, use_sweep=True), count=20)
 
-                # epochs_before_PDE: 0 or 100
-                'training_epochs_before_PDE': {
-                    'values': [0]
-                },
-                # grad_weight_scheme: True or False
-                'training_grad_weight_scheme': {
-                    'values': [True] 
-                },
-                # coords_normalization: "standardize" or "min_max"
-                'coords_normalization': {
-                    'values': ["standardize"]#, "min_max"]
-                },
-                # global_normalization: True or False
-                'global_normalization': {
-                    'values': [True]
-                },
-                # network.omega_0: 10, 30, or 50
-                'network_omega_0': {
-                    'values': [1, 10, 30, 70]
-                },
-
-                'constants_U': {
-                    'values': [1.0, 2.0, 0.2]
-                },
-
-                'constants_L': {
-                    'values': [0.005, 0.1, 0.0005]
-                },
-                # training.use_LBFGS: True or False
-                'training_use_LBFGS': {
-                    'values': [True]
-                },
-                'training_physics_weight': {
-                    'values': [1.0]
-                },
-            }
-        }
-
-        # Nerea - Sweep (FFN/SIREN)
-        # sweep_configuration = {
-        #     'method': 'grid', #
-        #     'metric': {'name': 'Loss/Ref', 'goal': 'minimize'},
-        #     'parameters': { 
-        #         'network_arch': {
-        #             'value': 'SIREN'
-        #         },
-        #         ''
-        #         'training_use_vector_potential' : { 
-        #             'values': [True, False]
-        #         },  
-        #         'training_use_physics_loss'  : { 
-        #             'values': [True, False]
-        #         }, 
-        #         'network_omega'   :   { 
-        #             'values': [0.1, 1.0, 10.0, 30.0, 70.0, 200.0]
-        #         }, 
-        #     }
-        # }
-        # sweep_configuration = {
-        #    'method': 'grid', #
-        #    'metric': {'name': 'Loss/Ref', 'goal': 'minimize'},
-        #    'parameters': { 
-        #        'network_arch': {
-        #            'value': 'FFN'
-        #        },
-        #        'training_use_vector_potential' : { 
-        #            'values': [True, False]
-        #        },  
-        #        'training_use_physics_loss'  : { 
-        #            'values': [True, False]
-        #        }, 
-        #        'network_fourier_scale'   :   { 
-        #            'values': [0.1, 1.0, 3.0, 5.0, 7.0, 10.0, 50.0, 100.0]
-        #        }, 
-        #    }
-        # }
-
-        sweep_id = wandb.sweep(sweep=sweep_configuration, project="SRFlowNIR")
-        wandb.agent(sweep_id, function=lambda: train(use_sweep=True),count=1)
     else:
-        config = get_config()
         run_name = f"{config.network_name}"
         train(config=config, run_name=run_name)

@@ -6,7 +6,7 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
+from configs.Config_251008_WIRE_Test import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -94,6 +94,17 @@ if __name__ == "__main__":
             hidden_dim=config.network.hidden_features,
             fourier_mapping_size=config.network.fourier_mapping_size,
             scale=config.network.fourier_scale
+        ).to(DEVICE)
+    elif config.network.arch == "WIRE":
+        model = networks.WIRE(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+            scale=config.network.sigma_0,
+            complex=config.network.complex
         ).to(DEVICE)
     else:
         raise ValueError("Unknown network.")
@@ -220,6 +231,7 @@ if __name__ == "__main__":
                 total_loss = data_weight*data_loss + physics_weight*config.training.physics_weight*physics_loss
         else:
             total_loss = data_loss + config.training.physics_weight*physics_loss + config.training.boundary_weight*bound_loss
+            data_weight, physics_weight = None, None
 
         # Optimizer Step
         if config.training.use_LBFGS:
@@ -266,6 +278,9 @@ if __name__ == "__main__":
             "Loss/Pressure_y": mse_py.item() if mse_px is not None else 0.0,
             "Loss/Pressure_z": mse_pz.item() if mse_px is not None else 0.0,
             "Loss/Ref": ref_loss.item(),
+            "Loss/data_weight": data_weight if data_weight is not None else 0.0,
+            "Loss/physics_weight": physics_weight if physics_weight is not None else 0.0,
+            "Loss/boundary_weight": bound_weight if config.sample_boundary else 0.0,
         }
         for key, value in metrics.items():
             writer.add_scalar(key, value, it)

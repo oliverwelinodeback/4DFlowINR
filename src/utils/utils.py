@@ -10,7 +10,7 @@ from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
 from utils.evaluation_utils import (
     create_boundary_and_core_masks, 
-    calculate_relative_error, 
+    calculate_tanh_relative_error, 
     calculate_absolute_error, 
     calculate_rmse, 
     calculate_absolute_error_pressure, 
@@ -65,11 +65,12 @@ def save_to_h5(output_filepath, col_name, dataset):
             hf[col_name][-dataset.shape[0]:] = dataset
 
 def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
     
 def save_checkpoint(model, iter, config, final=False, extra_data=None):
 
@@ -277,9 +278,9 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
     grad_nrmse =   np.zeros((T,3))
 
     for t in range(T):
-        rel_err[t,0] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
-        rel_err[t,1] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
-        rel_err[t,2] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
+        rel_err[t,0] = (calculate_tanh_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
+        rel_err[t,1] = (calculate_tanh_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
+        rel_err[t,2] = (calculate_tanh_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
 
         abs_err[t,0] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
         abs_err[t,1] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
@@ -463,6 +464,16 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         'Divergence reference [Bound]': div_ref[0,1],
         'Divergence reference [Core]': div_ref[0,2],
         'Divergence reference [Non-F]': div_ref[0,3],
+
+        'U k [Core]': Ks[config.predictions.peak_flow_idx][0][2],
+        'U m [Core]': Ms[config.predictions.peak_flow_idx][0][2],
+        'U r^2 [Core]': Rs[config.predictions.peak_flow_idx][0][2],
+        'V k [Core]': Ks[config.predictions.peak_flow_idx][1][2],
+        'V m [Core]': Ms[config.predictions.peak_flow_idx][1][2],
+        'V r^2 [Core]': Rs[config.predictions.peak_flow_idx][1][2],
+        'W k [Core]': Ks[config.predictions.peak_flow_idx][2][2],
+        'W m [Core]': Ms[config.predictions.peak_flow_idx][2][2],
+        'W r^2 [Core]': Rs[config.predictions.peak_flow_idx][2][2],
     }
 
     if config.training.reference_gradients:
@@ -482,6 +493,16 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
             'Pressure Gradient Directional Error [Fluid]': grad_dir_err_tot[0],
             'Pressure Gradient Directional Error [Bound]': grad_dir_err_tot[1],
             'Pressure Gradient Directional Error [Core]': grad_dir_err_tot[2],
+
+            'PX k [Core]': Ks_pgrad[config.predictions.peak_flow_idx][0][2],
+            'PX m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][0][2],
+            'PX r^2 [Core]': Rs_pgrad[config.predictions.peak_flow_idx][0][2],
+            'PY k [Core]': Ks_pgrad[config.predictions.peak_flow_idx][1][2],
+            'PY m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][1][2],
+            'PY r^2 [Core]': Rs_pgrad[config.predictions.peak_flow_idx][1][2],
+            'PZ k [Core]': Ks_pgrad[config.predictions.peak_flow_idx][2][2],
+            'PZ m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][2][2],
+            'PZ r^2 [Core]': Rs_pgrad[config.predictions.peak_flow_idx][2][2],
         })
 
     metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
@@ -564,15 +585,15 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
     uvw_pred = uvw_pred.reshape(T, X, Y, Z, D_pred)
 
     if config.setup.include_time:
-        u_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 0]
-        v_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 1]
-        w_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 2]
-        #p_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 3] if config.setup.include_pressure else None
-        px_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 3] if config.training.reference_gradients else None
-        py_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 4] if config.training.reference_gradients else None
-        pz_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 5] if config.training.reference_gradients else None
+        u_pred = uvw_pred[config.plot.t_step, :, :, :, 0]
+        v_pred = uvw_pred[config.plot.t_step, :, :, :, 1]
+        w_pred = uvw_pred[config.plot.t_step, :, :, :, 2]
+        #p_pred = uvw_pred[config.plot.t_stepr, :, :, :, 3] if config.setup.include_pressure else None
+        px_pred = uvw_pred[config.plot.t_step, :, :, :, 3] if config.training.reference_gradients else None
+        py_pred = uvw_pred[config.plot.t_step, :, :, :, 4] if config.training.reference_gradients else None
+        pz_pred = uvw_pred[config.plot.t_step, :, :, :, 5] if config.training.reference_gradients else None
         
-        p_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 3] if (config.setup.include_pressure and not config.training.reference_gradients) else None 
+        p_pred = uvw_pred[config.plot.t_step, :, :, :, 3] if (config.setup.include_pressure and not config.training.reference_gradients) else None 
 
     else:
         u_pred = uvw_pred[0, :, :, :, 0]
@@ -609,11 +630,11 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 3, 1)
     plt.title('LR u')
-    plt.imshow(u_lr[t_step, :, :, config.plot.z_slice].T, origin='lower', cmap='viridis')
+    plt.imshow(u_lr[int(t_step/2), :, :, config.plot.z_slice].T, origin='lower', cmap='viridis')
     plt.colorbar()
     plt.subplot(1, 3, 2)
     plt.title('Reference u')
-    plt.imshow(u_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
+    plt.imshow(u_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
     plt.colorbar()
     plt.subplot(1, 3, 3)
     plt.title('Predicted u')
@@ -626,11 +647,11 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 3, 1)
     plt.title('LR v')
-    plt.imshow(v_lr[t_step, :, :, config.plot.z_slice].T, origin='lower', cmap='viridis')
+    plt.imshow(v_lr[int(t_step/2), :, :, config.plot.z_slice].T, origin='lower', cmap='viridis')
     plt.colorbar()
     plt.subplot(1, 3, 2)
     plt.title('Reference v')
-    plt.imshow(v_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
+    plt.imshow(v_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
     plt.colorbar()
     plt.subplot(1, 3, 3)
     plt.title('Predicted v')
@@ -643,11 +664,11 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 3, 1)
     plt.title('LR w')
-    plt.imshow(w_lr[t_step, :, :, config.plot.z_slice].T, origin='lower', cmap='viridis')
+    plt.imshow(w_lr[int(t_step/2), :, :, config.plot.z_slice].T, origin='lower', cmap='viridis')
     plt.colorbar()
     plt.subplot(1, 3, 2)
     plt.title('Reference w')
-    plt.imshow(w_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
+    plt.imshow(w_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
     plt.colorbar()
     plt.subplot(1, 3, 3)
     plt.title('Predicted w')
@@ -663,12 +684,12 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
 
         plt.subplot(1, 3, 1)
         plt.title('Reference p')
-        plt.imshow(p_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
+        plt.imshow(p_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
         plt.colorbar()
 
         plt.subplot(1, 3, 2)
         plt.title('Reference p')
-        plt.imshow(p_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis'.T, origin='lower', vmin=14100)
+        plt.imshow(p_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis'.T, origin='lower', vmin=14100)
         plt.colorbar()
 
         plt.subplot(1, 3, 3)
@@ -684,7 +705,7 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
         plt.figure(figsize=(12, 6))
         plt.subplot(1, 2, 1)
         plt.title('Reference p')
-        plt.imshow(px_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
+        plt.imshow(px_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
         plt.colorbar()
         plt.subplot(1, 2, 2)
         plt.title('Predicted p')
@@ -696,7 +717,7 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
         plt.figure(figsize=(12, 6))
         plt.subplot(1, 2, 1)
         plt.title('Reference p')
-        plt.imshow(py_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
+        plt.imshow(py_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
         plt.colorbar()
         plt.subplot(1, 2, 2)
         plt.title('Predicted p')
@@ -708,7 +729,7 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
         plt.figure(figsize=(12, 6))
         plt.subplot(1, 2, 1)
         plt.title('Reference p')
-        plt.imshow(pz_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
+        plt.imshow(pz_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor].T, origin='lower', cmap='viridis')
         plt.colorbar()
         plt.subplot(1, 2, 2)
         plt.title('Predicted p')
@@ -794,10 +815,10 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
         uvw_pred_plot = uvw_pred_plot.reshape(1, len(x_ups), len(y_ups), len(z_ups), len(uvw_pred_plot[0]))
 
     if config.setup.include_time:
-        u_pred = uvw_pred_plot[config.plot.t_step*config.plot.temporal_factor, :, :, :, 0]
-        v_pred = uvw_pred_plot[config.plot.t_step*config.plot.temporal_factor, :, :, :, 1]
-        w_pred = uvw_pred_plot[config.plot.t_step*config.plot.temporal_factor, :, :, :, 2]
-        p_pred = uvw_pred_plot[config.plot.t_step*config.plot.temporal_factor, :, :, :, 3] if config.setup.include_pressure else None
+        u_pred = uvw_pred_plot[config.plot.t_step_2, :, :, :, 0]
+        v_pred = uvw_pred_plot[config.plot.t_step_2, :, :, :, 1]
+        w_pred = uvw_pred_plot[config.plot.t_step_2, :, :, :, 2]
+        p_pred = uvw_pred_plot[config.plot.t_step_2, :, :, :, 3] if config.setup.include_pressure else None
     else:
         u_pred = uvw_pred_plot[0, :, :, :, 0]
         v_pred = uvw_pred_plot[0, :, :, :, 1]
@@ -817,7 +838,7 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
             w_pred = w_pred*U_max
             p_pred = p_pred*(config.constants.rho*(config.constants.U**2)) if config.setup.include_pressure else None
     
-    z_slice = config.plot.z_slice*config.plot.spatial_factor
+    z_slice = config.plot.z_slice
 
     # Plotting (example using matplotlib)
     plt.figure(figsize=(12, 6))
