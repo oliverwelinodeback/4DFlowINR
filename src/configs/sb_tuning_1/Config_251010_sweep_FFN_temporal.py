@@ -12,7 +12,9 @@ def get_sweep_config():
         'parameters': {
             #'network.sigma_0': {'values': [1, 5, 10, 30, 50, 70, 100, 150]},
             #'network.omega_0': {'values': [5, 10, 30, 70, 100, 150]},
-            'template.t_len': {'values': [100, 75, 20, 10, 5, 125, 150, 200, 500]},
+            #'template.t_len': {'values': [100, 75, 20, 10, 5, 125, 150, 200, 500]},
+            #'template.t_len': {'values': [250, 400, 500, 600, 750, 1000, 1500, 2000, 5000]},
+            'template.t_len': {'values': [5000, 10000, 50000, 250000, 1000000, 10000000]},
         },
     }
 
@@ -35,7 +37,7 @@ def get_config():
 
     # Model 
     config.networks_folder = "../models/251010_FFN_sweep_TEMPORAL/"
-    config.network_name = "HV01_FFN_TEMPORAL" 
+    config.network_name = "HV01_FFN_TEMPORAL3" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 123
@@ -77,7 +79,7 @@ def get_config():
     # Collocation & Boundary points sampling
     config.sample_collocation = True
     config.collocation_in_fluid = True
-    config.collocation_points = 10_000_000
+    config.collocation_points = 1_000_000
     config.sample_boundary = False
     config.boundary_repetitions = 1000
 
@@ -128,9 +130,9 @@ def get_config():
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 7500
-    config.training.data_points_per_batch = 20000 # None to use all
-    config.training.coll_points_per_batch = 20000 # None to use all
+    config.training.iterations = 8000
+    config.training.data_points_per_batch = 25000 # None to use all
+    config.training.coll_points_per_batch = 25000 # None to use all
     config.training.boundary_points_per_batch = 10000 # None to use all
     # Optimizer
     config.training.lr = 1e-4
@@ -167,13 +169,13 @@ def get_config():
     config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
-    config.training.summary_iter = 1000
-    config.training.log_iter = 10
-    config.training.error_iter = 1000
+    config.training.summary_iter = 4000
+    config.training.log_iter = 250
+    config.training.error_iter = 4000
     config.training.denormalize = True
     # Plotting
     config.plot = ml_collections.ConfigDict()
-    config.plot.iter = 1000
+    config.plot.iter = 4000
     config.plot.gt = True
     config.plot.t_step = 12
     config.plot.t_step_2 = 13

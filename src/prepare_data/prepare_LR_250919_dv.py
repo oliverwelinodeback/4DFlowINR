@@ -190,20 +190,20 @@ def flow_dualvenc_reconstruction(vel_lv, vel_hv, venc_l, venc_h):
 if __name__ == '__main__':
 
     # Update your path here
-    base_path = '../../data/healthy' 
-    output_dir = '../../data/healthy'
-    case_name = 'HV01_05mm3_20ms'
+    base_path = '../../data/stenosis_70' 
+    output_dir = '../../data/stenosis_70'
+    case_name = 'ICAD21_05mm3_20ms'
 
     # Mag template
     template_filepath = '../../data/mag_templates.h5'
     template_idx = np.random.randint(0, 5)
 
     # Downsampling parameters
-    targetSNR = 2
+    targetSNR = 8
     targetSNR = targetSNR**2 # convert to variance
     downsample = 2
-    low_venc = 0.6 # in m/s
-    high_venc = 1.2 # in m/s
+    low_venc = 1.3 # in m/s
+    high_venc = 2.6 # in m/s
     mag_threshold = 30
 
     # tSNR = 12 (high), 8 (med), 4 (low) for downsample = 2
@@ -211,7 +211,7 @@ if __name__ == '__main__':
 
     # -----------------------
     input_filepath  =   f'{base_path}/{case_name}.h5'
-    outputLR_filename = f'{base_path}/{case_name}_LR_dv_tSNR2.h5'
+    outputLR_filename = f'{base_path}/{case_name}_LR_dv_hv26_tSNR8.h5'
 
     crop_ratio = 1 / downsample
     #-----------------------

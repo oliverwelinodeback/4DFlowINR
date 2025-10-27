@@ -47,8 +47,10 @@ def copy_cource_code(model_dir, directory_to_backup=["."], folder_name="backup_s
 
     return 
 
-def save_to_h5(output_filepath, col_name, dataset):
-    dataset = np.expand_dims(dataset, axis=0)
+def save_to_h5(output_filepath, col_name, dataset, expand_dim=True):
+    
+    if expand_dim:
+        dataset = np.expand_dims(dataset, axis=0)
 
     # convert float64 to float32 to save space
     if dataset.dtype == 'float64':
@@ -159,7 +161,7 @@ def sample_ref_to_device(config, xyz_train, uvw_train, mask_flat, device):
     return xyz_data_batch, uvw_data_batch, mask_batch
 
 
-def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors):
+def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=False):
 
     # Create directory
     directory = f'{config.log_dir}/errors/iter_{it}'
@@ -474,6 +476,17 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         'W k [Core]': Ks[config.predictions.peak_flow_idx][2][2],
         'W m [Core]': Ms[config.predictions.peak_flow_idx][2][2],
         'W r^2 [Core]': Rs[config.predictions.peak_flow_idx][2][2],
+
+        'U 2 k [Core]': Ks[config.predictions.flow_idx2][0][2],
+        'U 2 m [Core]': Ms[config.predictions.flow_idx2][0][2],
+        'U 2 r^2 [Core]': Rs[config.predictions.flow_idx2][0][2],
+        'V 2 k [Core]': Ks[config.predictions.flow_idx2][1][2],
+        'V 2 m [Core]': Ms[config.predictions.flow_idx2][1][2],
+        'V 2 r^2 [Core]': Rs[config.predictions.flow_idx2][1][2],
+        'W 2 k [Core]': Ks[config.predictions.flow_idx2][2][2],
+        'W 2 m [Core]': Ms[config.predictions.flow_idx2][2][2],
+        'W 2 r^2 [Core]': Rs[config.predictions.flow_idx2][2][2],
+
     }
 
     if config.training.reference_gradients:
@@ -503,11 +516,35 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
             'PZ k [Core]': Ks_pgrad[config.predictions.peak_flow_idx][2][2],
             'PZ m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][2][2],
             'PZ r^2 [Core]': Rs_pgrad[config.predictions.peak_flow_idx][2][2],
+
+            'PX 2 k [Core]': Ks_pgrad[config.predictions.flow_idx2][0][2],
+            'PX 2 m [Core]': Ms_pgrad[config.predictions.flow_idx2][0][2],
+            'PX 2 r^2 [Core]': Rs_pgrad[config.predictions.flow_idx2][0][2],
+            'PY 2 k [Core]': Ks_pgrad[config.predictions.flow_idx2][1][2],
+            'PY 2 m [Core]': Ms_pgrad[config.predictions.flow_idx2][1][2],
+            'PY 2 r^2 [Core]': Rs_pgrad[config.predictions.flow_idx2][1][2],
+            'PZ 2 k [Core]': Ks_pgrad[config.predictions.flow_idx2][2][2],
+            'PZ 2 m [Core]': Ms_pgrad[config.predictions.flow_idx2][2][2],
+            'PZ 2 r^2 [Core]': Rs_pgrad[config.predictions.flow_idx2][2][2],
+
         })
 
     metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
     metrics_filename = f"{directory}/metrics.csv"
     metrics_df.to_csv(metrics_filename, index=False)
+
+    if save_pred:
+        
+        # Save ref predictions to results directory
+        save_to_h5(f"{config.log_dir}/SR_final.h5", "u", u_pred, expand_dim=False)
+        save_to_h5(f"{config.log_dir}/SR_final.h5", "v", v_pred, expand_dim=False)
+        save_to_h5(f"{config.log_dir}/SR_final.h5", "w", w_pred, expand_dim=False)
+        if (config.setup.include_pressure and not config.training.reference_gradients):
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "p", p_pred, expand_dim=False)
+        elif config.training.reference_gradients:
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_x", p_pred_x, expand_dim=False)
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_y", p_pred_y, expand_dim=False)
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_z", p_pred_z, expand_dim=False)
 
     return metrics
 
@@ -815,10 +852,10 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
         uvw_pred_plot = uvw_pred_plot.reshape(1, len(x_ups), len(y_ups), len(z_ups), len(uvw_pred_plot[0]))
 
     if config.setup.include_time:
-        u_pred = uvw_pred_plot[config.plot.t_step_2, :, :, :, 0]
-        v_pred = uvw_pred_plot[config.plot.t_step_2, :, :, :, 1]
-        w_pred = uvw_pred_plot[config.plot.t_step_2, :, :, :, 2]
-        p_pred = uvw_pred_plot[config.plot.t_step_2, :, :, :, 3] if config.setup.include_pressure else None
+        u_pred = uvw_pred_plot[config.plot.t_step, :, :, :, 0]
+        v_pred = uvw_pred_plot[config.plot.t_step, :, :, :, 1]
+        w_pred = uvw_pred_plot[config.plot.t_step, :, :, :, 2]
+        p_pred = uvw_pred_plot[config.plot.t_step, :, :, :, 3] if config.setup.include_pressure else None
     else:
         u_pred = uvw_pred_plot[0, :, :, :, 0]
         v_pred = uvw_pred_plot[0, :, :, :, 1]

@@ -660,7 +660,7 @@ def extract_fluid_region(uvw_data, xyz_data, mask_flat, print_fluid_points=False
     fluid_indices = mask_flat == 1
 
     if print_fluid_points:
-        print(f"Number of fluid-containing points per timestep: {np.sum(fluid_indices)}")
+        print(f"Number of fluid-containing points: {np.sum(fluid_indices)}")
         print(f"Out of: {mask_flat.size}")
 
     uvw_fluid = uvw_data[fluid_indices]
