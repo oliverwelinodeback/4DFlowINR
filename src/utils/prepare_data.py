@@ -17,82 +17,82 @@ def load_data(config):
             u = np.asarray(hf['u'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config.domain.z_start:config.domain.z_end]) if config.domain.crop else np.asarray(hf['u'])
+
             v = np.asarray(hf['v'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config.domain.z_start:config.domain.z_end]) if config.domain.crop else np.asarray(hf['v'])
             w = np.asarray(hf['w'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config.domain.z_start:config.domain.z_end]) if config.domain.crop else np.asarray(hf['w'])
             
-            p = np.asarray(hf['p'][config.domain.t_start:config.domain.t_end, 
+            p = (np.asarray(hf['p'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
-                                ) if config.setup.include_pressure else None
+                                ) if config.domain.crop else np.asarray(hf['p']))  if config.setup.include_pressure else None
 
-            px = np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
+            px = (np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+                                )*1000 if config.domain.crop else np.asarray(hf['px'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
-            py = np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
+            py = (np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+                                )*1000 if config.domain.crop else np.asarray(hf['py'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
-            pz = np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
+            pz = (np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+                                )*1000 if config.domain.crop else np.asarray(hf['pz'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
             #px *= 1000 # Pa /mm --> Pa /m
-            #py *= 1000
-            #pz *= 1000
+            
         else:
             t_index = config.domain.t_start
 
             u = np.asarray(hf['u'][t_index, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config.domain.z_start:config.domain.z_end]) if config.domain.crop else np.asarray(hf['u'][t_index])
             v = np.asarray(hf['v'][t_index, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config.domain.z_start:config.domain.z_end]) if config.domain.crop else np.asarray(hf['v'][t_index])
             w = np.asarray(hf['w'][t_index, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
+                                config.domain.z_start:config.domain.z_end]) if config.domain.crop else np.asarray(hf['w'][t_index])
             
-            p = np.asarray(hf['p'][t_index,
+            p = (np.asarray(hf['p'][t_index,
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
-                                ) if config.setup.include_pressure else None
+                                ) if config.domain.crop else np.asarray(hf['p'][t_index]))  if config.setup.include_pressure else None
             
-            px = np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
+            px = (np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+                                )*1000 if config.domain.crop else np.asarray(hf['px'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
-            py = np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
+            py = (np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+                                )*1000 if config.domain.crop else np.asarray(hf['py'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
-            pz = np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
+            pz = (np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]
-                                )*1000 if (config.setup.include_pressure and config.training.predict_gradients) else None
+                                )*1000 if config.domain.crop else np.asarray(hf['pz'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
             ## TODO - fix pressure gradients loading
             
@@ -104,7 +104,7 @@ def load_data(config):
 
         mask = mask[config.domain.x_start:config.domain.x_end, 
                     config.domain.y_start:config.domain.y_end, 
-                    config.domain.z_start:config.domain.z_end]
+                    config.domain.z_start:config.domain.z_end] if config.domain.crop else mask
         # h×w×d = (81, 57, 50)
 
         if config.resolution.from_file:
@@ -126,41 +126,58 @@ def load_ref_data(config):
             u = np.asarray(hf['u'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]) if config.domain.crop else np.asarray(hf['u'])
             v = np.asarray(hf['v'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]) if config.domain.crop else np.asarray(hf['v'])
             w = np.asarray(hf['w'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]) if config.domain.crop else np.asarray(hf['w'])
             
-            p = np.asarray(hf['p'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
+            p = (np.asarray(hf['p'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                                ) if config.setup.include_pressure else None
+                                ) if config.domain.crop else np.asarray(hf['p'])) if config.setup.include_pressure else None
 
-            px = np.asarray(hf['px'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
+            px = (np.asarray(hf['px'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
-            py = np.asarray(hf['py'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
+                )*1000 if config.domain.crop else np.asarray(hf['px'])*1000) if (config.setup.include_pressure and config.training.reference_gradients) else None
+            py = (np.asarray(hf['py'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
-            pz = np.asarray(hf['pz'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
+                )*1000 if config.domain.crop else np.asarray(hf['py'])*1000) if (config.setup.include_pressure and config.training.reference_gradients) else None
+            pz = (np.asarray(hf['pz'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                )*1000 if (config.setup.include_pressure and config.training.reference_gradients) else None
+                )*1000 if config.domain.crop else np.asarray(hf['pz'])*1000) if (config.setup.include_pressure and config.training.reference_gradients) else None
             
             #px *= 1000 # Pa /mm --> Pa /m
             #py *= 1000
             #pz *= 1000
+
+            timesteps = len(u)
+            print("Length REF DATA: ", timesteps)
+
+            if timesteps % 2 == 0:
+                print("Even number of timesteps detected — cropping the final frame.")
+                u = u[:-1]
+                v = v[:-1]
+                w = w[:-1]
+                if config.setup.include_pressure and p is not None:
+                    p = p[:-1]
+                if config.setup.include_pressure and config.training.reference_gradients:
+                    px = px[:-1]
+                    py = py[:-1]
+                    pz = pz[:-1]
+                timesteps -= 1  # Update counter
+                print("Length cropped REF DATA: ", timesteps)
 
         else:
             t_index = config.domain.t_start
@@ -168,22 +185,23 @@ def load_ref_data(config):
             u = np.asarray(hf['u'][t_index, 
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]) if config.domain.crop else np.asarray(hf['u'][t_index])
             v = np.asarray(hf['v'][t_index, 
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]) if config.domain.crop else np.asarray(hf['v'][t_index])
             w = np.asarray(hf['w'][t_index, 
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
+                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]) if config.domain.crop else np.asarray(hf['v'][t_index])
             
-            p = np.asarray(hf['p'][t_index,
+            p = (np.asarray(hf['p'][t_index,
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                                ) if config.setup.include_pressure else None
+                                ) if config.domain.crop else np.asarray(hf['p'][t_index])) if config.setup.include_pressure else None
             
+            # TODO - fix cropping for these alt. remove
             px = np.asarray(hf['px'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
@@ -206,7 +224,7 @@ def load_ref_data(config):
 
         mask = mask[config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                     config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                    config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
+                    config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor] if config.domain.crop else mask
 
     return u, v, w, p, px, py, pz, mask
 
@@ -579,6 +597,8 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
     # Prepare coordinates
     if config.setup.include_time:
         t_len, x_len, y_len, z_len = u.shape # (T, h, w, d)
+        print("U SHAPE " , u.shape)
+
     else:
         x_len, y_len, z_len = u.shape # (h, w, d)
         t_len = 1
@@ -606,6 +626,8 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
     if config.setup.include_time:
         # Tile the masks
         mask_flat = np.tile(mask.ravel(), len(t_ups))
+
+        print("LENGTH OF TUPS " , len(t_ups))
         boundary_mask_flat = np.tile(boundary_mask.ravel(), len(t_ups))
     else:
         mask_flat = mask.ravel()

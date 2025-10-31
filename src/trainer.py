@@ -16,7 +16,7 @@ if __name__ == "__main__":
     config = get_config()
 
     # Store source files
-    #copy_cource_code(config.log_dir, directory_to_backup= [".", "configs"])
+    copy_cource_code(config.log_dir, directory_to_backup= [".", "configs"])
 
     # Set random seed
     set_seed(config.random_seed)

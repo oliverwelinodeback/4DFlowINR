@@ -10,6 +10,8 @@ import scipy.ndimage as ndimage
 import pandas as pd
 from scipy.signal import tukey
 from scipy.fft import fftn, ifftn, fftshift, ifftshift
+from skimage.transform import downscale_local_mean
+
 
 def calculate_pad(arr_shape, upsample_rate):
     """
@@ -192,7 +194,7 @@ if __name__ == '__main__':
     # Update your path here
     base_path = '../../data/stenosis_70' 
     output_dir = '../../data/stenosis_70'
-    case_name = 'ICAD17_05mm3_20ms'
+    case_name = 'ICAD21_05mm3_20ms'
 
     # Mag template
     template_filepath = '../../data/mag_templates.h5'
@@ -202,8 +204,8 @@ if __name__ == '__main__':
     targetSNR = 8
     targetSNR = targetSNR**2 # convert to variance
     downsample = 2
-    low_venc = 2.05 # in m/s
-    high_venc = 4.1 # in m/s
+    high_venc = 2.6 # in m/s
+    low_venc = high_venc/2 # in m/s
     mag_threshold = 30
 
     # tSNR = 12 (high), 8 (med), 4 (low) for downsample = 2
@@ -211,7 +213,7 @@ if __name__ == '__main__':
 
     # -----------------------
     input_filepath  =   f'{base_path}/{case_name}.h5'
-    outputLR_filename = f'{base_path}/{case_name}_LR_dv_hv41_tSNR8.h5'
+    outputLR_filename = f'{base_path}/{case_name}_LR_dv_hv26_tSNR8_newMask.h5'
 
     crop_ratio = 1 / downsample
     #-----------------------
@@ -364,7 +366,12 @@ if __name__ == '__main__':
 
             if crop_ratio != 1.0: 
                 mask_image = pad(case_mask, pad_x, pad_y, pad_z)
-                mask_image = ndimage.zoom(mask_image, crop_ratio, order=0)
+
+                # --- PERFORM MASK DOWNSAMPLING ---
+                #mask_image = ndimage.zoom(mask_image, crop_ratio, order=0) # Nearest-neighbor
+                mask_lr_soft = downscale_local_mean(mask_image, (2, 2, 2))  # values in [0,1]
+                mask_image = (mask_lr_soft >= 0.25).astype(np.uint8)
+
                 mask_image = unpad(mask_image, pad_x//downsample, pad_y//downsample, pad_z//downsample)
             else:
                 mask_image = case_mask

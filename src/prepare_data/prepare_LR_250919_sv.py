@@ -10,6 +10,8 @@ import scipy.ndimage as ndimage
 import pandas as pd
 from scipy.signal import tukey
 from scipy.fft import fftn, ifftn, fftshift, ifftshift
+from skimage.transform import downscale_local_mean
+
 
 def calculate_pad(arr_shape, upsample_rate):
     """
@@ -190,8 +192,9 @@ def flow_dualvenc_reconstruction(vel_lv, vel_hv, venc_l, venc_h):
 if __name__ == '__main__':
 
     # Update your path here
-    base_path = '../../data/healthy' 
-    output_dir = '../../data/healthy'
+    base_path = '../../data/stenosis_70' 
+    output_dir = '../../data/stenosis_70'
+    case_name = 'ICAD21_05mm3_20ms'
 
     # Mag template
     template_filepath = '../../data/mag_templates.h5'
@@ -201,8 +204,7 @@ if __name__ == '__main__':
     targetSNR = 10
     targetSNR = targetSNR**2 # convert to variance    
     downsample = 2
-    case_name = 'HV01_05mm3_20ms'
-    venc = 0.4 # in m/s
+    venc = 2.6 # in m/s
     mag_threshold = 30
 
     # tSNR = 12 (high), 8 (med), 4 (low) for downsample = 2
@@ -210,7 +212,7 @@ if __name__ == '__main__':
 
     # -----------------------
     input_filepath  =   f'{base_path}/{case_name}.h5'
-    outputLR_filename = f'{base_path}/{case_name}_sv04_tSNR10.h5'
+    outputLR_filename = f'{base_path}/{case_name}_sv26_tSNR10_newMask.h5'
     
     crop_ratio = 1 / downsample
     #-----------------------
@@ -331,7 +333,10 @@ if __name__ == '__main__':
             
             if crop_ratio != 1.0: 
                 mask_image = pad(case_mask, pad_x, pad_y, pad_z)
-                mask_image = ndimage.zoom(mask_image, crop_ratio, order=0)
+                # --- PERFORM MASK DOWNSAMPLING ---
+                #mask_image = ndimage.zoom(mask_image, crop_ratio, order=0) # Nearest-neighbor
+                mask_lr_soft = downscale_local_mean(mask_image, (2, 2, 2))  # values in [0,1]
+                mask_image = (mask_lr_soft >= 0.25).astype(np.uint8)
                 mask_image = unpad(mask_image, pad_x//downsample, pad_y//downsample, pad_z//downsample)
             else:
                 mask_image = case_mask

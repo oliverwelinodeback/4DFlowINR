@@ -6,7 +6,7 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.tunings_251020.Config_251016_sweep_WIRE_complex_abstract1_ICAD17 import get_config, get_sweep_config
+from configs.tunings_251031.Config_251031_sweep_WIRE_complex_divRuns import get_config, get_sweep_config
 #try:
 #    from configs.Config_251008_sweep_test import get_sweep_config
 #except ImportError:
@@ -25,6 +25,87 @@ def train(config=None, run_name=None, use_sweep=False):
         # Initialize wandb for this run
         run = wandb.init(project="SRFlowNIR")
         sweep_config = wandb.config
+
+        #data_file = sweep_config["data_file"]
+        #if data_file == "../data/healthy/HV01_05mm3_20ms_LR_dv_hv17_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/healthy/HV01_05mm3_20ms.h5"
+        #    file_type = "HV01_hv17"
+        #    config.constants.venc = 1.7
+        #    config.predictions.peak_flow_idx = 12
+        #if data_file == "../data/healthy/HV03_05mm3_20ms_LR_dv_hv13_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/healthy/HV03_05mm3_20ms.h5"
+        #    file_type = "HV03_hv13"
+        #    config.constants.venc = 1.3
+        #    config.predictions.peak_flow_idx = 4
+        #if data_file == "../data/healthy/HV06_05mm3_20ms_LR_dv_hv12_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/healthy/HV06_05mm3_20ms.h5"
+        #    file_type = "HV06_hv12"
+        #    config.constants.venc = 1.2
+        #    config.predictions.peak_flow_idx = 2
+        #if data_file == "../data/stenosis_50/ICAD28_05mm3_20ms_LR_dv_hv13_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/stenosis_50/ICAD28_05mm3_20ms.h5"
+        #    file_type = "ICAD28_hv13"
+        #    config.constants.venc = 1.3
+        #    config.predictions.peak_flow_idx = 2
+        #if data_file == "../data/stenosis_50/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/stenosis_50/ICAD48_05mm3_20ms.h5"
+        #    file_type = "ICAD48_hv13"
+        #    config.constants.venc = 1.3
+        #    config.predictions.peak_flow_idx = 14
+        #if data_file == "../data/stenosis_50/ICAD98_05mm3_20ms_LR_dv_hv51_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/stenosis_50/ICAD98_05mm3_20ms.h5"
+        #    file_type = "ICAD98_hv51"
+        #    config.constants.venc = 5.1
+        #    config.predictions.peak_flow_idx = 12
+        #if data_file == "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/stenosis_70/ICAD17_05mm3_20ms.h5"
+        #    file_type = "ICAD17_hv41"
+        #    config.constants.venc = 4.1
+        #    config.predictions.peak_flow_idx = 8
+        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/stenosis_70/ICAD21_05mm3_20ms.h5"
+        #    file_type = "ICAD21_hv26"
+        #    config.constants.venc = 2.6
+        #    config.predictions.peak_flow_idx = 12
+        #if data_file == "../data/stenosis_70/ICAD146_05mm3_20ms_LR_dv_hv17_tSNR8.h5":
+        #    config.data_file = data_file
+        #    config.data_file_ref = "../data/stenosis_70/ICAD146_05mm3_20ms.h5"
+        #    file_type = "ICAD146_hv17"
+        #    config.constants.venc = 1.7
+        #    config.predictions.peak_flow_idx = 8
+
+        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_sv26_tSNR10.h5":
+        #    config.data_file = data_file
+        #    file_type = "sv26_original"
+        #    config.constants.venc = 2.6
+        #    config.predictions.peak_flow_idx = 12
+#
+        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_sv26_tSNR10_newMask.h5":
+        #    config.data_file = data_file
+        #    file_type = "sv26_newMask"
+        #    config.constants.venc = 2.6
+        #    config.predictions.peak_flow_idx = 12
+#
+        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8_newMask.h5":
+        #    config.data_file = data_file
+        #    file_type = "dv26_newMask"
+        #    config.constants.venc = 2.6
+        #    config.predictions.peak_flow_idx = 12
+#
+        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5":
+        #    config.data_file = data_file
+        #    file_type = "dv26_original"
+        #    config.constants.venc = 2.6
+        #    config.predictions.peak_flow_idx = 12
+
 
         # Sweep parameters:
         #omega_0 = sweep_config["network.omega_0"]
@@ -64,7 +145,7 @@ def train(config=None, run_name=None, use_sweep=False):
         #else:
         #    config.training.use_mse = True
         #    config.training.use_cosine = False
-        U_const = sweep_config["constants.U"]
+        #U_const = sweep_config["constants.U"]
         #L_const = sweep_config["constants.L"]
         #iterationes = sweep_config["training.iterations"]
 
@@ -81,10 +162,10 @@ def train(config=None, run_name=None, use_sweep=False):
         #    config.training.use_cosine = False
         #    loss_change_iter = 1000
 
-        data_file = sweep_config["data_file"]
-        if data_file == "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5":
-            file_type = "ICAD17_hv41"
-            #config.constants.venc = 2.6
+        #data_file = sweep_config["data_file"]
+        #if data_file == "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5":
+        #    file_type = "ICAD17_hv41"
+        #    #config.constants.venc = 2.6
 
         # Run names
         #run.name = f"SIREN_sweep_Omega{omega_0}"
@@ -104,7 +185,10 @@ def train(config=None, run_name=None, use_sweep=False):
         #run.name = f"HV01_WIRE_CMPLXsweep_VecPot{training_use_vector_potential}_Phys{training_sample_collocation}_tlen{t_len}_Bnd{training_sample_boundary}"
         #run.name = f"HV01_WIRE_REAL_momentum_data{file_type}_loss{train_loss}"
         #run.name = f"ICAD21_WIRE_momentum_data{file_type}_loss{train_loss}"
-        run.name = f"ICAD17_WIRE_CMPLX_data{file_type}_U{U_const}"
+        #run.name = f"WIRE_CMPLX_data_ALL_{file_type}_U{U_const}"
+        #run.name = f"WIRE_MOMENTUM_ALL_{file_type}"
+        #run.name = f"WIRE_CMPLX_data_maskTest_{file_type}"
+        run.name = f"WIRE_MOMENTUM_HV01_LongRun"
 
         run.log({"run_name": run.name})
 
@@ -126,7 +210,7 @@ def train(config=None, run_name=None, use_sweep=False):
         #config.sample_boundary = training_sample_boundary
         #config.data_file = data_file
         #config.constants.L = L_const
-        config.constants.U = U_const
+        #config.constants.U = U_const
         #config.training.iterations = iterationes
 
         timestamp = datetime.now().strftime('%Y%m%d-%H%M')
@@ -484,7 +568,7 @@ def train(config=None, run_name=None, use_sweep=False):
         if (it + 1) == config.training.iterations:
             save_checkpoint(model, it+1, config, final=True)
 
-            metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=True)
+            metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=True, save_vti=True)
 
             final_log_time = time.time() - start_time
 

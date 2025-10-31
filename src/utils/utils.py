@@ -25,6 +25,8 @@ from utils.evaluation_utils import (
     calculate_gradient_nrmse
     )
 from utils.loss_utils import vector_potential_fn
+from pyevtk.hl import imageToVTK
+
 
 #import vtk
 #from vtk.util import numpy_support as ns
@@ -161,7 +163,7 @@ def sample_ref_to_device(config, xyz_train, uvw_train, mask_flat, device):
     return xyz_data_batch, uvw_data_batch, mask_batch
 
 
-def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=False):
+def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=False, save_vti=False):
 
     # Create directory
     directory = f'{config.log_dir}/errors/iter_{it}'
@@ -546,7 +548,126 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
             save_to_h5(f"{config.log_dir}/SR_final.h5", "p_y", p_pred_y, expand_dim=False)
             save_to_h5(f"{config.log_dir}/SR_final.h5", "p_z", p_pred_z, expand_dim=False)
 
+        if config.include_ref:
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "mask", mask_ref, expand_dim=False)
+
+        if save_vti:
+            h5_to_vtk(
+                f"{config.log_dir}/SR_final.h5", 
+                f"{config.log_dir}/SR_final_t{config.predictions.peak_flow_idx}", 
+                index=config.predictions.peak_flow_idx, 
+                gradients=config.training.predict_gradients,
+                save_ref_mask=config.include_ref,
+            )
+
     return metrics
+
+
+def h5_to_vtk(h5_filename, output_basename="velocity_field", index=0, gradients=False, save_ref_mask=False):
+    """
+    Convert an HDF5 file containing 3D velocity components u, v, w and
+    a mask to a VTK image data (.vti) file readable by ParaView.
+
+    Parameters:
+    -----------
+    h5_filename : str
+        Path to the input .h5 file.
+    output_basename : str
+        Base name (without extension) for the output VTK file.
+    """
+    
+    # Decide on the image origin and spacing
+    origin = (0.0, 0.0, 0.0)
+    spacing = (1.0, 1.0, 1.0)
+    
+    if index == "all":
+        # Read the HDF5 file
+        with h5py.File(h5_filename, 'r') as f:
+            T = len(np.squeeze(np.asarray(f["u"])))
+            print(T)
+        
+        for i in range(T):
+            with h5py.File(h5_filename, 'r') as f:
+                # Assuming datasets named 'u', 'v', 'w', 'mask'
+                u = f["u"][i] 
+                v = f["v"][i]
+                w = f["w"][i]
+                mask = f["mask"][:] if "mask" in f else np.ones_like(u)
+                binary_mask = (mask != 0).astype(np.uint8) if mask is not None else np.ones_like(u)
+                if len(binary_mask.shape) == 4:
+                    binary_mask = binary_mask[0]
+                if gradients:
+                    px = f["p_x"][i]/1000 
+                    py = f["p_y"][i]/1000
+                    pz = f["p_z"][i]/1000
+
+            if save_ref_mask:
+                imageToVTK(
+                    f"{output_basename}_t{i:02d}",
+                    origin=origin,
+                    spacing=spacing,
+                    pointData={},  
+                    cellData={
+                        "velocity": (u, v, w),
+                        "pressure": (px, py, pz) if gradients else (np.zeros_like(u), np.zeros_like(v), np.zeros_like(w)),
+                        "mask": binary_mask
+                    }
+                )
+            else:
+                imageToVTK(
+                    f"{output_basename}_t{i:02d}",
+                    origin=origin,
+                    spacing=spacing,
+                    pointData={},  
+                    cellData={
+                        "velocity": (u, v, w),
+                        "pressure": (px, py, pz) if gradients else (np.zeros_like(u), np.zeros_like(v), np.zeros_like(w)),
+                        "mask": binary_mask
+                    }
+                )
+
+
+    else:
+        # Read the HDF5 file
+        with h5py.File(h5_filename, 'r') as f:
+            # Assuming datasets named 'u', 'v', 'w', 'mask'
+            u = f["u"][index] 
+            v = f["v"][index]
+            w = f["w"][index]
+            mask = f["mask"][:] if "mask" in f else None
+            binary_mask = (mask != 0).astype(np.uint8) if mask is not None else np.ones_like(u)
+
+            if gradients:
+                px = f["p_x"][index] 
+                py = f["p_y"][index]
+                pz = f["p_z"][index]
+
+        if save_ref_mask:
+
+            imageToVTK(
+                output_basename,
+                origin=origin,
+                spacing=spacing,
+                pointData={},  
+                cellData={
+                    "velocity": (u, v, w),
+                    "pressure": (px, py, pz) if gradients else (np.zeros_like(u), np.zeros_like(v), np.zeros_like(w)),
+                    "mask": binary_mask
+                }
+            )
+        else:
+            imageToVTK(
+                output_basename,
+                origin=origin,
+                spacing=spacing,
+                pointData={},  
+                cellData={
+                    "velocity": (u, v, w),
+                    "pressure": (px, py, pz) if gradients else (np.zeros_like(u), np.zeros_like(v), np.zeros_like(w)),
+                    #"mask": binary_mask
+                }
+            )
+
 
 def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr, w_lr, p_lr, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors):
 
