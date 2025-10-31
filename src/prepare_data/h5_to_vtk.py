@@ -41,7 +41,7 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients
                     pz = f["pz"][i]/1000
 
             print(u.shape)
-            print(px.shape)
+            #print(px.shape)
 
             imageToVTK(
                 f"{output_basename}_t{i:02d}",
@@ -96,7 +96,7 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients
             pointData={},  
             cellData={
                 "velocity": (u, v, w),
-                "pressure": (px, py, pz) if gradients else (np.zeros_like(u), np.zeros_like(v), np.zeros_like(w)),
+                #"pressure": (px, py, pz) if gradients else (np.zeros_like(u), np.zeros_like(v), np.zeros_like(w)),
                 #mask: _to_f32(mask)
             }
         )
@@ -113,10 +113,33 @@ if __name__ == "__main__":
     #h5_filename = "../../data/healthy/HV01_05mm3_20ms.h5"
     #output_basename = "vti_files/HV01_05mm3_20ms"
 
-    h5_filename = "../../data/healthy/HV01_05mm3_20ms_LR_dv_tSNR8.h5"
-    output_basename = "vti_files/HV01_05mm3_20ms_LR_dv_tSNR8"
+    #h5_filename = "../../data/healthy/HV01_05mm3_20ms_LR_dv_tSNR8.h5"
+    #output_basename = "vti_files/HV01_05mm3_20ms_LR_dv_tSNR8"
 
     #h5_filename = "../../results/250924_antialias/HV01_SIREN_momentum_antialiased_08_20250926-1005/ref_data/healthy-05mm3_SR.h5"
     #output_basename = "vti_files/healthy-05mm3_SR"
 
-    h5_to_vtk(h5_filename, output_basename, index='all', gradients=True)
+    #h5_filename = "../../data/stenosis_70/ICAD21_05mm3_20ms.h5"
+    #output_basename = "vti_files/ICAD21/HR/ICAD21_05mm3_20ms"
+
+    #h5_filename = "../../models/251020_WIRE_CMPLX_abstract1_ICAD/ICAD21_WIRE_CMPLX_datahv17_losscos_20251022-0930/SR_final.h5"
+    #output_basename = "vti_files/ICAD21/SR/ICAD21_05mm3_20ms_SR_dv_hv26_tSNR8"
+
+    #h5_filename = "../../models/251020_WIRE_CMPLX_abstract1/HV01_WIRE_REAL_momentum_datahv17_losscos_20251020-1753/SR_final.h5"
+    #output_basename = "vti_files/HV01/SR_2/HV01_05mm3_20ms_SR_dv_hv17_tSNR8"
+
+    #h5_filename = "../../models/251020_WIRE_CMPLX_abstract1_ICAD48/ICAD48_WIRE_CMPLX_dataICAD48_hv13_20251028-0911/SR_final.h5"
+    #output_basename = "vti_files/ICAD48/SR/ICAD48_05mm3_20ms_SR_dv_hv13_tSNR8"
+
+    h5_filename = "../../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5"
+    output_basename = "vti_files/ICAD17/LR/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8"
+
+    #h5_filename = "../../models/251020_WIRE_CMPLX_abstract1_ICAD17/ICAD17_WIRE_CMPLX_dataICAD17_hv41_U1_20251028-0946/SR_final.h5"
+    #output_basename = "vti_files/ICAD17/SR/ICAD17_05mm3_20ms_SR_dv_hv41_tSNR8"
+
+    #h5_filename = "../../data/stenosis_50/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8.h5"
+    #output_basename = "vti_files/ICAD48/LR/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8"
+
+    h5_to_vtk(h5_filename, output_basename, index='all', gradients=False)
+
+    #x_oliwe/SRFlowNIR/models/251020_WIRE_CMPLX_abstract1_ICAD/ICAD21_WIRE_CMPLX_datahv17_losscos_20251022-0930/SR_final.h5

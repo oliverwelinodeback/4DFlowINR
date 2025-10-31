@@ -6,7 +6,7 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.tunings_251020.Config_251016_sweep_WIRE_momentum_abstract1_ICAD21 import get_config, get_sweep_config
+from configs.tunings_251020.Config_251016_sweep_WIRE_complex_abstract1_ICAD17 import get_config, get_sweep_config
 #try:
 #    from configs.Config_251008_sweep_test import get_sweep_config
 #except ImportError:
@@ -64,30 +64,27 @@ def train(config=None, run_name=None, use_sweep=False):
         #else:
         #    config.training.use_mse = True
         #    config.training.use_cosine = False
-        #U_const = sweep_config["constants.U"]
+        U_const = sweep_config["constants.U"]
         #L_const = sweep_config["constants.L"]
         #iterationes = sweep_config["training.iterations"]
 
-        train_loss = sweep_config["training.loss"]
-        loss_change_iter = None
-        if train_loss == 'mse':
-            config.training.use_mse = True
-            config.training.use_cosine = False
-        elif train_loss=='cos':
-            config.training.use_mse = False
-            config.training.use_cosine = True
-        elif train_loss == "mse_and_cos":
-            config.training.use_mse = True
-            config.training.use_cosine = False
-            loss_change_iter = 1000
+        #train_loss = sweep_config["training.loss"]
+        #loss_change_iter = None
+        #if train_loss == 'mse':
+        #    config.training.use_mse = True
+        #    config.training.use_cosine = False
+        #elif train_loss=='cos':
+        #    config.training.use_mse = False
+        #    config.training.use_cosine = True
+        #elif train_loss == "mse_and_cos":
+        #    config.training.use_mse = True
+        #    config.training.use_cosine = False
+        #    loss_change_iter = 1000
 
         data_file = sweep_config["data_file"]
-        if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5":
-            file_type = "hv17"
-            config.constants.venc = 2.6
-        elif data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_tSNR8.h5":
-            file_type = "sv08"
-            config.constants.venc = 1.2
+        if data_file == "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5":
+            file_type = "ICAD17_hv41"
+            #config.constants.venc = 2.6
 
         # Run names
         #run.name = f"SIREN_sweep_Omega{omega_0}"
@@ -106,7 +103,8 @@ def train(config=None, run_name=None, use_sweep=False):
         #run.name = f"HV01_WIRE_REAL_128FEAT_tlen{t_len}_FEAT{hidden_features}"
         #run.name = f"HV01_WIRE_CMPLXsweep_VecPot{training_use_vector_potential}_Phys{training_sample_collocation}_tlen{t_len}_Bnd{training_sample_boundary}"
         #run.name = f"HV01_WIRE_REAL_momentum_data{file_type}_loss{train_loss}"
-        run.name = f"ICAD21_WIRE_momentum_data{file_type}_loss{train_loss}"
+        #run.name = f"ICAD21_WIRE_momentum_data{file_type}_loss{train_loss}"
+        run.name = f"ICAD17_WIRE_CMPLX_data{file_type}_U{U_const}"
 
         run.log({"run_name": run.name})
 
@@ -126,9 +124,9 @@ def train(config=None, run_name=None, use_sweep=False):
         ###config.training.BFGS_lr = training_BFGS_lr
         ###config.training.iterations_before_BFGS = training_iterations_before_BFGS
         #config.sample_boundary = training_sample_boundary
-        config.data_file = data_file
+        #config.data_file = data_file
         #config.constants.L = L_const
-        #config.constants.U = U_const
+        config.constants.U = U_const
         #config.training.iterations = iterationes
 
         timestamp = datetime.now().strftime('%Y%m%d-%H%M')
@@ -477,10 +475,10 @@ def train(config=None, run_name=None, use_sweep=False):
         if (it + 1) % config.training.summary_iter == 0:
             save_checkpoint(model, it+1, config)
 
-        if loss_change_iter is not None and (it + 1) == loss_change_iter:
-            config.training.use_mse = False
-            config.training.use_cosine = True
-            print("Changed loss to cosine loss.")
+        #if loss_change_iter is not None and (it + 1) == loss_change_iter:
+        #    config.training.use_mse = False
+        #    config.training.use_cosine = True
+        #    print("Changed loss to cosine loss.")
 
         # Save model at end of training
         if (it + 1) == config.training.iterations:
