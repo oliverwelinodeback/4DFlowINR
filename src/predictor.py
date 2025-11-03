@@ -18,7 +18,7 @@ from utils.utils import save_to_h5
 from utils.loss_utils import vector_potential_fn
 from utils.preprocessing_utils import compute_outer_boundary_mask
 import networks
-from configs.Config_250923_KI_HV01_x2_tx2_momentum_TESTING import get_config
+from configs.tunings_251031.Config_251031_sweep_WIRE_momentum_ALL import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
 from utils.loss_utils import vector_potential_fn
 import h5py
@@ -50,9 +50,54 @@ if __name__ == "__main__":
     #network_path = "../models/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/checkpoints/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_it95000.pth"
     #results_directory = "../results/250627_PG_correctedDenorm/OriginalRe_1325_U1_L0.005_AdjustedOuterCollocation_NoMaskExp_AdjustedCollo_20250627-1654/"
 
-    network_path = "../models/250924/ICAD17_SIREN_momentum_20250925-1216/checkpoints/ICAD17_SIREN_momentum_it25000.pth"
-    results_directory = "../results/250924/ICAD17_SIREN_momentum_20250925-1216/"
+    #network_path = "../models/250924/ICAD17_SIREN_momentum_20250925-1216/checkpoints/ICAD17_SIREN_momentum_it25000.pth"
+    #results_directory = "../results/250924/ICAD17_SIREN_momentum_20250925-1216/"
 
+    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV01_hv17_20251031-1422/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV01_hv17_20251031-1422/"
+    #config.predictions.peak_flow_idx = 12
+    #config.data_file = "../data/healthy/HV01_05mm3_20ms_LR_dv_hv17_tSNR8.h5"
+    #config.data_file_ref = "../data/healthy/HV01_05mm3_20ms.h5"
+    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV03_hv13_20251031-1914/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV03_hv13_20251031-1914/"
+    #config.predictions.peak_flow_idx = 4
+    #config.data_file = "../data/healthy/HV03_05mm3_20ms_LR_dv_hv13_tSNR8.h5"
+    #config.data_file_ref = "../data/healthy/HV03_05mm3_20ms.h5"
+    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV06_hv12_20251101-0006/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV06_hv12_20251101-0006/"
+    #config.predictions.peak_flow_idx = 2
+    #config.data_file = "../data/healthy/HV06_05mm3_20ms_LR_dv_hv12_tSNR8.h5"
+    #config.data_file_ref = "../data/healthy/HV06_05mm3_20ms.h5"
+    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD17_hv41_20251101-0008/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD17_hv41_20251101-0008/"
+    #config.predictions.peak_flow_idx = 8
+    #config.data_file = "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5"
+    #config.data_file_ref = "../data/stenosis_70/ICAD17_05mm3_20ms.h5"
+    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD21_hv26_20251101-0504/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD21_hv26_20251101-0504/"
+    #config.predictions.peak_flow_idx = 12
+    #config.data_file = "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5"
+    #config.data_file_ref = "../data/stenosis_70/ICAD21_05mm3_20ms.h5"
+    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD28_hv13_20251101-0411/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD28_hv13_20251101-0411/"
+    #config.predictions.peak_flow_idx = 2
+    #config.data_file = "../data/stenosis_50/ICAD28_05mm3_20ms_LR_dv_hv13_tSNR8.h5"
+    #config.data_file_ref = "../data/stenosis_50/ICAD28_05mm3_20ms.h5"
+    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD48_hv13_20251031-1423/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD48_hv13_20251031-1423/"
+    #config.predictions.peak_flow_idx = 14
+    #config.data_file = "../data/stenosis_50/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8.h5"
+    #config.data_file_ref = "../data/stenosis_50/ICAD48_05mm3_20ms.h5"
+    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD98_hv51_20251031-1918/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD98_hv51_20251031-1918/"
+    #config.predictions.peak_flow_idx = 12
+    #config.data_file = "../data/stenosis_50/ICAD98_05mm3_20ms_LR_dv_hv51_tSNR8.h5"
+    #config.data_file_ref = "../data/stenosis_50/ICAD98_05mm3_20ms.h5"
+    network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD146_hv17_20251101-0710/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    results_directory = "../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD146_hv17_20251101-0710/"
+    config.predictions.peak_flow_idx = 8
+    config.data_file = "../data/stenosis_70/ICAD146_05mm3_20ms_LR_dv_hv17_tSNR8.h5"
+    config.data_file_ref = "../data/stenosis_70/ICAD146_05mm3_20ms.h5"
 
     # --------------------------------
 
@@ -113,10 +158,21 @@ if __name__ == "__main__":
             out_dim=config.network.out_dim,
             depth=config.network.depth,
             hidden_features=config.network.hidden_features,
-            first_omega_0= config.network.omega_0,
-            hidden_omega_0= config.network.omega_0
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0
         ).to(DEVICE)
-    else:
+    elif config.network.arch == "FF_SIREN":
+        model = networks.FF_SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale
+        ).to(DEVICE)
+    elif config.network.arch == "FFN":
         model = networks.FFN(
             input_dim=config.network.in_dim,
             output_dim=config.network.out_dim,
@@ -125,6 +181,19 @@ if __name__ == "__main__":
             fourier_mapping_size=config.network.fourier_mapping_size,
             scale=config.network.fourier_scale
         ).to(DEVICE)
+    elif config.network.arch == "WIRE":
+        model = networks.WIRE(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+            scale=config.network.sigma_0,
+            complex=config.network.complex
+        ).to(DEVICE)
+    else:
+        raise ValueError("Unknown network.")
 
     # # Print model weights before loading
     # print("Model weights before loading:")
@@ -225,15 +294,17 @@ if __name__ == "__main__":
         p_pred = uvw_pred[:, :, :, :, 3] if (config.setup.include_pressure and not config.training.reference_gradients) else None
 
         # Save ref predictions to results directory
-        save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "u", u_pred)
-        save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "v", v_pred)
-        save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "w", w_pred)
+        print("Saving velocity to h5...")
+        save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "u", u_pred, expand_dim=False)
+        save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "v", v_pred, expand_dim=False)
+        save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "w", w_pred, expand_dim=False)
         if (config.setup.include_pressure and not config.training.reference_gradients):
-            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p", p_pred)
+            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p", p_pred, expand_dim=False)
         elif config.training.reference_gradients:
-            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_x", p_pred_x)
-            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_y", p_pred_y)
-            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_z", p_pred_z)
+            print("Saving pressure gradients to h5...")
+            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_x", p_pred_x, expand_dim=False)
+            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_y", p_pred_y, expand_dim=False)
+            save_to_h5(f"{ref_directory}/healthy-05mm3_SR.h5", "p_z", p_pred_z, expand_dim=False)
 
         # -----------------
         # Mean normalize p_ref
@@ -581,13 +652,14 @@ if __name__ == "__main__":
             'PZ [Core] m': Ms_pgrad[peak_flow_idx][2][2],
             'PZ [Fluid] r^2': Rs_pgrad[peak_flow_idx][2][0],
             'PZ [Bound] r^2': Rs_pgrad[peak_flow_idx][2][1],
-            'PZ [Core] r^2': Rs_pgrad[peak_flow_idx][2][2],
 
         }
 
         metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
         metrics_filename = f"{ref_directory}/metrics.csv"
         metrics_df.to_csv(metrics_filename, index=False)
+
+        print(hej)
 
     # Predict super-resolved data
     if config.predictions.predict_SR_data:

@@ -36,9 +36,9 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients
                 if len(binary_mask.shape) == 4:
                     binary_mask = binary_mask[0]
                 if gradients:
-                    px = f["px"][i]/1000 
-                    py = f["py"][i]/1000
-                    pz = f["pz"][i]/1000
+                    px = f["px"][i]*1000 
+                    py = f["py"][i]*1000
+                    pz = f["pz"][i]*1000
 
             print(u.shape)
             #print(px.shape)
@@ -54,22 +54,22 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients
                     "mask": binary_mask
                 }
             )
-
-
     else:
         # Read the HDF5 file
         with h5py.File(h5_filename, 'r') as f:
             # Assuming datasets named 'u', 'v', 'w', 'mask'
-            u = f["u"][index] 
-            v = f["v"][index]
-            w = f["w"][index]
-            mask = f["mask"][:] if "mask" in f else np.ones_like(u)
+            u = f["u"][0][index] 
+            v = f["v"][0][index]
+            w = f["w"][0][index]
+            mask_name = f["mask"][:] if "mask" in f else np.ones_like(u)
+            if len(mask_name.shape) == 4:
+                mask_name = mask_name[0]
+            binary_mask = (mask_name != 0).astype(np.uint8) if mask_name is not None else np.ones_like(u)
 
             if gradients:
-                px = f["px"][index] 
-                py = f["py"][index]
-                pz = f["pz"][index]
-
+                px = f["p_x"][0][index]#*1000
+                py = f["p_y"][0][index]#*1000
+                pz = f["p_z"][0][index]#*1000
 
         # Read the HDF5 file
         ## with h5py.File(h5_filename, 'r') as f:
@@ -96,8 +96,8 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients
             pointData={},  
             cellData={
                 "velocity": (u, v, w),
-                #"pressure": (px, py, pz) if gradients else (np.zeros_like(u), np.zeros_like(v), np.zeros_like(w)),
-                #mask: _to_f32(mask)
+                "pressure": (px, py, pz) if gradients else (np.zeros_like(u), np.zeros_like(v), np.zeros_like(w)),
+                "mask": binary_mask
             }
         )
 
@@ -131,8 +131,8 @@ if __name__ == "__main__":
     #h5_filename = "../../models/251020_WIRE_CMPLX_abstract1_ICAD48/ICAD48_WIRE_CMPLX_dataICAD48_hv13_20251028-0911/SR_final.h5"
     #output_basename = "vti_files/ICAD48/SR/ICAD48_05mm3_20ms_SR_dv_hv13_tSNR8"
 
-    h5_filename = "../../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5"
-    output_basename = "vti_files/ICAD17/LR/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8"
+    #h5_filename = "../../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5"
+    #output_basename = "vti_files/ICAD17/LR/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8"
 
     #h5_filename = "../../models/251020_WIRE_CMPLX_abstract1_ICAD17/ICAD17_WIRE_CMPLX_dataICAD17_hv41_U1_20251028-0946/SR_final.h5"
     #output_basename = "vti_files/ICAD17/SR/ICAD17_05mm3_20ms_SR_dv_hv41_tSNR8"
@@ -140,6 +140,63 @@ if __name__ == "__main__":
     #h5_filename = "../../data/stenosis_50/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8.h5"
     #output_basename = "vti_files/ICAD48/LR/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8"
 
-    h5_to_vtk(h5_filename, output_basename, index='all', gradients=False)
+    #h5_filename = "../../data/healthy/HV01_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/HV01_05mm3_20ms_t12"
+    #index = 12
+    #h5_filename = "../../data/healthy/HV03_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/HV03_05mm3_20ms_t4"
+    #index = 4
+    #h5_filename = "../../data/healthy/HV06_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/HV06_05mm3_20ms_t2"
+    #index = 2    
+    #h5_filename = "../../data/stenosis_50/ICAD28_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/ICAD28_05mm3_20ms_t2"
+    #index = 2
+    #h5_filename = "../../data/stenosis_50/ICAD48_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/ICAD48_05mm3_20ms_t14"
+    #index = 14
+    #h5_filename = "../../data/stenosis_50/ICAD98_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/ICAD98_05mm3_20ms_t12"
+    #index = 12    
+    #h5_filename = "../../data/stenosis_70/ICAD17_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/ICAD17_05mm3_20ms_t8"
+    #index = 8
+    #h5_filename = "../../data/stenosis_70/ICAD21_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/ICAD21_05mm3_20ms_t12"
+    #index = 12
+    #h5_filename = "../../data/stenosis_70/ICAD146_05mm3_20ms.h5"
+    #output_basename = "vti_files/HR_peak/ICAD146_05mm3_20ms_t8"
+    #index = 8    
+
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV01_hv17_20251031-1422/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/HV01_05mm3_20ms_t12"
+    #index = 12
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV03_hv13_20251031-1914/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/HV03_05mm3_20ms_t4"
+    #index = 4
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV06_hv12_20251101-0006/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/HV06_05mm3_20ms_t2" 
+    #index = 2    
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD28_hv13_20251101-0411/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/ICAD28_05mm3_20ms_t2"
+    #index = 2
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD48_hv13_20251031-1423/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/ICAD48_05mm3_20ms_t14"
+    #index = 14
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD98_hv51_20251031-1918/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/ICAD98_05mm3_20ms_t12" 
+    #index = 12    
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD17_hv41_20251101-0008/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/ICAD17_05mm3_20ms_t8"
+    #index = 8
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD21_hv26_20251101-0504/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/ICAD21_05mm3_20ms_t12"
+    #index = 12
+    h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD146_hv17_20251101-0710/ref_data/healthy-05mm3_SR.h5"
+    output_basename = "vti_files/SR_mom_10000it_peak/ICAD146_05mm3_20ms_t8" ########
+    index = 8    
+
+    #index = 'all'
+    h5_to_vtk(h5_filename, output_basename, index=index, gradients=True)
 
     #x_oliwe/SRFlowNIR/models/251020_WIRE_CMPLX_abstract1_ICAD/ICAD21_WIRE_CMPLX_datahv17_losscos_20251022-0930/SR_final.h5
