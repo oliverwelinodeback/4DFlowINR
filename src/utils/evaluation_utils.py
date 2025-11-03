@@ -231,6 +231,47 @@ def calculate_relative_error(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, binary_ma
 
     return mean_err
 
+def calculate_tanh_relative_error(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, binary_mask):
+    # if epsilon is set to 0, we will get nan and inf
+    epsilon = 1e-5
+
+    u_diff = np.square(u_pred - u_hi)
+    v_diff = np.square(v_pred - v_hi)
+    w_diff = np.square(w_pred - w_hi)
+
+    diff_speed = np.sqrt(u_diff + v_diff + w_diff)
+    actual_speed = np.sqrt(np.square(u_hi) + np.square(v_hi) + np.square(w_hi)) 
+
+    # actual speed can be 0, resulting in inf
+    relative_speed_loss = diff_speed / (actual_speed + epsilon)
+    
+    # Make sure the range is between 0 and 1
+    relative_speed_loss = np.tanh(relative_speed_loss)
+
+    # Apply correction, only use the diff speed if actual speed is zero
+    condition = np.not_equal(actual_speed, 0.)
+    corrected_speed_loss = np.where(condition, relative_speed_loss, diff_speed)
+
+    multiplier = 1e4 # round it so we don't get any infinitesimal number
+    corrected_speed_loss = np.round(corrected_speed_loss * multiplier) / multiplier
+    # print(corrected_speed_loss)
+    
+    # Apply mask
+    # binary_mask_condition = (mask > threshold)
+    binary_mask_condition = np.equal(binary_mask, 1.0)          
+    corrected_speed_loss = np.where(binary_mask_condition, corrected_speed_loss, np.zeros_like(corrected_speed_loss))
+    # print(found_indexes)
+
+    # Calculate the mean from the total non zero accuracy, divided by the masked area
+    # reduce first to the 'batch' axis
+    mean_err = np.sum(corrected_speed_loss) / (np.sum(binary_mask) + 1) 
+
+    # now take the actual mean
+    # mean_err = tf.reduce_mean(mean_err) * 100 # in percentage
+    mean_err = mean_err * 100
+
+    return mean_err
+
 def calculate_rmse(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, mask=None):
     u_diff = np.square(u_pred - u_hi)
     v_diff = np.square(v_pred - v_hi)

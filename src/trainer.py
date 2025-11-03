@@ -4,24 +4,53 @@ import torch
 import wandb
 from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_boundary_loss, update_loss_weights
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
-from utils.utils import copy_source_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
+from utils.utils import copy_source_code, save_checkpoint, sample_to_device, sample_from_gpu, sample_ref_from_gpu, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
 #from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
-from configs.without_pressure.Config_ICAD_1t_2x_healthy_WIRE import get_config
+from configs.Config_251016_sweep_WIRE_complex_abstract1 import get_config
 
+from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
 def train(config=None, run_name=None):
 
     print("Starting script")
-    wandb.init(
+    
+    run = wandb.init(
             project="SRFlowNIR",
             name=run_name,
             config=config.to_dict()
         )
-    config = wandb.config
+    config = run.config
+    if config["sweep"]:
+
+        # Sweep parameters:
+        omega_0 = config["network"]["omega_0"]
+        sigma_0 = config["network"]["sigma_0"]
+        #fourier_mapping_size = sweep_config["network.fourier_mapping_size"]
+        #fourier_scale = sweep_config["network.fourier_scale"]
+
+        #t_len = config["template"]["t_len"]
+
+        # Run names
+        #run.name = f"SIREN_sweep_Omega{omega_0}"
+        #run.name = f"GAUSS_sweep_Sigma{sigma_0}"+
+        #run.name = f"WIRE_COMPLEX_sweep_Sigma{sigma_0}_Omega{omega_0}"
+        #run.name = f"FFN_bias_sweep_fourier_mapping_size{fourier_mapping_size}_fourier_scale{fourier_scale}"
+
+        run.name = f"WIRE_sweep_omega{omega_0}_sigma{sigma_0}"
+
+        #run.log({"run_name": run.name})
+
+
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M')
+        networks_folder = config["networks_folder"]
+        new_log_dir = f"{networks_folder}/{run.name}_{timestamp}"
+        config.update({"log_dir": new_log_dir}, allow_val_change=True)
+        if sigma_0 == 0:
+            config["network"].update({"complex": False}, allow_val_change=True)
 
     # Store source files
     # copy_source_code(config.log_dir, directory_to_backup= [".", "configs"])
@@ -110,22 +139,29 @@ def train(config=None, run_name=None):
             hidden_features=config["network"]["hidden_features"],
             first_omega_0=config["network"]["omega_0"],
             hidden_omega_0=config["network"]["omega_0"],
-            scale=config["network"]["sigma_0"]
-        ).to(DEVICE)
-    elif config["network"]["arch"] == "FF_WIRE":
-        model = networks.FF_WIRE(
-            in_dim=config["network"]["in_dim"],
-            out_dim=config["network"]["out_dim"],
-            depth=config["network"]["depth"],
-            hidden_features=config["network"]["hidden_features"],
-            first_omega_0=config["network"]["omega_0"],
-            hidden_omega_0=config["network"]["omega_0"],
-            fourier_mapping_size=config["network"]["fourier_mapping_size"],
-            scale=config["network"]["sigma_0"]
+            scale=config["network"]["sigma_0"],
+            complex=config["network"]["complex"]
         ).to(DEVICE)
     else:
         raise ValueError("Unknown network.")
     
+    
+    xyz_train_gpu = torch.from_numpy(xyz_train).float().to(DEVICE)
+    uvw_train_gpu = torch.from_numpy(uvw_train).float().to(DEVICE)
+    mask_flat_gpu = torch.from_numpy(mask_flat).float().to(DEVICE).view(-1, 1)
+    
+    xyz_collocation_gpu = None
+    if config["sample_collocation"]:
+        xyz_collocation_gpu = torch.from_numpy(xyz_collocation).float().to(DEVICE)
+
+    xyz_boundary_gpu = None
+    if config["sample_boundary"]:
+        xyz_boundary_gpu = torch.from_numpy(xyz_boundary).float().to(DEVICE)
+    if config["include_ref"]:
+        xyz_ref_gpu = torch.from_numpy(xyz_ref).float().to(DEVICE)
+        uvw_ref_gpu = torch.from_numpy(uvw_ref).float().to(DEVICE)
+        mask_flat_ref_gpu = torch.from_numpy(mask_flat_ref).float().to(DEVICE).view(-1, 1)
+
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config["training"]["lr"])
     if config["training"]["use_LBFGS"]:
@@ -195,14 +231,28 @@ def train(config=None, run_name=None):
         # Train
         model.train()
 
-        # Sample random points and set to device
+        # Sample random points
         (
             xyz_data_batch, 
             uvw_data_batch, 
             mask_batch,
             xyz_collocation_batch, 
             xyz_boundary_batch
-        ) = sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train, mask_flat, DEVICE)
+        ) = sample_from_gpu(
+            config, 
+            xyz_train_gpu,
+            xyz_collocation_gpu,
+            xyz_boundary_gpu,
+            uvw_train_gpu,
+            mask_flat_gpu
+        )
+        """ (
+            xyz_data_batch, 
+            uvw_data_batch, 
+            mask_batch,
+            xyz_collocation_batch, 
+            xyz_boundary_batch
+        ) = sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train, mask_flat, DEVICE) """
         
         # Track gradients
         xyz_data_batch.requires_grad = True
@@ -248,6 +298,7 @@ def train(config=None, run_name=None):
                 total_loss = data_weight*data_loss + physics_weight*config["training"]["physics_weight"]*physics_loss
         else:
             total_loss = data_loss + config["training"]["physics_weight"]*physics_loss + config["training"]["boundary_weight"]*bound_loss
+            data_weight, physics_weight = None, None
 
         # Optimizer Step
         if config["training"]["use_LBFGS"]:
@@ -272,7 +323,13 @@ def train(config=None, run_name=None):
 
         if config["include_ref_loss"]:
             # Sample random points and set to device
-            xyz_ref_batch, uvw_ref_batch, mask_ref_batch = sample_ref_to_device(config, xyz_ref, uvw_ref, mask_flat_ref, DEVICE)
+            # xyz_ref_batch, uvw_ref_batch, mask_ref_batch = sample_ref_to_device(config, xyz_ref, uvw_ref, mask_flat_ref, DEVICE)
+            xyz_ref_batch, uvw_ref_batch, mask_ref_batch = sample_ref_from_gpu(
+                config, 
+                xyz_ref_gpu,
+                uvw_ref_gpu,
+                mask_flat_ref_gpu
+            )
             if config["training"]["use_vector_potential"]:
                 xyz_ref_batch.requires_grad = True
             ref_loss, _, mse_px, mse_py, mse_pz = compute_data_loss(config, model, xyz_ref_batch, uvw_ref_batch, mask_ref_batch, standardization_factors, denormalize=True, reference=True)
@@ -293,19 +350,11 @@ def train(config=None, run_name=None):
             "Loss/Pressure_x": mse_px.item() if mse_px is not None else 0.0,
             "Loss/Pressure_y": mse_py.item() if mse_px is not None else 0.0,
             "Loss/Pressure_z": mse_pz.item() if mse_px is not None else 0.0,
-            "Loss/Ref": ref_loss.item()#, 
-            #"Loss/data_weight": data_weight,
-            #"Loss/physics_weight": physics_weight,
-            #"Loss/boundary_weight": bound_weight if config.sample_boundary else 0.0,
+            "Loss/Ref": ref_loss.item(), 
+            "Loss/data_weight": data_weight if data_weight is not None else 0.0,
+            "Loss/physics_weight": physics_weight if physics_weight is not None else 0.0,
+            "Loss/boundary_weight": bound_weight if config["sample_boundary"] else 0.0,
         }
-
-        """ for li, layer in enumerate(model.net):
-            if hasattr(layer, "omega_0") and hasattr(layer, "scale_0"):
-                omega_items = layer.omega_0.detach().float().item()
-                sigma_items = layer.scale_0.detach().float().item()
-                writer.add_scalar(f"hyper/omega_layer_{li}", omega_items, it)
-                writer.add_scalar(f"hyper/sigma_layer_{li}", sigma_items, it)
-                wandb.log({f"hyper/omega_layer_{li}": omega_items, f"hyper/sigma_layer_{li}": sigma_items}, step=it+1) """
 
         for key, value in metrics.items():
             writer.add_scalar(key, value, it)
@@ -325,11 +374,11 @@ def train(config=None, run_name=None):
                 "Loss/Pressure_x": mse_px.item() if mse_px is not None else 0.0,
                 "Loss/Pressure_y": mse_py.item() if mse_px is not None else 0.0,
                 "Loss/Pressure_z": mse_pz.item() if mse_px is not None else 0.0,
-                "Loss/Ref": ref_loss.item()#,
-                #"Loss/data_weight": data_weight,
-                #"Loss/physics_weight": physics_weight,
-                #"Loss/boundary_weight": bound_weight if config.sample_boundary else 0.0,
-                },step=it+1)
+                "Loss/Ref": ref_loss.item(),
+                "Loss/data_weight": data_weight if data_weight is not None else 0.0,
+                "Loss/physics_weight": physics_weight if physics_weight is not None else 0.0,
+                "Loss/boundary_weight": bound_weight if config["sample_boundary"] else 0.0,
+            },step=it+1)
             
         # Plot current model predictions
         if (it + 1) % config["plot"]["iter"] == 0:
@@ -346,12 +395,30 @@ def train(config=None, run_name=None):
                                             mask_flat_ref, U_max, standardization_factors)
                 
             # Log metrics to wandb
-            wandb.log({
+            log_dict = {
+                "Relative Error [Fluid]": metrics_eval['Relative error [Fluid]'],
                 "VNRMSE [Fluid]": metrics_eval['VNRMSE [Fluid]'],
-                "Directional error [Fluid]" : metrics_eval["Directional error [Fluid]"],
-                "Divergence prediction [Fluid]" : metrics_eval["Divergence prediction [Fluid]"],
-                "Divergence reference [Fluid]" : metrics_eval["Divergence reference [Fluid]"]
-            }, step=it+1)
+                "Directional error [Fluid]": metrics_eval["Directional error [Fluid]"],
+                "Divergence prediction [Fluid]": metrics_eval["Divergence prediction [Fluid]"],
+                "Divergence reference [Fluid]": metrics_eval["Divergence reference [Fluid]"],
+                "W k [Core]": metrics_eval['W k [Core]'],
+                "W r^2 [Core]": metrics_eval['W r^2 [Core]'],
+            }
+
+            # Add pressure metrics only if reference gradients are used
+            if config["training"]["reference_gradients"]:
+                log_dict.update({
+                    "Pressure Gradient Relative Error [Fluid]": metrics_eval['Relative error Pressure Gradient (%) [Fluid]'],
+                    "Pressure gradient PX k [Core]": metrics_eval['PX k [Core]'],
+                    "Pressure gradient PX r^2 [Core]": metrics_eval['PX r^2 [Core]'],
+                    "Pressure gradient PY k [Core]": metrics_eval['PY k [Core]'],
+                    "Pressure gradient PY r^2 [Core]": metrics_eval['PY r^2 [Core]'],
+                    "Pressure gradient PZ k [Core]": metrics_eval['PZ k [Core]'],
+                    "Pressure gradient PZ r^2 [Core]": metrics_eval['PZ r^2 [Core]'],
+                })
+
+            # Log to W&B
+            wandb.log(log_dict, step=it + 1)
                     
         # Save model at checkpoint
         if (it + 1) % config["training"]["summary_iter"] == 0:
@@ -360,6 +427,27 @@ def train(config=None, run_name=None):
         # Save model at end of training
         if (it + 1) == config["training"]["iterations"]:
             save_checkpoint(model, it+1, config, final=True)
+
+            metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=False)
+
+            final_log_time = time.time() - start_time
+
+            final_log_dict = {
+                "FINAL Relative Error [Fluid]": metrics_eval['Relative error [Fluid]'],
+                "FINAL VNRMSE [Fluid]": metrics_eval['VNRMSE [Fluid]'],
+                "FINAL training time [min]": round(final_log_time/60, 2),
+                "FINAL W k [Core]": metrics_eval['W k [Core]'],
+                "FINAL W r^2 [Core]": metrics_eval['W r^2 [Core]'],     
+            }
+            if config["training"]["reference_gradients"]:
+                final_log_dict.update({
+                    "FINAL Pressure Gradient Relative Error [Fluid]": metrics_eval['Relative error Pressure Gradient (%) [Fluid]'],
+                    "FINAL Pressure gradient PZ k [Core]": metrics_eval['PZ k [Core]'],
+                    "FINAL Pressure gradient PZ r^2 [Core]": metrics_eval['PZ r^2 [Core]'],
+                })
+
+            # Log metrics to wandb
+            wandb.log(final_log_dict)
 
     wandb.finish()
 

@@ -442,8 +442,9 @@ def upsample_1d(arr, factor=2, mode='extend'):
         return arr
 
     dx = arr[1] - arr[0]
+
     if mode == 'extend':
-        N_new = len(arr) * factor
+        N_new = len(arr) * factor-1
         step = dx / factor
         start = arr[0]
         stop  = start + (N_new - 1) * step
