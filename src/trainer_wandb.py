@@ -6,7 +6,7 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from configs.tunings_251031.Config_251031_sweep_WIRE_complex_divRuns import get_config, get_sweep_config
+from configs.tunings_251031.Config_251031_sweep_WIRE_divRuns import get_config, get_sweep_config
 #try:
 #    from configs.Config_251008_sweep_test import get_sweep_config
 #except ImportError:
@@ -124,19 +124,20 @@ def train(config=None, run_name=None, use_sweep=False):
         ##iterations_before_BFGS = sweep_config["training.iterations_before_BFGS"]
         ##lr_decay_iter = sweep_config["training.lr_decay_iter"]
         ##network_sigma_0 = sweep_config["network.sigma_0"]
-        #training_use_vector_potential = sweep_config["training.use_vector_potential"]
-        #training_sample_collocation = sweep_config["training.sample_collocation"]
-        #if training_sample_collocation:
-        #    config.training.use_physics_loss = True
-        #    config.training.physics_loss_on_data_points = True
-        #    config.training.use_divergence = True
-        #else:
-        #    config.training.use_physics_loss = False
-        #    config.training.physics_loss_on_data_points = False
-        #    config.training.use_divergence = False
+        training_use_vector_potential = sweep_config["training.use_vector_potential"]
+        training_sample_collocation = sweep_config["training.sample_collocation"]
+        if training_sample_collocation:
+            config.training.use_physics_loss = True
+            config.training.physics_loss_on_data_points = True
+            config.training.use_divergence = True
+        else:
+            config.training.use_physics_loss = False
+            config.training.physics_loss_on_data_points = False
+            config.training.use_divergence = False
         ##training_lr_decay_iter = sweep_config["training.lr_decay_iter"]
         ##training_BFGS_lr = sweep_config["training.BFGS_lr"]
-        ##training_iterations_before_BFGS = sweep_config["training.iterations_before_BFGS"]
+        training_iterations_before_BFGS = sweep_config["training.iterations_before_BFGS"]
+        gradW = sweep_config["training.grad_weight_scheme"]
         ##training_use_cosine = sweep_config["training.use_cosine"]
         #training_sample_boundary = sweep_config["training.sample_boundary"]
         #if training_use_cosine:
@@ -188,7 +189,8 @@ def train(config=None, run_name=None, use_sweep=False):
         #run.name = f"WIRE_CMPLX_data_ALL_{file_type}_U{U_const}"
         #run.name = f"WIRE_MOMENTUM_ALL_{file_type}"
         #run.name = f"WIRE_CMPLX_data_maskTest_{file_type}"
-        run.name = f"WIRE_MOMENTUM_HV01_LongRun"
+        #run.name = f"WIRE_MOMENTUM_HV01_LongRun"
+        run.name = f"WIRE_DIVERGENCE_HV01_VecPot{training_use_vector_potential}_Phys{training_sample_collocation}_itBFGS{training_iterations_before_BFGS}_gradWScheme{gradW}"
 
         run.log({"run_name": run.name})
 
@@ -202,16 +204,17 @@ def train(config=None, run_name=None, use_sweep=False):
         ##config.training.iterations_before_BFGS = iterations_before_BFGS
         ##config.training.lr_decay_iter = lr_decay_iter
         #config.network.sigma_0 = sigma_0
-        #config.sample_collocation = training_sample_collocation
-        #config.training.use_vector_potential = training_use_vector_potential
+        config.sample_collocation = training_sample_collocation
+        config.training.use_vector_potential = training_use_vector_potential
         ###config.training.lr_decay_iter = training_lr_decay_iter
         ###config.training.BFGS_lr = training_BFGS_lr
-        ###config.training.iterations_before_BFGS = training_iterations_before_BFGS
+        config.training.iterations_before_BFGS = training_iterations_before_BFGS
         #config.sample_boundary = training_sample_boundary
         #config.data_file = data_file
         #config.constants.L = L_const
         #config.constants.U = U_const
         #config.training.iterations = iterationes
+        config.training.grad_weight_scheme = gradW
 
         timestamp = datetime.now().strftime('%Y%m%d-%H%M')
         config.log_dir = f"{config.networks_folder}/{run.name}_{timestamp}"

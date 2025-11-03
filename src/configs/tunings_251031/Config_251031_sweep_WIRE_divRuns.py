@@ -6,14 +6,14 @@ def get_sweep_config():
     
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'WIRE-COMPLEX_ALL_{timestamp}', 
+        'name': f'WIRE-DIVERGENCE_HV01_{timestamp}', 
         'method': 'grid',
         'metric': {'name': 'FINAL Relative Error [Fluid]', 'goal': 'minimize'},
         'parameters': {
 
             'training.sample_collocation': {'values': [True, False]},
-            'training.grad_weight_scheme': {'values': [True, False]},
-            'training.grad_weight_scheme': {'values': [True, False]},
+            'training.grad_weight_scheme': {'values': [False, True]},
+            'training.use_vector_potential': {'values': [True, False]},
             'training.iterations_before_BFGS': {'values': [38_000, 99_999]},
 
         },
@@ -106,7 +106,7 @@ def get_config():
     config.network.in_dim = 4
     config.network.out_dim = 3
     config.network.depth = 6
-    config.network.hidden_features = 128
+    config.network.hidden_features = 64
     config.network.arch = "WIRE"
     
     # SIREN parameters
@@ -117,7 +117,7 @@ def get_config():
     #config.network.fourier_scale = 2.5
     
     # WIRE parameters
-    config.network.complex = True
+    config.network.complex = False
     config.network.omega_0 = 30
     config.network.sigma_0 = 30
 
@@ -129,7 +129,7 @@ def get_config():
     config.training.boundary_points_per_batch = 10000 # None to use all
     # Optimizer
     config.training.lr = 1e-4
-    config.training.lr_decay_iter = 9999
+    config.training.lr_decay_iter = 30_000
     config.training.lr_decay_factor = 0.5
     config.training.use_LBFGS = False
     config.training.BFGS_lr = 1e-1

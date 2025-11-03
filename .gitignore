@@ -2,6 +2,7 @@
 /results
 /data
 /src/wandb
+/src/wandb_runs
 /src/prepare_data/geometries/
 /src/data/vti_files/
 /src/prepare_data/vti_files/
