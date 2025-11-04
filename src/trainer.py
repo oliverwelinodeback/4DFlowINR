@@ -4,11 +4,11 @@ import torch
 import wandb
 from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_boundary_loss, update_loss_weights
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
-from utils.utils import copy_source_code, save_checkpoint, sample_to_device, sample_from_gpu, sample_ref_from_gpu, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
+from utils.utils import copy_source_code, save_checkpoint, sample_to_device, sample_from_gpu, sample_ref_from_gpu, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed, plot_residual_distribution
 import networks
 #from configs.Config_1x_HV01_highSNR_momentum_PG import get_config
 #from configs.Config_ICAD_1t_2x_healthy_lowSNR import get_config
-from configs.Config_251016_sweep_WIRE_complex_abstract1 import get_config
+from configs.test_momentum import get_config
 
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
@@ -153,7 +153,7 @@ def train(config=None, run_name=None):
     xyz_collocation_gpu = None
     if config["sample_collocation"]:
         xyz_collocation_gpu = torch.from_numpy(xyz_collocation).float().to(DEVICE)
-
+    
     xyz_boundary_gpu = None
     if config["sample_boundary"]:
         xyz_boundary_gpu = torch.from_numpy(xyz_boundary).float().to(DEVICE)
@@ -246,13 +246,13 @@ def train(config=None, run_name=None):
             uvw_train_gpu,
             mask_flat_gpu
         )
-        """ (
-            xyz_data_batch, 
-            uvw_data_batch, 
-            mask_batch,
-            xyz_collocation_batch, 
-            xyz_boundary_batch
-        ) = sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train, mask_flat, DEVICE) """
+        # (
+        #     xyz_data_batch, 
+        #     uvw_data_batch, 
+        #     mask_batch,
+        #     xyz_collocation_batch, 
+        #     xyz_boundary_batch
+        # ) = sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train, mask_flat, DEVICE)
         
         # Track gradients
         xyz_data_batch.requires_grad = True
@@ -383,6 +383,7 @@ def train(config=None, run_name=None):
         # Plot current model predictions
         if (it + 1) % config["plot"]["iter"] == 0:
             plot_predictions(config, model, DEVICE, it+1, u, mask, U_max)
+            plot_residual_distribution(config, model, xyz_collocation_batch, xyz_data_batch, standardization_factors, it+1)
        
         # Compare with reference data
         if config["include_ref"]:

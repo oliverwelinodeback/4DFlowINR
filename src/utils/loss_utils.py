@@ -171,7 +171,7 @@ def compute_gradient(outputs, inputs, grad_dim):
                                 retain_graph=True,  # Allows to compute more gradients on the same graph
                                 only_inputs=True)[0][..., grad_dim]
 
-def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, config):
+def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, config, return_per_point=False):
 
     # Unpack velocity and pressure
     if not config["training"]["predict_gradients"]:
@@ -224,29 +224,34 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     if config["coords_normalization"] == "standardize":
         # Extract standardization factors
         _, std_t, _, std_x, _, std_y, _, std_z = standardization_factors
+        adj_t = 1/std_t
+        adj_x = 1/std_x
+        adj_y = 1/std_y
+        adj_z = 1/std_z
+
     else: # TODO - integrate minmax normalization
-        std_t, std_x, std_y, std_z = 1.0, 1.0, 1.0, 1.0
+        raise(ValueError("Navier-Stokes loss currently only supports standardize normalization."))
 
     # Calculate residuals based on Navier-Stokes Equations
     momentum_u = (
-        std_t * du_dt 
-        + std_x * (u * du_dx) + std_y* (v * du_dy) + std_z * (w * du_dz) 
-        + std_x * dp_dx 
-        - (1/Re) * ((std_x**2) * d2u_dx2 + (std_y**2) * d2u_dy2 + (std_z**2) * d2u_dz2)
+        adj_t * du_dt 
+        + adj_x * (u * du_dx) + adj_y* (v * du_dy) + adj_z * (w * du_dz) 
+        + adj_x * dp_dx 
+        - (1/Re) * ((adj_x**2) * d2u_dx2 + (adj_y**2) * d2u_dy2 + (adj_z**2) * d2u_dz2)
     )    
 
     momentum_v = (
-        std_t * dv_dt 
-        + std_x * (u * dv_dx) + std_y * (v * dv_dy) + std_z * (w * dv_dz) 
-        + std_y * dp_dy 
-        - (1/Re) * ((std_x**2) * d2v_dx2 + (std_y**2) * d2v_dy2 + (std_z**2) * d2v_dz2)
+        adj_t * dv_dt 
+        + adj_x * (u * dv_dx) + adj_y * (v * dv_dy) + adj_z * (w * dv_dz) 
+        + adj_y * dp_dy 
+        - (1/Re) * ((adj_x**2) * d2v_dx2 + (adj_y**2) * d2v_dy2 + (adj_z**2) * d2v_dz2)
     ) 
 
     momentum_w = (
-        std_t * dw_dt 
-        + std_x * (u * dw_dx) + std_y * (v * dw_dy) + std_z * (w * dw_dz) 
-        + std_z * dp_dz 
-        - (1/Re) * ((std_x**2) * d2w_dx2 + (std_y**2) * d2w_dy2 + (std_z**2) * d2w_dz2)
+        adj_t * dw_dt 
+        + adj_x * (u * dw_dx) + adj_y * (v * dw_dy) + adj_z * (w * dw_dz) 
+        + adj_z * dp_dz 
+        - (1/Re) * ((adj_x**2) * d2w_dx2 + (adj_y**2) * d2w_dy2 + (adj_z**2) * d2w_dz2)
     ) 
 
     # Calculate divergence
@@ -256,13 +261,16 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     momentum_loss_v = momentum_v ** 2
     momentum_loss_w = momentum_w ** 2
 
+    per_point_momentum_loss = momentum_loss_u + momentum_loss_v + momentum_loss_w
     momentum_loss = torch.mean(momentum_loss_u + momentum_loss_v + momentum_loss_w)
     
     if config["training"]["use_divergence"]:
         div = (du_dx / std_x) + (dv_dy / std_y) + (dw_dz / std_z)
-        div_loss = torch.mean(div ** 2)
+        per_point_div_loss = div ** 2
+        div_loss = torch.mean(per_point_div_loss)
     else:
-        div_loss = torch.tensor(0.0)
+        per_point_div_loss = torch.tensor(0.0, device=uvw_pred.device)
+        div_loss = torch.tensor(0.0, device=uvw_pred.device)
 
     if config["training"]["use_PPE"]:
         
@@ -297,8 +305,15 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
         residual_ppe = laplace_p + Re * div_conv   # nondimensionalized form
 
         # PPE loss
-        ppe_loss = torch.mean(residual_ppe**2)
+        per_point_ppe_loss = residual_ppe**2
+        ppe_loss = torch.mean(per_point_ppe_loss)
         momentum_loss += config["training"]["PPE_weight"]*ppe_loss
+    else:
+        per_point_ppe_loss = torch.tensor(0.0, device=uvw_pred.device)
+    
+    if return_per_point:
+            total_per_point_sq_residuals = per_point_momentum_loss + per_point_div_loss + config["training"]["PPE_weight"] * per_point_ppe_loss
+            return torch.sqrt(total_per_point_sq_residuals).detach()
 
     return momentum_loss, div_loss
 
@@ -539,7 +554,7 @@ def compute_data_loss(config, model, xyz_data, uvw_data, mask, standardization_f
 
     return data_loss, uvw_pred, mse_px, mse_py, mse_pz
 
-def compute_physics_loss(config, iter, model, xyz_collocation, xyz_data, standardization_factors):
+def compute_physics_loss(config, iter, model, xyz_collocation, xyz_data, standardization_factors, return_per_point=False):
 
     # Initialize dictionary for possible losses
     losses = {
@@ -573,6 +588,13 @@ def compute_physics_loss(config, iter, model, xyz_collocation, xyz_data, standar
 
     # Navier-Stokes
     if config["training"]["use_navier_stokes"]:
+        if return_per_point:
+            per_point_residuals = navier_stokes_loss(uvw_pred_physics, 
+                                                     xyz_collocation, 
+                                                     standardization_factors, 
+                                                     config, 
+                                                     return_per_point=True)
+            return per_point_residuals
         momentum_loss, div_loss = navier_stokes_loss(uvw_pred_physics, xyz_collocation, standardization_factors, config)
         physics_loss = momentum_loss + div_loss
 

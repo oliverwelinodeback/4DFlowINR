@@ -8,6 +8,7 @@ import pandas as pd
 from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract_fluid_region, compute_outer_boundary_mask
 from scipy.ndimage import zoom
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from utils.evaluation_utils import (
     create_boundary_and_core_masks, 
     calculate_tanh_relative_error, 
@@ -24,7 +25,7 @@ from utils.evaluation_utils import (
     calculate_gradient_directional_error,
     calculate_gradient_nrmse
     )
-from utils.loss_utils import vector_potential_fn
+from utils.loss_utils import vector_potential_fn, compute_physics_loss
 
 #import vtk
 #from vtk.util import numpy_support as ns
@@ -952,3 +953,57 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
     plt.close()
 
     return
+
+def plot_residual_distribution(config, model, xyz_collocation, xyz_data, standardization_factors, it):
+    print("Plotting residual distribution...")
+        # Create directory
+    directory = f'{config["log_dir"]}/plots/iter_{it}'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    model.eval()
+    
+    xyz_col = xyz_collocation.detach()
+    xyz_dat = xyz_data.detach()
+    xyz_col.requires_grad = True
+    xyz_dat.requires_grad = True
+
+    
+    per_point_residual = compute_physics_loss(config, 
+                                          it,
+                                          model, 
+                                          xyz_col, 
+                                          xyz_dat,
+                                          standardization_factors,
+                                          return_per_point=True)
+
+    xyz_cpu = xyz_col.detach().cpu().numpy()
+    residuals_cpu = per_point_residual.cpu().numpy()
+
+    x_sampled = xyz_cpu[:, 1]
+    y_sampled = xyz_cpu[:, 2]
+    z_sampled = xyz_cpu[:, 3]
+
+    fig = plt.figure(figsize=(12, 9))
+    ax = fig.add_subplot(111, projection='3d')
+
+    norm = mpl.colors.LogNorm(vmin=np.min(residuals_cpu) + 1e-6, 
+                              vmax=np.max(residuals_cpu))
+    
+    sc = ax.scatter(x_sampled, y_sampled, z_sampled, 
+                        c=residuals_cpu, 
+                        cmap='YlGnBu_r', 
+                        marker='o', 
+                        alpha=0.5, 
+                        s=5,
+                        norm=norm)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title(f'Physics Residual Magnitude (Log Scale) - Iteration {it}')
+    
+
+    plt.colorbar(sc, ax=ax, label='Residual Magnitude (Log Scale)')
+    plt.savefig(os.path.join(directory, f"residual.png"))
+    plt.close(fig)
+    model.train()
