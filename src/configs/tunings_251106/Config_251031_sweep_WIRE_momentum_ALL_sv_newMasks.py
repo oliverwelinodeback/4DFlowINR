@@ -13,12 +13,12 @@ def get_sweep_config():
 
             'data_file': {'values': [
 
-                "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5", 
-                "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5", 
-                "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5", 
+                #"../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5", 
+                #"../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
+                #"../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5", 
+                #"../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
+                #"../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
+                #"../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5", 
                 "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5", 
                 "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
                 "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
@@ -44,7 +44,7 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model 
-    config.networks_folder = "../models/251112_WIRE_MOMENTUM_ALL_SV/"
+    config.networks_folder = "../models/251107_WIRE_MOMENTUM_ALL_SV/"
     config.network_name = "251031_WIRE_MOMENTUM_ALL_SV_SA" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
@@ -129,8 +129,8 @@ def get_config(sweep_config=None):
     # Training parameters
     config.training = ml_collections.ConfigDict()
     config.training.iterations = 40_000 #15000 #!#
-    config.training.data_points_per_batch = 200 # 10000 # None to use all #20000
-    config.training.coll_points_per_batch = 200 # 10000 # None to use all #20000
+    config.training.data_points_per_batch = 10000 # None to use all #20000
+    config.training.coll_points_per_batch = 10000 # None to use all #20000
     config.training.boundary_points_per_batch = 10000 # None to use all #10000
     # Optimizer
     config.training.lr = 1e-4
