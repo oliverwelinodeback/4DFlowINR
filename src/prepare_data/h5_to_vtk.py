@@ -2,7 +2,7 @@ import numpy as np
 import h5py
 from pyevtk.hl import imageToVTK
 
-def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients=True):
+def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients=True, mask_file=None):
     """
     Convert an HDF5 file containing 3D velocity components u, v, w and
     a mask to a VTK image data (.vti) file readable by ParaView.
@@ -31,14 +31,20 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients
                 u = f["u"][i] 
                 v = f["v"][i]
                 w = f["w"][i]
-                mask = f["mask"][:] if "mask" in f else np.ones_like(u)
-                binary_mask = (mask != 0).astype(np.uint8) if mask is not None else np.ones_like(u)
+                if mask_file is None:
+                    mask = f["mask"][:] if "mask" in f else np.ones_like(u)
+                    binary_mask = (mask != 0).astype(np.uint8) if mask is not None else np.ones_like(u)
+                else:
+                    with h5py.File(mask_file, 'r') as mf:
+                        mask_name = mf["mask"][:] if "mask" in mf else np.ones_like(u)
+                        binary_mask = (mask_name != 0).astype(np.uint8) if mask_name is not None else np.ones_like(u)
+
                 if len(binary_mask.shape) == 4:
                     binary_mask = binary_mask[0]
                 if gradients:
-                    px = f["px"][i]*1000 
-                    py = f["py"][i]*1000
-                    pz = f["pz"][i]*1000
+                    px = f["p_x"][i]# *1000 
+                    py = f["p_y"][i]# *1000
+                    pz = f["p_z"][i]# *1000
 
             print(u.shape)
             #print(px.shape)
@@ -67,9 +73,9 @@ def h5_to_vtk(h5_filename, output_basename="velocity_field", index=25, gradients
             binary_mask = (mask_name != 0).astype(np.uint8) if mask_name is not None else np.ones_like(u)
 
             if gradients:
-                px = f["p_x"][0][index]#*1000
-                py = f["p_y"][0][index]#*1000
-                pz = f["p_z"][0][index]#*1000
+                px = f["p_x"][0][index]/1000
+                py = f["p_y"][0][index]/1000
+                pz = f["p_z"][0][index]/1000
 
         # Read the HDF5 file
         ## with h5py.File(h5_filename, 'r') as f:
@@ -192,11 +198,16 @@ if __name__ == "__main__":
     #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD21_hv26_20251101-0504/ref_data/healthy-05mm3_SR.h5"
     #output_basename = "vti_files/SR_mom_10000it_peak/ICAD21_05mm3_20ms_t12"
     #index = 12
-    h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD146_hv17_20251101-0710/ref_data/healthy-05mm3_SR.h5"
-    output_basename = "vti_files/SR_mom_10000it_peak/ICAD146_05mm3_20ms_t8" ########
-    index = 8    
+    #h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD146_hv17_20251101-0710/ref_data/healthy-05mm3_SR.h5"
+    #output_basename = "vti_files/SR_mom_10000it_peak/ICAD146_05mm3_20ms_t8" ########
+    #index = 8    
+
+    h5_filename = "../../results/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_HV01_LongRun_20251031-1451/ref_data/healthy-05mm3_SR.h5"
+    output_basename = "vti_files/SR_HV01_Long/SRx2_wMask/HV01_SRx2_wMask" ########
+    index = 'all'
+    mask_file = "../../data/healthy/HV01_05mm3_20ms.h5"
 
     #index = 'all'
-    h5_to_vtk(h5_filename, output_basename, index=index, gradients=True)
+    h5_to_vtk(h5_filename, output_basename, index=index, gradients=True, mask_file=mask_file)
 
     #x_oliwe/SRFlowNIR/models/251020_WIRE_CMPLX_abstract1_ICAD/ICAD21_WIRE_CMPLX_datahv17_losscos_20251022-0930/SR_final.h5

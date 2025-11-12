@@ -162,56 +162,71 @@ def boundary_mse_loss(uvw_boundary_pred, config):
 
     return mse_bound
 
-def compute_gradient(outputs, inputs, grad_dim):
-    # Function to compute derivatives
-    grad_outputs = torch.ones_like(outputs)
-    return torch.autograd.grad(outputs=outputs, inputs=inputs,
-                                grad_outputs=grad_outputs, # Specify dimension - compute gradient of each element
-                                create_graph=True,  # Allows for higher order gradients
-                                retain_graph=True,  # Allows to compute more gradients on the same graph
-                                only_inputs=True)[0][..., grad_dim]
+#def compute_gradient(outputs, inputs, grad_dim):
+#    # Function to compute derivatives
+#    grad_outputs = torch.ones_like(outputs)
+#    return torch.autograd.grad(outputs=outputs, inputs=inputs,
+#                                grad_outputs=grad_outputs, # Specify dimension - compute gradient of each element
+#                                create_graph=True,  # Allows for higher order gradients
+#                                retain_graph=True,  # Allows to compute more gradients on the same graph
+#                                only_inputs=True)[0][..., grad_dim]
 
-def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, config):
+def compute_gradient(outputs, inputs, grad_dim, *, create_graph=True, retain_graph=True):
+    """
+    Compute ∂(outputs)/∂(inputs[..., grad_dim]) with optional graph building.
+    """
+    grad_outputs = torch.ones_like(outputs, device=outputs.device, dtype=outputs.dtype)
+    grads = torch.autograd.grad(
+        outputs=outputs,
+        inputs=inputs,
+        grad_outputs=grad_outputs,
+        create_graph=create_graph,
+        retain_graph=retain_graph,
+        only_inputs=True,
+        allow_unused=False,
+    )[0]
+    return grads[..., grad_dim]
+
+
+def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, config, return_per_point=False, build_graph=True):
 
     # Unpack velocity and pressure
     if not config.training.predict_gradients:
         u, v, w, p = uvw_pred[..., 0], uvw_pred[..., 1], uvw_pred[..., 2], uvw_pred[..., 3]
 
-        dp_dx = compute_gradient(p, xyz_collocation, 1)
-        dp_dy = compute_gradient(p, xyz_collocation, 2)
-        dp_dz = compute_gradient(p, xyz_collocation, 3)
+        dp_dx = compute_gradient(p, xyz_collocation, 1, create_graph=build_graph)
+        dp_dy = compute_gradient(p, xyz_collocation, 2, create_graph=build_graph)
+        dp_dz = compute_gradient(p, xyz_collocation, 3, create_graph=build_graph)
 
     else:
         u, v, w, dp_dx, dp_dy, dp_dz = uvw_pred[..., 0], uvw_pred[..., 1], uvw_pred[..., 2], uvw_pred[..., 3], uvw_pred[..., 4], uvw_pred[..., 5]
 
     # First derivatives
-    du_dt = compute_gradient(u, xyz_collocation, 0)
-    du_dx = compute_gradient(u, xyz_collocation, 1)
-    du_dy = compute_gradient(u, xyz_collocation, 2)
-    du_dz = compute_gradient(u, xyz_collocation, 3)
-
-    dv_dt = compute_gradient(v, xyz_collocation, 0)
-    dv_dx = compute_gradient(v, xyz_collocation, 1)
-    dv_dy = compute_gradient(v, xyz_collocation, 2)
-    dv_dz = compute_gradient(v, xyz_collocation, 3)
-
-    dw_dt = compute_gradient(w, xyz_collocation, 0)
-    dw_dx = compute_gradient(w, xyz_collocation, 1)
-    dw_dy = compute_gradient(w, xyz_collocation, 2)
-    dw_dz = compute_gradient(w, xyz_collocation, 3)
+    du_dt = compute_gradient(u, xyz_collocation, 0, create_graph=build_graph)
+    du_dx = compute_gradient(u, xyz_collocation, 1, create_graph=build_graph)
+    du_dy = compute_gradient(u, xyz_collocation, 2, create_graph=build_graph)
+    du_dz = compute_gradient(u, xyz_collocation, 3, create_graph=build_graph)
+    dv_dt = compute_gradient(v, xyz_collocation, 0, create_graph=build_graph)
+    dv_dx = compute_gradient(v, xyz_collocation, 1, create_graph=build_graph)
+    dv_dy = compute_gradient(v, xyz_collocation, 2, create_graph=build_graph)
+    dv_dz = compute_gradient(v, xyz_collocation, 3, create_graph=build_graph)
+    dw_dt = compute_gradient(w, xyz_collocation, 0, create_graph=build_graph)
+    dw_dx = compute_gradient(w, xyz_collocation, 1, create_graph=build_graph)
+    dw_dy = compute_gradient(w, xyz_collocation, 2, create_graph=build_graph)
+    dw_dz = compute_gradient(w, xyz_collocation, 3, create_graph=build_graph)
 
     # Second derivatives
-    d2u_dx2 = compute_gradient(du_dx, xyz_collocation, 1)
-    d2u_dy2 = compute_gradient(du_dy, xyz_collocation, 2)
-    d2u_dz2 = compute_gradient(du_dz, xyz_collocation, 3)
+    d2u_dx2 = compute_gradient(du_dx, xyz_collocation, 1, create_graph=build_graph)
+    d2u_dy2 = compute_gradient(du_dy, xyz_collocation, 2, create_graph=build_graph)
+    d2u_dz2 = compute_gradient(du_dz, xyz_collocation, 3, create_graph=build_graph)
 
-    d2v_dx2 = compute_gradient(dv_dx, xyz_collocation, 1)
-    d2v_dy2 = compute_gradient(dv_dy, xyz_collocation, 2)
-    d2v_dz2 = compute_gradient(dv_dz, xyz_collocation, 3)
+    d2v_dx2 = compute_gradient(dv_dx, xyz_collocation, 1, create_graph=build_graph)
+    d2v_dy2 = compute_gradient(dv_dy, xyz_collocation, 2, create_graph=build_graph)
+    d2v_dz2 = compute_gradient(dv_dz, xyz_collocation, 3, create_graph=build_graph)
 
-    d2w_dx2 = compute_gradient(dw_dx, xyz_collocation, 1)
-    d2w_dy2 = compute_gradient(dw_dy, xyz_collocation, 2)
-    d2w_dz2 = compute_gradient(dw_dz, xyz_collocation, 3)
+    d2w_dx2 = compute_gradient(dw_dx, xyz_collocation, 1, create_graph=build_graph)
+    d2w_dy2 = compute_gradient(dw_dy, xyz_collocation, 2, create_graph=build_graph)
+    d2w_dz2 = compute_gradient(dw_dz, xyz_collocation, 3, create_graph=build_graph)
     
     # Extract constants
     U = config.constants.U
@@ -272,9 +287,9 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
     if config.training.use_PPE:
         
         # Compute pressure Laplacian ∇²p
-        d2p_dx2 = compute_gradient(dp_dx, xyz_collocation, 1)
-        d2p_dy2 = compute_gradient(dp_dy, xyz_collocation, 2)
-        d2p_dz2 = compute_gradient(dp_dz, xyz_collocation, 3)
+        d2p_dx2 = compute_gradient(dp_dx, xyz_collocation, 1, create_graph=build_graph, retain_graph=build_graph)
+        d2p_dy2 = compute_gradient(dp_dy, xyz_collocation, 2, create_graph=build_graph, retain_graph=build_graph)
+        d2p_dz2 = compute_gradient(dp_dz, xyz_collocation, 3, create_graph=build_graph, retain_graph=build_graph)
 
         laplace_p = (
             (1 / std_x**2) * d2p_dx2 +
@@ -288,9 +303,9 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
         conv_z = (1 / std_x) * u * dw_dx + (1 / std_y) * v * dw_dy + (1 / std_z) * w * dw_dz
 
         # Compute divergence of convective term
-        dconv_x_dx = compute_gradient(conv_x, xyz_collocation, 1)
-        dconv_y_dy = compute_gradient(conv_y, xyz_collocation, 2)
-        dconv_z_dz = compute_gradient(conv_z, xyz_collocation, 3)
+        dconv_x_dx = compute_gradient(conv_x, xyz_collocation, 1, create_graph=build_graph, retain_graph=build_graph)
+        dconv_y_dy = compute_gradient(conv_y, xyz_collocation, 2, create_graph=build_graph, retain_graph=build_graph)
+        dconv_z_dz = compute_gradient(conv_z, xyz_collocation, 3, create_graph=build_graph, retain_graph=build_graph)
 
         div_conv = (
             (1 / std_x) * dconv_x_dx +
@@ -304,6 +319,11 @@ def navier_stokes_loss(uvw_pred, xyz_collocation, standardization_factors, confi
         # PPE loss
         ppe_loss = torch.mean(residual_ppe**2)
         momentum_loss += config.training.PPE_weight*ppe_loss
+
+    if return_per_point:
+            per_point_momentum_loss = momentum_loss_u + momentum_loss_v + momentum_loss_w
+            total_per_point_sq_residuals = per_point_momentum_loss 
+            return torch.sqrt(total_per_point_sq_residuals), momentum_loss, div_loss
 
     return momentum_loss, div_loss
 
@@ -544,7 +564,7 @@ def compute_data_loss(config, model, xyz_data, uvw_data, mask, standardization_f
 
     return data_loss, uvw_pred, mse_px, mse_py, mse_pz
 
-def compute_physics_loss(config, iter, model, xyz_collocation, xyz_data, standardization_factors):
+def compute_physics_loss(config, iter, model, xyz_collocation, xyz_data, standardization_factors, c_weights=None, return_per_point=False):
 
     # Initialize dictionary for possible losses
     losses = {
@@ -578,23 +598,53 @@ def compute_physics_loss(config, iter, model, xyz_collocation, xyz_data, standar
 
     # Navier-Stokes
     if config.training.use_navier_stokes:
-        momentum_loss, div_loss = navier_stokes_loss(uvw_pred_physics, xyz_collocation, standardization_factors, config)
-        physics_loss = momentum_loss + div_loss
 
-        if config.training.physics_loss_on_data_points:
-            momentum_loss_data, div_loss_data = navier_stokes_loss(uvw_pred_data, xyz_data, standardization_factors, config)
-            physics_loss_data = momentum_loss_data + div_loss_data
+        if return_per_point:
+            per_point_residuals, _, _ = navier_stokes_loss(uvw_pred_physics, 
+                                                     xyz_collocation, 
+                                                     standardization_factors, 
+                                                     config, 
+                                                     return_per_point=True)
+            return per_point_residuals
 
-        losses["physics_loss"] = physics_loss
-        losses["momentum_loss"] = momentum_loss
-        losses["div_loss"] = div_loss
+        if c_weights is None:
 
-        if config.training.physics_loss_on_data_points:
-            losses["physics_loss_data"] = physics_loss_data
-            losses["momentum_loss_data"] = momentum_loss_data
-            losses["div_loss_data"] = div_loss_data
+            momentum_loss, div_loss = navier_stokes_loss(uvw_pred_physics, xyz_collocation, standardization_factors, config)
+            physics_loss = momentum_loss + div_loss
 
-        return losses
+            if config.training.physics_loss_on_data_points:
+                momentum_loss_data, div_loss_data = navier_stokes_loss(uvw_pred_data, xyz_data, standardization_factors, config)
+                physics_loss_data = momentum_loss_data + div_loss_data
+
+            losses["physics_loss"] = physics_loss
+            losses["momentum_loss"] = momentum_loss
+            losses["div_loss"] = div_loss
+
+            if config.training.physics_loss_on_data_points:
+                losses["physics_loss_data"] = physics_loss_data
+                losses["momentum_loss_data"] = momentum_loss_data
+                losses["div_loss_data"] = div_loss_data
+
+            return losses
+
+        else:
+            
+            per_point, momentum_loss, div_loss = navier_stokes_loss(
+                uvw_pred_physics, xyz_collocation, standardization_factors, config,
+                return_per_point=True
+            )
+
+            w = c_weights
+            if not torch.is_tensor(w):
+                w = torch.as_tensor(w, device=per_point.device, dtype=per_point.dtype)
+            w = w / (w.mean() + 1e-12)
+            physics_loss = torch.mean(w * (per_point ** 2))
+
+            losses["physics_loss"] = physics_loss
+            losses["momentum_loss"] = momentum_loss
+            losses["div_loss"] = div_loss
+
+            return losses
 
     # Divergence only
     elif config.training.use_divergence:

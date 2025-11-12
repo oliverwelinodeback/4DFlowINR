@@ -194,7 +194,7 @@ if __name__ == '__main__':
     # Update your path here
     base_path = '../../data/stenosis_70' 
     output_dir = '../../data/stenosis_70'
-    case_name = 'ICAD21_05mm3_20ms'
+    case_name = 'ICAD146_05mm3_20ms'
 
     # Mag template
     template_filepath = '../../data/mag_templates.h5'
@@ -212,7 +212,7 @@ if __name__ == '__main__':
 
     # -----------------------
     input_filepath  =   f'{base_path}/{case_name}.h5'
-    outputLR_filename = f'{base_path}/{case_name}_sv26_tSNR10_newMask.h5'
+    outputLR_filename = f'{base_path}/{case_name}_LR_sv17_tSNR10_newMask.h5'
     
     crop_ratio = 1 / downsample
     #-----------------------

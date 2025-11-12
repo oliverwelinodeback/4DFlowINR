@@ -6,13 +6,23 @@ def get_sweep_config():
     
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'WIRE_Momentum_LongTrain_{timestamp}', 
+        'name': f'WIRE_MOMENTUM_INVIVO_ALL_{timestamp}', 
         'method': 'grid',
-        'metric': {'name': 'FINAL Pressure Gradient Relative Error [Fluid]', 'goal': 'minimize'},
+        'metric': {'name': 'FINAL Relative Error [Fluid]', 'goal': 'minimize'},
         'parameters': {
-            
+
             'data_file': {'values': [
-                "../data/healthy/HV01_05mm3_20ms_LR_dv_hv17_tSNR8.h5",
+
+                "../data/invivo/HV01.h5",
+                "../data/invivo/HV03.h5", 
+                "../data/invivo/HV06.h5", 
+                "../data/invivo/ICAD17.h5", 
+                "../data/invivo/ICAD21.h5", 
+                "../data/invivo/ICAD28.h5", 
+                "../data/invivo/ICAD48.h5", 
+                "../data/invivo/ICAD98.h5",
+                "../data/invivo/ICAD146.h5",
+                
                 ]},
 
         },
@@ -25,17 +35,17 @@ def get_config(sweep_config=None):
 
     config.sweep = True
     # Data
-    config.data_file = "../data/healthy/HV01_05mm3_20ms_LR_dv_hv17_tSNR8.h5"
-    config.include_ref = True
-    config.include_ref_loss = True
-    config.load_pressure_from_data = True
-    config.data_file_ref = "../data/healthy/HV01_05mm3_20ms.h5"
+    config.data_file = "../data/invivo/HV01.h5"
+    config.load_pressure_from_data = False
+    config.include_ref = False
+    config.include_ref_loss = False
+    config.data_file_ref = "../data/XXX.h5"
     config.ref_spatial_factor = 2
     config.ref_temporal_factor = 2
 
     # Model 
-    config.networks_folder = "../models/251031_WIRE_MOMENTUM_HV01_LongRun/"
-    config.network_name = "251031_WIRE_MOMENTUM_HV01_LongRun" 
+    config.networks_folder = "../models/251107_WIRE_MOMENTUM_ALL_SV/"
+    config.network_name = "251031_WIRE_MOMENTUM_ALL_INVIVO" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -97,7 +107,7 @@ def get_config(sweep_config=None):
     config.constants.T = config.constants.L / config.constants.U
     config.constants.rho = 1060
     config.constants.mu = 0.004
-    config.constants.venc = 1.7
+    config.constants.venc = 1.2
 
     # Network architecture
     config.network = ml_collections.ConfigDict()
@@ -118,21 +128,32 @@ def get_config(sweep_config=None):
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 150_000 #15000 #!#
-    config.training.data_points_per_batch = 10000 # None to use all #20000
-    config.training.coll_points_per_batch = 10000 # None to use all #20000
+    config.training.iterations = 40_000 #15000 #!#
+    config.training.data_points_per_batch = 7000 # None to use all #20000
+    config.training.coll_points_per_batch = 7000 # None to use all #20000
     config.training.boundary_points_per_batch = 10000 # None to use all #10000
     # Optimizer
     config.training.lr = 1e-4
-    config.training.lr_decay_iter = 75_000
+    config.training.lr_decay_iter = 25000
     config.training.lr_decay_factor = 0.5
     config.training.use_LBFGS = True
     config.training.BFGS_lr = 1e-1
-    config.training.iterations_before_BFGS = 147_500 #!#
+    config.training.iterations_before_BFGS = 99_999 #!#
     # Loss details
     config.training.epochs_before_PDE = 0
     config.training.grad_weight_scheme = True
     config.training.alpha = 0.95
+
+    config.training.self_adaptive = False
+    config.training.adaptive_sampling = False
+    config.training.tau = 0.015 # 0.03
+    config.training.weight_clip = [10, 0.05] # [5, 0.2]
+    config.training.beta = 0.3 # 0.2
+    config.training.K_initial = 10_000 #10_000 # 500
+    config.training.K = 500 # 250
+    config.training.points_to_update = 750_000 # 500_000
+    config.training.chunk_size = 5_000
+
     # Data loss options
     config.training.use_mse = False
     config.training.use_cosine = True # TODO - name loss instead of True False options?
@@ -166,10 +187,10 @@ def get_config(sweep_config=None):
     config.plot.iter = 5000
     config.plot.gt = True
     config.plot.t_step = 2
-    config.plot.t_step_2 = 6
+    config.plot.t_step_2 = 3
     config.plot.z_slice = 20
-    config.plot.spatial_factor = 4
-    config.plot.temporal_factor = 4
+    config.plot.spatial_factor = 2
+    config.plot.temporal_factor = 2
     config.plot.temp_upsampling_mode = 'extend'
     config.plot.spat_upsampling_mode = 'centered'
     config.plot.fluid_region = True
@@ -179,10 +200,10 @@ def get_config(sweep_config=None):
 
     # Prediction
     config.predictions = ml_collections.ConfigDict()
-    config.predictions.peak_flow_idx = 6
-    config.predictions.flow_idx2 = 6
+    config.predictions.peak_flow_idx = 2
+    config.predictions.flow_idx2 = 3
     config.predictions.predict_reference_data = True
-    config.predictions.predict_SR_data = True
+    config.predictions.predict_SR_data = False
     config.predictions.compare_noisy_vs_ref = False
     config.predictions.denormalize = True
     config.predictions.fluid_region = True

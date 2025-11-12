@@ -3,6 +3,7 @@ import shutil
 import h5py
 import torch
 import random
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract_fluid_region, compute_outer_boundary_mask
@@ -99,6 +100,204 @@ def save_checkpoint(model, iter, config, final=False, extra_data=None):
         torch.save(checkpoint, save_path)
         print(f"Final model saved to {save_path}")
 
+def save_minimal_ckpt(path, model, adam_opt=None, lbfgs_opt=None, scheduler=None, iteration=0):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)  # <-- ensure dir exists
+
+    ckpt = {
+        "iteration": iteration,
+        "model": model.state_dict(),
+        "adam_opt": None if adam_opt is None else adam_opt.state_dict(),
+        "lbfgs_opt": None if lbfgs_opt is None else lbfgs_opt.state_dict(),
+        "scheduler": None if scheduler is None else scheduler.state_dict(),
+    }
+    torch.save(ckpt, str(path))
+    print(f"Saved: {path}")
+
+def load_minimal_ckpt(path, model, device, adam_opt=None, lbfgs_opt=None, scheduler=None):
+    ckpt = torch.load(path, map_location=device)
+
+    # Model
+    model.load_state_dict(ckpt["model"])
+
+    # Optimizers
+    if adam_opt is not None and ckpt.get("adam_opt") is not None:
+        adam_opt.load_state_dict(ckpt["adam_opt"])
+        for state in adam_opt.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.to(device)
+
+    if lbfgs_opt is not None and ckpt.get("lbfgs_opt") is not None:
+        lbfgs_opt.load_state_dict(ckpt["lbfgs_opt"])
+        for state in lbfgs_opt.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.to(device)
+
+    if scheduler is not None and ckpt.get("scheduler") is not None:
+        scheduler.load_state_dict(ckpt["scheduler"])
+
+    start_iter = int(ckpt.get("iteration", 0))
+    print(f"Loaded: {path} @ iter {start_iter}")
+    return start_iter
+
+def _to_bytetensor(x):
+    """Coerce x -> torch.ByteTensor on CPU."""
+    if x is None:
+        return None
+    if torch.is_tensor(x):
+        return x.to('cpu', dtype=torch.uint8)
+    # bytes / bytearray / list / numpy -> tensor(uint8)
+    try:
+        import numpy as np
+        if isinstance(x, (bytes, bytearray)):
+            return torch.tensor(list(x), dtype=torch.uint8, device='cpu')
+        if isinstance(x, np.ndarray):
+            return torch.tensor(x, dtype=torch.uint8, device='cpu')
+    except Exception:
+        pass
+    # fall back for tuples/lists
+    return torch.tensor(x, dtype=torch.uint8, device='cpu')
+
+def _to_cuda_bytelist(xs):
+    """Coerce xs -> list[torch.ByteTensor] (one per device)."""
+    if xs is None:
+        return None
+    out = []
+    for s in xs:
+        out.append(_to_bytetensor(s))
+    return out
+
+def save_ckpt(path, model, adam_opt=None, lbfgs_opt=None, scheduler=None,
+                      iteration=0, rng=True, c_weights=None,
+                      loss_weights=None, standardization_factors=None, U_max=None,
+                      amp_scaler=None, config_dict=None):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)  # <-- ensure dir exists
+    
+    ckpt = {
+        "iteration": iteration,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": None if adam_opt is None else adam_opt.state_dict(),
+        "lbfgs_state_dict": None if lbfgs_opt is None else lbfgs_opt.state_dict(),
+        "scheduler_state_dict": None if scheduler is None else scheduler.state_dict(),
+        "c_weights": None if c_weights is None else np.asarray(c_weights),
+        "loss_weights": None if loss_weights is None else
+            (loss_weights if isinstance(loss_weights, (list, tuple, dict)) else np.asarray(loss_weights)),
+        "standardization_factors": standardization_factors,
+        "U_max": U_max,
+        "amp_scaler_state_dict": None if amp_scaler is None else amp_scaler.state_dict(),
+        "config": config_dict,  # optional; keep it JSON-serializable if you plan to inspect with non-PyTorch tools
+    }
+
+    if rng:
+        ckpt["rng"] = {
+            "torch_cpu": torch.get_rng_state(),                                   # ByteTensor
+            "torch_cuda": (torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None),  # list of ByteTensors or None
+            "numpy": np.random.get_state(),                                       # tuple
+            "python": random.getstate(),                                          # tuple
+        }
+
+    torch.save(ckpt, str(path))
+
+def load_ckpt(path, model, device,
+                      adam_opt=None, lbfgs_opt=None, scheduler=None,
+                      amp_scaler=None, restore_rng=True):
+    ckpt = torch.load(path, map_location=device)
+    model.load_state_dict(ckpt["model_state_dict"])
+
+    if adam_opt is not None and ckpt.get("optimizer_state_dict") is not None:
+        adam_opt.load_state_dict(ckpt["optimizer_state_dict"])
+        print('hej')
+        for state in adam_opt.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.to(device)
+
+    if lbfgs_opt is not None and ckpt.get("lbfgs_state_dict") is not None:
+        lbfgs_opt.load_state_dict(ckpt["lbfgs_state_dict"])
+        print('hej')
+        for state in lbfgs_opt.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.to(device)
+
+    if scheduler is not None and ckpt.get("scheduler_state_dict") is not None:
+        scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+        print('hej')
+
+    if amp_scaler is not None and ckpt.get("amp_scaler_state_dict") is not None:
+        amp_scaler.load_state_dict(ckpt["amp_scaler_state_dict"])
+        print('hej')
+
+    c_weights = ckpt.get("c_weights", None)
+    loss_weights = ckpt.get("loss_weights", None)
+    start_iter = int(ckpt.get("iteration", 0))
+
+    if restore_rng and "rng" in ckpt:
+        try:
+            cpu_state = _to_bytetensor(ckpt["rng"].get("torch_cpu"))
+            if cpu_state is not None:
+                torch.set_rng_state(cpu_state)
+
+            # some of your older saves used key "torch_cuda" or "torch_cuda_all"
+            cuda_key = "torch_cuda_all" if "torch_cuda_all" in ckpt["rng"] else "torch_cuda"
+            cuda_states = _to_cuda_bytelist(ckpt["rng"].get(cuda_key))
+            if cuda_states is not None:
+                torch.cuda.set_rng_state_all(cuda_states)
+
+            # numpy & python RNGs (optional but nice-to-have)
+            import numpy as np, random
+            if "numpy" in ckpt["rng"]:
+                np.random.set_state(ckpt["rng"]["numpy"])
+            if "python" in ckpt["rng"]:
+                random.setstate(ckpt["rng"]["python"])
+        except Exception as e:
+            print(f"[WARN] Failed to restore RNG state robustly: {e}")
+
+    return start_iter, c_weights, loss_weights
+
+def load_ckpt_min(path, model, device, adam_opt=None, lbfgs_opt=None, scheduler=None):
+    ckpt = torch.load(path, map_location=device)
+    model.load_state_dict(ckpt["model"])
+
+    if adam_opt is not None and ckpt.get("adam") is not None:
+        print('hejsan')
+        adam_opt.load_state_dict(ckpt["adam"])
+        for st in adam_opt.state.values():
+            for k, v in st.items():
+                if torch.is_tensor(v):
+                    st[k] = v.to(device)
+
+    if lbfgs_opt is not None and ckpt.get("lbfgs") is not None:
+        # You can skip restoring LBFGS to reduce memory spikes; see note below.
+        lbfgs_opt.load_state_dict(ckpt["lbfgs"])
+        for st in lbfgs_opt.state.values():
+            for k, v in st.items():
+                if torch.is_tensor(v):
+                    st[k] = v.to(device)
+
+    if scheduler is not None and ckpt.get("sched") is not None:
+        scheduler.load_state_dict(ckpt["sched"])
+
+
+
+
+    start_it = int(ckpt.get("iteration", 0))
+    return start_it
+
+def save_ckpt_min(path, model, adam_opt=None, lbfgs_opt=None, scheduler=None, iteration=0):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ckpt = {
+        "iteration": int(iteration),
+        "model": model.state_dict(),
+        "adam": None if adam_opt is None else adam_opt.state_dict(),
+        "lbfgs": None if lbfgs_opt is None else lbfgs_opt.state_dict(),
+        "sched": None if scheduler is None else scheduler.state_dict(),
+    }
+    torch.save(ckpt, path)
+
 def sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train, mask_flat, device):
     
     # Data / Fluid Points
@@ -141,6 +340,72 @@ def sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train
 
     return xyz_data_batch, uvw_data_batch, mask_batch, xyz_collocation_batch, xyz_boundary_batch
 
+def sample_from_gpu(config, xyz_train_gpu, xyz_collocation_gpu, xyz_boundary_gpu, uvw_train_gpu, mask_flat_gpu, c_weights=None):
+    
+    # Get the device from one of the tensors
+    device = xyz_train_gpu.device
+
+    # Data / Fluid Points
+    if config.training.data_points_per_batch is not None:
+        # Use torch.randint on the GPU. This is near-instant.
+        data_indices = torch.randint(
+            low=0, 
+            high=xyz_train_gpu.shape[0], 
+            size=(config.training.data_points_per_batch,), 
+            device=device
+        )
+        # Index the GPU tensor directly. This is a fast VRAM-to-VRAM copy.
+        xyz_data_batch = xyz_train_gpu[data_indices]
+        uvw_data_batch = uvw_train_gpu[data_indices]
+        mask_batch = mask_flat_gpu[data_indices]
+    else:
+        xyz_data_batch = xyz_train_gpu
+        uvw_data_batch = uvw_train_gpu
+        mask_batch = mask_flat_gpu
+
+    # Collocation Points
+    xyz_collocation_batch = None
+    coll_indices = None
+    if config.sample_collocation:
+        if config.training.coll_points_per_batch is not None:
+            
+            n = config.training.coll_points_per_batch
+            
+            if c_weights is not None:
+                # weighted sampling without replacement
+                p = torch.as_tensor(c_weights, device=device, dtype=torch.float32)
+                p = p / (p.sum() + 1e-12)
+                # Sanitize probabilities
+                p = torch.as_tensor(c_weights, device=xyz_collocation_gpu.device, dtype=torch.float32)
+                p = torch.nan_to_num(p, nan=0.0, posinf=0.0, neginf=0.0)
+                p.clamp_(min=1e-12)
+                p /= p.sum() + 1e-12
+                coll_indices = torch.multinomial(p, n, replacement=False)
+            else:
+                # uniform sampling without replacement
+                coll_indices = torch.randperm(xyz_collocation_gpu.shape[0], device=device)[:n]
+
+            xyz_collocation_batch = xyz_collocation_gpu[coll_indices]
+        else:
+            xyz_collocation_batch = xyz_collocation_gpu
+    else:
+        xyz_collocation_batch = None
+
+    # Boundary Points
+    xyz_boundary_batch = None
+    if config["sample_boundary"]:
+        if config.training.boundary_points_per_batch is not None:
+            boundary_indices = torch.randint(
+                low=0, 
+                high=xyz_boundary_gpu.shape[0], 
+                size=(config.training.boundary_points_per_batch,), 
+                device=device
+            )
+            xyz_boundary_batch = xyz_boundary_gpu[boundary_indices]
+        else:
+            xyz_boundary_batch = xyz_boundary_gpu
+
+    return xyz_data_batch, uvw_data_batch, mask_batch, xyz_collocation_batch, xyz_boundary_batch, coll_indices
 
 def sample_ref_to_device(config, xyz_train, uvw_train, mask_flat, device):
     
@@ -162,6 +427,33 @@ def sample_ref_to_device(config, xyz_train, uvw_train, mask_flat, device):
 
     return xyz_data_batch, uvw_data_batch, mask_batch
 
+def sample_ref_from_gpu(config, xyz_ref_gpu, uvw_ref_gpu, mask_flat_ref_gpu):
+    
+    # Get the device from one of the input tensors
+    device = xyz_ref_gpu.device
+
+    # Data / Fluid Points
+    if config.training.data_points_per_batch is not None:
+        # Use torch.randint on the GPU to get random indices
+        data_indices = torch.randint(
+            low=0, 
+            high=xyz_ref_gpu.shape[0], 
+            size=(config.training.data_points_per_batch,), 
+            device=device
+        )
+        
+        # Index the GPU tensors directly (fast VRAM-to-VRAM copy)
+        xyz_data_batch = xyz_ref_gpu[data_indices]
+        uvw_data_batch = uvw_ref_gpu[data_indices]
+        mask_batch = mask_flat_ref_gpu[data_indices]
+    else:
+        # Use the full tensors if batch size is not specified
+        xyz_data_batch = xyz_ref_gpu
+        uvw_data_batch = uvw_ref_gpu
+        mask_batch = mask_flat_ref_gpu
+
+    
+    return xyz_data_batch, uvw_data_batch, mask_batch
 
 def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=False, save_vti=False):
 
@@ -903,7 +1195,7 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
 
     return
 
-def plot_predictions(config, model, device, it, u, mask, U_max):
+def plot_predictions(config, model, device, it, u, mask, U_max, save_pred=False, save_vti=False):
     
     # Create directory
     directory = f'{config.log_dir}/plots/iter_{it}'
@@ -972,11 +1264,20 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
     else:
         uvw_pred_plot = uvw_pred_plot.reshape(1, len(x_ups), len(y_ups), len(z_ups), len(uvw_pred_plot[0]))
 
+    # Denormalize
     if config.setup.include_time:
-        u_pred = uvw_pred_plot[config.plot.t_step, :, :, :, 0]
-        v_pred = uvw_pred_plot[config.plot.t_step, :, :, :, 1]
-        w_pred = uvw_pred_plot[config.plot.t_step, :, :, :, 2]
-        p_pred = uvw_pred_plot[config.plot.t_step, :, :, :, 3] if config.setup.include_pressure else None
+        u_pred = uvw_pred_plot[:, :, :, :, 0]
+        v_pred = uvw_pred_plot[:, :, :, :, 1]
+        w_pred = uvw_pred_plot[:, :, :, :, 2]
+
+        #p_pred = uvw_pred[config.plot.t_stepr, :, :, :, 3] if config.setup.include_pressure else None
+        px_pred = uvw_pred_plot[:, :, :, :, 3] if config.training.reference_gradients else None
+        py_pred = uvw_pred_plot[:, :, :, :, 4] if config.training.reference_gradients else None
+        pz_pred = uvw_pred_plot[:, :, :, :, 5] if config.training.reference_gradients else None
+        
+        p_pred = uvw_pred_plot[:, :, :, :, 3] if (config.setup.include_pressure and not config.training.reference_gradients) else None 
+
+        p_pred = uvw_pred_plot[:, :, :, :, 3] if config.setup.include_pressure else None
     else:
         u_pred = uvw_pred_plot[0, :, :, :, 0]
         v_pred = uvw_pred_plot[0, :, :, :, 1]
@@ -989,7 +1290,21 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
             u_pred = u_pred*config.constants.U
             v_pred = v_pred*config.constants.U
             w_pred = w_pred*config.constants.U
-            p_pred = p_pred*(config.constants.rho*(config.constants.U**2)) if config.setup.include_pressure else None
+
+
+            #if config.setup.include_pressure:
+            #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
+            if (config.setup.include_pressure and config.training.reference_gradients):
+                _, _, _, std_x, _, std_y, _, std_z = standardization_factors
+                print(std_x, std_y, std_z)
+
+                px_pred *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x # px
+                py_pred *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y # py
+                pz_pred *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z # pz
+
+            elif config.setup.include_pressure and not config.training.reference_gradients:
+                p_pred *= config.constants.rho * (config.constants.U ** 2)  # p
+
         elif config.vel_normalization == "max_velocity":
             u_pred = u_pred*U_max
             v_pred = v_pred*U_max
@@ -1004,26 +1319,48 @@ def plot_predictions(config, model, device, it, u, mask, U_max):
 
     plt.subplot(2, 2, 1)
     plt.title('Predicted u')
-    plt.imshow(u_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
+    plt.imshow(u_pred[config.plot.t_step, :, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
 
     plt.subplot(2, 2, 2)
     plt.title('Predicted v')
-    plt.imshow(v_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
+    plt.imshow(v_pred[config.plot.t_step, :, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
     
     plt.subplot(2, 2, 3)
     plt.title('Predicted w')
-    plt.imshow(w_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
+    plt.imshow(w_pred[config.plot.t_step, :, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
 
     if config.setup.include_pressure and p_pred is not None:
         plt.subplot(2, 2, 4)
         plt.title('Predicted px')
-        plt.imshow(p_pred[:, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
+        plt.imshow(px_pred[config.plot.t_step, :, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
         plt.colorbar()
 
     plt.savefig(os.path.join(directory, f"predictions.png"))
     plt.close()
+
+    if save_pred:
+        
+        # Save ref predictions to results directory
+        save_to_h5(f"{config.log_dir}/SR_final.h5", "u", u_pred, expand_dim=False)
+        save_to_h5(f"{config.log_dir}/SR_final.h5", "v", v_pred, expand_dim=False)
+        save_to_h5(f"{config.log_dir}/SR_final.h5", "w", w_pred, expand_dim=False)
+        if (config.setup.include_pressure and not config.training.reference_gradients):
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "p", p_pred, expand_dim=False)
+        elif config.training.reference_gradients:
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_x", px_pred, expand_dim=False)
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_y", py_pred, expand_dim=False)
+            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_z", pz_pred, expand_dim=False)
+
+        if save_vti:
+            h5_to_vtk(
+                f"{config.log_dir}/SR_final.h5", 
+                f"{config.log_dir}/SR_final_t{config.predictions.peak_flow_idx}", 
+                index=config.predictions.peak_flow_idx, 
+                gradients=config.training.predict_gradients,
+                save_ref_mask=config.include_ref,
+            )
 
     return

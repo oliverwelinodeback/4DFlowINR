@@ -28,30 +28,35 @@ def load_data(config):
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]) if config.domain.crop else np.asarray(hf['w'])
             
-            p = (np.asarray(hf['p'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                ) if config.domain.crop else np.asarray(hf['p']))  if config.setup.include_pressure else None
+            if config.load_pressure_from_data:
+                p = (np.asarray(hf['p'][config.domain.t_start:config.domain.t_end, 
+                                    config.domain.x_start:config.domain.x_end, 
+                                    config.domain.y_start:config.domain.y_end, 
+                                    config.domain.z_start:config.domain.z_end]
+                                    ) if config.domain.crop else np.asarray(hf['p']))  if config.setup.include_pressure else None
 
-            px = (np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if config.domain.crop else np.asarray(hf['px'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
+                px = (np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
+                                    config.domain.x_start:config.domain.x_end, 
+                                    config.domain.y_start:config.domain.y_end, 
+                                    config.domain.z_start:config.domain.z_end]
+                                    )*1000 if config.domain.crop else np.asarray(hf['px'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
-            py = (np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if config.domain.crop else np.asarray(hf['py'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
+                py = (np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
+                                    config.domain.x_start:config.domain.x_end, 
+                                    config.domain.y_start:config.domain.y_end, 
+                                    config.domain.z_start:config.domain.z_end]
+                                    )*1000 if config.domain.crop else np.asarray(hf['py'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
-            pz = (np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if config.domain.crop else np.asarray(hf['pz'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
-
+                pz = (np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
+                                    config.domain.x_start:config.domain.x_end, 
+                                    config.domain.y_start:config.domain.y_end, 
+                                    config.domain.z_start:config.domain.z_end]
+                                    )*1000 if config.domain.crop else np.asarray(hf['pz'])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
+            else:
+                p = None
+                px = None
+                py = None
+                pz = None
             #px *= 1000 # Pa /mm --> Pa /m
             
         else:
@@ -69,31 +74,36 @@ def load_data(config):
                                 config.domain.x_start:config.domain.x_end, 
                                 config.domain.y_start:config.domain.y_end, 
                                 config.domain.z_start:config.domain.z_end]) if config.domain.crop else np.asarray(hf['w'][t_index])
-            
-            p = (np.asarray(hf['p'][t_index,
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                ) if config.domain.crop else np.asarray(hf['p'][t_index]))  if config.setup.include_pressure else None
-            
-            px = (np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if config.domain.crop else np.asarray(hf['px'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
+            if config.load_pressure_from_data:
 
-            py = (np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if config.domain.crop else np.asarray(hf['py'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
+                p = (np.asarray(hf['p'][t_index,
+                                    config.domain.x_start:config.domain.x_end, 
+                                    config.domain.y_start:config.domain.y_end, 
+                                    config.domain.z_start:config.domain.z_end]
+                                    ) if config.domain.crop else np.asarray(hf['p'][t_index]))  if config.setup.include_pressure else None
+                
+                px = (np.asarray(hf['px'][config.domain.t_start:config.domain.t_end, 
+                                    config.domain.x_start:config.domain.x_end, 
+                                    config.domain.y_start:config.domain.y_end, 
+                                    config.domain.z_start:config.domain.z_end]
+                                    )*1000 if config.domain.crop else np.asarray(hf['px'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
-            pz = (np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                )*1000 if config.domain.crop else np.asarray(hf['pz'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
+                py = (np.asarray(hf['py'][config.domain.t_start:config.domain.t_end, 
+                                    config.domain.x_start:config.domain.x_end, 
+                                    config.domain.y_start:config.domain.y_end, 
+                                    config.domain.z_start:config.domain.z_end]
+                                    )*1000 if config.domain.crop else np.asarray(hf['py'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
 
+                pz = (np.asarray(hf['pz'][config.domain.t_start:config.domain.t_end, 
+                                    config.domain.x_start:config.domain.x_end, 
+                                    config.domain.y_start:config.domain.y_end, 
+                                    config.domain.z_start:config.domain.z_end]
+                                    )*1000 if config.domain.crop else np.asarray(hf['pz'][t_index])*1000) if (config.setup.include_pressure and config.training.predict_gradients) else None
+            else:
+                p = None
+                px = None
+                py = None
+                pz = None
             ## TODO - fix pressure gradients loading
             
         # T×h×w×d = (126, 81, 57, 50)
@@ -562,7 +572,7 @@ def prepare_data(config, u, v, w, p, px, py, pz, mask):
 
     velocities = [u_flat, v_flat, w_flat]
 
-    if (config.setup.include_pressure and config.training.predict_gradients):
+    if (config.load_pressure_from_data and config.setup.include_pressure and config.training.predict_gradients):
         rho, U, L = config.constants.rho, config.constants.U, config.constants.L
         p_normalized = p / (rho*(U**2))
         p_flat = p_normalized.reshape(-1)
@@ -581,7 +591,7 @@ def prepare_data(config, u, v, w, p, px, py, pz, mask):
         velocities.append(py_flat)
         velocities.append(pz_flat)
 
-    elif config.setup.include_pressure:
+    elif (config.load_pressure_from_data and config.setup.include_pressure):
         rho, U = config.constants.rho, config.constants.U
         p_normalized = p / (rho*(U**2))
         p_flat = p_normalized.reshape(-1)
