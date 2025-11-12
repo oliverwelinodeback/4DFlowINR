@@ -702,20 +702,20 @@ def train(config=None, run_name=None, use_sweep=False):
                     "Directional error [Fluid]": metrics_eval["Directional error [Fluid]"],
                     "Divergence prediction [Fluid]": metrics_eval["Divergence prediction [Fluid]"],
                     "Divergence reference [Fluid]": metrics_eval["Divergence reference [Fluid]"],
-                    "W k [Core]": metrics_eval['W k [Core]'],
-                    "W r^2 [Core]": metrics_eval['W r^2 [Core]'],
+                    "W K [Core]": metrics_eval['W K [Core]'],
+                    "W R2 [Core]": metrics_eval['W R2 [Core]'],
                 }
 
                 # Add pressure metrics only if reference gradients are used
                 if config.training.reference_gradients:
                     log_dict.update({
                         "Pressure Gradient Relative Error [Fluid]": metrics_eval['Relative error Pressure Gradient (%) [Fluid]'],
-                        "Pressure gradient PX k [Core]": metrics_eval['PX k [Core]'],
-                        "Pressure gradient PX r^2 [Core]": metrics_eval['PX r^2 [Core]'],
-                        "Pressure gradient PY k [Core]": metrics_eval['PY k [Core]'],
-                        "Pressure gradient PY r^2 [Core]": metrics_eval['PY r^2 [Core]'],
-                        "Pressure gradient PZ k [Core]": metrics_eval['PZ k [Core]'],
-                        "Pressure gradient PZ r^2 [Core]": metrics_eval['PZ r^2 [Core]'],
+                        "Pressure gradient PX K [Core]": metrics_eval['PX K [Core]'],
+                        "Pressure gradient PX R2 [Core]": metrics_eval['PX R2 [Core]'],
+                        "Pressure gradient PY K [Core]": metrics_eval['PY K [Core]'],
+                        "Pressure gradient PY R2 [Core]": metrics_eval['PY R2 [Core]'],
+                        "Pressure gradient PZ K [Core]": metrics_eval['PZ K [Core]'],
+                        "Pressure gradient PZ R2 [Core]": metrics_eval['PZ R2 [Core]'],
                     })
 
                 # Log to W&B

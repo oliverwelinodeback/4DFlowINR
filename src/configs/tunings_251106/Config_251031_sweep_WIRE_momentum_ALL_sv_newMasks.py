@@ -44,7 +44,7 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model 
-    config.networks_folder = "../models/251107_WIRE_MOMENTUM_ALL_SV/"
+    config.networks_folder = "../models/251112_WIRE_MOMENTUM_ALL_SV/"
     config.network_name = "251031_WIRE_MOMENTUM_ALL_SV_SA" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
@@ -129,8 +129,8 @@ def get_config(sweep_config=None):
     # Training parameters
     config.training = ml_collections.ConfigDict()
     config.training.iterations = 40_000 #15000 #!#
-    config.training.data_points_per_batch = 10000 # None to use all #20000
-    config.training.coll_points_per_batch = 10000 # None to use all #20000
+    config.training.data_points_per_batch = 200 # 10000 # None to use all #20000
+    config.training.coll_points_per_batch = 200 # 10000 # None to use all #20000
     config.training.boundary_points_per_batch = 10000 # None to use all #10000
     # Optimizer
     config.training.lr = 1e-4

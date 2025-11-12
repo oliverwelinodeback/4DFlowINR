@@ -671,6 +671,32 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
     print(f'R.M.S.   error [Core] {rmse_tot[2]:.4f}')
     print(f'R.M.S.   error [Non-F] {rmse_tot[3]:.4f}')
 
+    Ks_tot = np.mean(Ks, axis=0)
+    print(f'U   K   [Fluid] {Ks_tot[0][0]:.3f}')
+    print(f'U   K   [Bound] {Ks_tot[0][1]:.3f}')
+    print(f'U   K   [Core] {Ks_tot[0][2]:.3f}')
+
+    print(f'V   K   [Fluid] {Ks_tot[1][0]:.3f}')
+    print(f'V   K   [Bound] {Ks_tot[1][1]:.3f}')
+    print(f'V   K   [Core] {Ks_tot[1][2]:.3f}')
+
+    print(f'W   K   [Fluid] {Ks_tot[2][0]:.3f}')
+    print(f'W   K   [Bound] {Ks_tot[2][1]:.3f}')
+    print(f'W   K   [Core] {Ks_tot[2][2]:.3f}')
+
+    Rs_tot = np.mean(Rs, axis=0)
+    print(f'U R2     [Fluid] {Rs_tot[0][0]:.3f}')
+    print(f'U R2     [Bound] {Rs_tot[0][1]:.3f}')
+    print(f'U R2     [Core] {Rs_tot[0][2]:.3f}')
+
+    print(f'V R2     [Fluid] {Rs_tot[1][0]:.3f}')
+    print(f'V R2     [Bound] {Rs_tot[1][1]:.3f}')
+    print(f'V R2     [Core] {Rs_tot[1][2]:.3f}')
+
+    print(f'W R2     [Fluid] {Rs_tot[2][0]:.3f}')
+    print(f'W R2     [Bound] {Rs_tot[2][1]:.3f}')
+    print(f'W R2     [Core] {Rs_tot[2][2]:.3f}')
+
     print(' ')
     print(config.predictions.peak_flow_idx, 'Peak')
     print(f'U [Fluid] k: {Ks[config.predictions.peak_flow_idx][0][0]:.4f} \t m: {Ms[config.predictions.peak_flow_idx][0][0]:.4f} \t r^2: {Rs[config.predictions.peak_flow_idx][0][0]:.4f}')
@@ -725,6 +751,33 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         print(f'Pressure Gradient Directional Error [Bound] {grad_dir_err_tot[1]:.2f} deg')
         print(f'Pressure Gradient Directional Error [Core] {grad_dir_err_tot[2]:.2f} deg')
 
+        Ks_pgrad_tot = np.mean(Ks_pgrad, axis=0)
+        #print(f'PX  K   [Fluid] {Ks_pgrad_tot[0][0]:.3f}')
+        #print(f'PX  K   [Bound] {Ks_pgrad_tot[0][1]:.3f}')
+        print(f'PX  K   [Core] {Ks_pgrad_tot[0][2]:.3f}')
+
+        #print(f'PY  K   [Fluid] {Ks_pgrad_tot[1][0]:.3f}')
+        #print(f'PY  K   [Bound] {Ks_pgrad_tot[1][1]:.3f}')
+        print(f'PY  K   [Core] {Ks_pgrad_tot[1][2]:.3f}')
+
+        #print(f'PZ  K   [Fluid] {Ks_pgrad_tot[2][0]:.3f}')
+        #print(f'PZ  K   [Bound] {Ks_pgrad_tot[2][1]:.3f}')
+        print(f'PZ  K   [Core] {Ks_pgrad_tot[2][2]:.3f}')
+
+        Rs_pgrad_tot = np.mean(Rs_pgrad, axis=0)
+        #print(f'PX R2    [Fluid] {Rs_pgrad_tot[0][0]:.3f}')
+        #print(f'PX R2    [Bound] {Rs_pgrad_tot[0][1]:.3f}')
+        print(f'PX R2    [Core] {Rs_pgrad_tot[0][2]:.3f}') 
+
+        #print(f'PY R2    [Fluid] {Rs_pgrad_tot[1][0]:.3f}')
+        #print(f'PY R2    [Bound] {Rs_pgrad_tot[1][1]:.3f}')
+        print(f'PY R2    [Core] {Rs_pgrad_tot[1][2]:.3f}')
+
+        #print(f'PZ R2    [Fluid] {Rs_pgrad_tot[2][0]:.3f}')
+        #print(f'PZ R2    [Bound] {Rs_pgrad_tot[2][1]:.3f}')
+        print(f'PZ R2    [Core] {Rs_pgrad_tot[2][2]:.3f}')
+
+
     # Save metrics to csv
     metrics = {
         'Relative error [Fluid]': rel_err_tot[0],
@@ -761,25 +814,47 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         'Divergence reference [Core]': div_ref[0,2],
         'Divergence reference [Non-F]': div_ref[0,3],
 
-        'U k [Core]': Ks[config.predictions.peak_flow_idx][0][2],
-        'U m [Core]': Ms[config.predictions.peak_flow_idx][0][2],
-        'U r^2 [Core]': Rs[config.predictions.peak_flow_idx][0][2],
-        'V k [Core]': Ks[config.predictions.peak_flow_idx][1][2],
-        'V m [Core]': Ms[config.predictions.peak_flow_idx][1][2],
-        'V r^2 [Core]': Rs[config.predictions.peak_flow_idx][1][2],
-        'W k [Core]': Ks[config.predictions.peak_flow_idx][2][2],
-        'W m [Core]': Ms[config.predictions.peak_flow_idx][2][2],
-        'W r^2 [Core]': Rs[config.predictions.peak_flow_idx][2][2],
+        'U R2 [Fluid]': Rs_tot[0][0],
+        'U R2 [Bound]': Rs_tot[0][1],
+        'U R2 [Core]': Rs_tot[0][2],
+        'V R2 [Fluid]': Rs_tot[1][0],
+        'V R2 [Bound]': Rs_tot[1][1],
+        'V R2 [Core]': Rs_tot[1][2],
+        'W R2 [Fluid]': Rs_tot[2][0],
+        'W R2 [Bound]': Rs_tot[2][1],
+        'W R2 [Core]': Rs_tot[2][2],
 
-        'U 2 k [Core]': Ks[config.predictions.flow_idx2][0][2],
-        'U 2 m [Core]': Ms[config.predictions.flow_idx2][0][2],
-        'U 2 r^2 [Core]': Rs[config.predictions.flow_idx2][0][2],
-        'V 2 k [Core]': Ks[config.predictions.flow_idx2][1][2],
-        'V 2 m [Core]': Ms[config.predictions.flow_idx2][1][2],
-        'V 2 r^2 [Core]': Rs[config.predictions.flow_idx2][1][2],
-        'W 2 k [Core]': Ks[config.predictions.flow_idx2][2][2],
-        'W 2 m [Core]': Ms[config.predictions.flow_idx2][2][2],
-        'W 2 r^2 [Core]': Rs[config.predictions.flow_idx2][2][2],
+        'U K [Fluid]': Ks_tot[0][0],
+        'U K [Bound]': Ks_tot[0][1],
+        'U K [Core]': Ks_tot[0][2],
+        'V K [Fluid]': Ks_tot[1][0],
+        'V K [Bound]': Ks_tot[1][1],
+        'V K [Core]': Ks_tot[1][2],
+        'W K [Fluid]': Ks_tot[2][0],
+        'W K [Bound]': Ks_tot[2][1],
+        'W K [Core]': Ks_tot[2][2],
+
+        'PEAK FLOW INDEX:': config.predictions.peak_flow_idx,
+
+        'U k [Core] Peak': Ks[config.predictions.peak_flow_idx][0][2],
+        'U m [Core] Peak': Ms[config.predictions.peak_flow_idx][0][2],
+        'U r^2 [Core] Peak': Rs[config.predictions.peak_flow_idx][0][2],
+        'V k [Core] Peak': Ks[config.predictions.peak_flow_idx][1][2],
+        'V m [Core] Peak': Ms[config.predictions.peak_flow_idx][1][2],
+        'V r^2 [Core] Peak': Rs[config.predictions.peak_flow_idx][1][2],
+        'W k [Core] Peak': Ks[config.predictions.peak_flow_idx][2][2],
+        'W m [Core] Peak': Ms[config.predictions.peak_flow_idx][2][2],
+        'W r^2 [Core] Peak': Rs[config.predictions.peak_flow_idx][2][2],
+
+        #'U 2 k [Core]': Ks[config.predictions.flow_idx2][0][2],
+        #'U 2 m [Core]': Ms[config.predictions.flow_idx2][0][2],
+        #'U 2 r^2 [Core]': Rs[config.predictions.flow_idx2][0][2],
+        #'V 2 k [Core]': Ks[config.predictions.flow_idx2][1][2],
+        #'V 2 m [Core]': Ms[config.predictions.flow_idx2][1][2],
+        #'V 2 r^2 [Core]': Rs[config.predictions.flow_idx2][1][2],
+        #'W 2 k [Core]': Ks[config.predictions.flow_idx2][2][2],
+        #'W 2 m [Core]': Ms[config.predictions.flow_idx2][2][2],
+        #'W 2 r^2 [Core]': Rs[config.predictions.flow_idx2][2][2],
 
     }
 
@@ -801,25 +876,37 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
             'Pressure Gradient Directional Error [Bound]': grad_dir_err_tot[1],
             'Pressure Gradient Directional Error [Core]': grad_dir_err_tot[2],
 
-            'PX k [Core]': Ks_pgrad[config.predictions.peak_flow_idx][0][2],
-            'PX m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][0][2],
-            'PX r^2 [Core]': Rs_pgrad[config.predictions.peak_flow_idx][0][2],
-            'PY k [Core]': Ks_pgrad[config.predictions.peak_flow_idx][1][2],
-            'PY m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][1][2],
-            'PY r^2 [Core]': Rs_pgrad[config.predictions.peak_flow_idx][1][2],
-            'PZ k [Core]': Ks_pgrad[config.predictions.peak_flow_idx][2][2],
-            'PZ m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][2][2],
-            'PZ r^2 [Core]': Rs_pgrad[config.predictions.peak_flow_idx][2][2],
+            #'PX K    [Fluid]': Ks_pgrad_tot[0][0],
+            #'PX K    [Bound]': Ks_pgrad_tot[0][1],
+            'PX K [Core]': Ks_pgrad_tot[0][2],
+            #'PY K    [Fluid]': Ks_pgrad_tot[1][0],
+            #'PY K    [Bound]': Ks_pgrad_tot[1][1],
+            'PY K [Core]': Ks_pgrad_tot[1][2],
+            #'PZ K    [Fluid]': Ks_pgrad_tot[2][0],
+            #'PZ K    [Bound]': Ks_pgrad_tot[2][1],
+            'PZ K [Core]': Ks_pgrad_tot[2][2],
 
-            'PX 2 k [Core]': Ks_pgrad[config.predictions.flow_idx2][0][2],
-            'PX 2 m [Core]': Ms_pgrad[config.predictions.flow_idx2][0][2],
-            'PX 2 r^2 [Core]': Rs_pgrad[config.predictions.flow_idx2][0][2],
-            'PY 2 k [Core]': Ks_pgrad[config.predictions.flow_idx2][1][2],
-            'PY 2 m [Core]': Ms_pgrad[config.predictions.flow_idx2][1][2],
-            'PY 2 r^2 [Core]': Rs_pgrad[config.predictions.flow_idx2][1][2],
-            'PZ 2 k [Core]': Ks_pgrad[config.predictions.flow_idx2][2][2],
-            'PZ 2 m [Core]': Ms_pgrad[config.predictions.flow_idx2][2][2],
-            'PZ 2 r^2 [Core]': Rs_pgrad[config.predictions.flow_idx2][2][2],
+            #'PX R2    [Fluid]': Rs_pgrad_tot[0][0],
+            #'PX R2    [Bound]': Rs_pgrad_tot[0][1],
+            'PX R2 [Core]': Rs_pgrad_tot[0][2],
+            #'PY R2    [Fluid]': Rs_pgrad_tot[1][0],
+            #'PY R2    [Bound]': Rs_pgrad_tot[1][1],
+            'PY R2 [Core]': Rs_pgrad_tot[1][2],
+            #'PZ R2    [Fluid]': Rs_pgrad_tot[2][0],
+            #'PZ R2    [Bound]': Rs_pgrad_tot[2][1],
+            'PZ R2 [Core]': Rs_pgrad_tot[2][2],
+
+            'PEAK FLOW INDEX:': config.predictions.peak_flow_idx,
+
+            'PX k [Core] Peak': Ks_pgrad[config.predictions.peak_flow_idx][0][2],
+            #'PX m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][0][2],
+            'PX r^2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][0][2],
+            'PY k [Core] Peak': Ks_pgrad[config.predictions.peak_flow_idx][1][2],
+            #'PY m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][1][2],
+            'PY r^2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][1][2],
+            'PZ k [Core] Peak': Ks_pgrad[config.predictions.peak_flow_idx][2][2],
+            #'PZ m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][2][2],
+            'PZ r^2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][2][2],
 
         })
 
