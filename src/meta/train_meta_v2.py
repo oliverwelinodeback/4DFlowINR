@@ -9,13 +9,11 @@ Supports multiple meta-learning algorithms:
 Key features:
 - Simple, direct data loss computation (compute_loss_from_pred)
 - Optional physics loss (Navier-Stokes) in inner and outer loops
-- Physical pre-conditioning (Phase 0)
 - SGD inner loop, Adam outer loop
 - Case-specific venc handling for cosine loss
 
 Config options:
-- meta_method: 'MAML', 'FOMAML', or 'Reptile' (default: inferred from use_first_order)
-- use_first_order: True for FOMAML, False for MAML (legacy, use meta_method instead)
+- meta_method: 'MAML', 'FOMAML', or 'Reptile'
 - reptile_epsilon: Interpolation factor for Reptile (default: 1.0)
 """
 
@@ -38,9 +36,6 @@ from utils.prepare_data import (
 )
 from utils.loss_utils import compute_data_loss, compute_physics_loss, navier_stokes_loss
 import networks
-
-# Import physics preconditioning (TrainingStep abstraction no longer used for main MAML loop)
-from training_step import physics_preconditioning
 
 
 # ==========================================
@@ -273,7 +268,7 @@ def load_all_cases(file_list, config, device):
 # ==========================================
 # 3. MAML Step (Original Working Version)
 # ==========================================
-def maml_step_v2(model, meta_optimizer, all_cases_data, case_indices, config, device, current_iter=0):
+def maml_step_v2(model, meta_optimizer, all_cases_data, case_indices, config, device, current_iter=0, meta_method='FOMAML'):
     """
     MAML step with simple, direct loss computation.
 
@@ -304,8 +299,8 @@ def maml_step_v2(model, meta_optimizer, all_cases_data, case_indices, config, de
     inner_step_improvements = []
     per_task_query_losses = []
 
-    # FOMAML flag
-    use_first_order = getattr(config.meta_learning, 'use_first_order', True)
+    # FOMAML uses first-order gradients (no second-order graph tracking)
+    use_first_order = (meta_method == 'FOMAML')
 
     # Inner optimizer (SGD - required by higher)
     inner_opt = torch.optim.SGD(model.parameters(), lr=config.meta_learning.inner_lr)
@@ -512,7 +507,6 @@ def maml_step_v2(model, meta_optimizer, all_cases_data, case_indices, config, de
         'inner_step_improvement': np.mean(inner_step_improvements) if inner_step_improvements else 0.0,
         'hardest_task_name': hardest_task_name,
         'hardest_task_loss': hardest_task_loss,
-        'use_first_order': use_first_order,
         'physics_loss_inner': np.mean(physics_losses_inner) if physics_losses_inner else 0.0,
         'physics_loss_outer': np.mean(physics_losses_outer) if physics_losses_outer else 0.0,
         'effective_physics_weight': effective_physics_weight,  # NEW: Track curriculum progress
@@ -825,11 +819,8 @@ def validate_meta_v2(model, val_cases_data, config, device):
 # ==========================================
 def train_meta_learning_v2(config, run_name, use_sweep=False):
     """
-    Main meta-learning training function with:
-    - Physical pre-conditioning (Phase 0)
-    - Full PINN inner loop via TrainingStep
-    - FOMAML support
-    - Gradient-based loss weight balancing
+    Main meta-learning training function.
+    Supports MAML, FOMAML, and Reptile via config.meta_learning.meta_method.
     """
     device = torch.device('cuda')
     print("\n" + "="*60)
@@ -838,17 +829,8 @@ def train_meta_learning_v2(config, run_name, use_sweep=False):
 
     os.makedirs(config.log_dir, exist_ok=True)
 
-    # Print configuration
     # Determine meta-learning method: 'MAML', 'FOMAML', or 'Reptile'
-    meta_method = getattr(config.meta_learning, 'meta_method', None)
-    use_first_order = getattr(config.meta_learning, 'use_first_order', True)
-
-    # If meta_method is not set, infer from use_first_order for backward compatibility
-    if meta_method is None:
-        meta_method = 'FOMAML' if use_first_order else 'MAML'
-
-    # Normalize to uppercase for comparison
-    meta_method = meta_method.upper()
+    meta_method = config.meta_learning.meta_method.upper()
 
     if meta_method == 'REPTILE':
         method_str = "Reptile (First-Order, No Higher)"
@@ -858,17 +840,12 @@ def train_meta_learning_v2(config, run_name, use_sweep=False):
         method_str = "MAML (Second-Order)"
         meta_method = 'MAML'  # Normalize
 
-    use_preconditioning = getattr(config.meta_learning, 'use_physics_preconditioning', False)
-    use_grad_weights = getattr(config.meta_learning, 'use_grad_weights', False)
-
     # Check for memory-efficient physics mode
     use_physics_outer_only = getattr(config.meta_learning, 'use_physics_outer_only', False)
     use_physics_loss = getattr(config.meta_learning, 'use_physics_loss', False)
 
     print(f"\n[Configuration]")
     print(f"  Method: {method_str}")
-    print(f"  Physical Pre-Conditioning: {use_preconditioning}")
-    print(f"  Gradient-Based Loss Weights: {use_grad_weights}")
     print(f"  Inner LR: {config.meta_learning.inner_lr}")
     print(f"  Inner Steps: {config.meta_learning.inner_steps}")
     print(f"  Outer LR: {config.meta_learning.outer_lr}")
@@ -914,22 +891,6 @@ def train_meta_learning_v2(config, run_name, use_sweep=False):
 
     print(f"\n[Model] WIRE - {sum(p.numel() for p in model.parameters()):,} parameters")
 
-    # Phase 0: Physical Pre-Conditioning
-    if use_preconditioning:
-        preconditioning_iters = getattr(config.meta_learning, 'preconditioning_iters', 100)
-        preconditioning_cases = getattr(config.meta_learning, 'preconditioning_cases', 5)
-        preconditioning_lr = getattr(config.meta_learning, 'preconditioning_lr', 1e-3)
-
-        model = physics_preconditioning(
-            model,
-            train_cases_data,
-            config,
-            device,
-            n_iterations=preconditioning_iters,
-            n_cases=preconditioning_cases,
-            lr=preconditioning_lr
-        )
-
     # Meta optimizer (Adam)
     meta_optimizer = torch.optim.Adam(model.parameters(), lr=config.meta_learning.outer_lr)
 
@@ -955,10 +916,10 @@ def train_meta_learning_v2(config, run_name, use_sweep=False):
                 model, meta_optimizer, train_cases_data, case_indices, config, device
             )
         else:
-            # MAML or FOMAML (handled internally via use_first_order flag)
+            # MAML or FOMAML
             meta_loss, train_metrics = maml_step_v2(
                 model, meta_optimizer, train_cases_data, case_indices, config, device,
-                current_iter=meta_iter
+                current_iter=meta_iter, meta_method=meta_method
             )
 
         if scheduler is not None:

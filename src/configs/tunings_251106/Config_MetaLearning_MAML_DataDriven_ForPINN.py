@@ -192,7 +192,6 @@ def get_config(sweep_config=None):
 
     # Meta-learning method: Full second-order MAML
     config.meta_learning.meta_method = 'MAML'
-    config.meta_learning.use_first_order = False  # Second-order gradients
 
     # Reptile-specific (not used)
     config.meta_learning.reptile_epsilon = 1.0
@@ -224,15 +223,6 @@ def get_config(sweep_config=None):
     config.meta_learning.physics_weight = 1.0
     config.meta_learning.use_boundary_loss = False
     config.meta_learning.div_weight = 1.0
-
-    # Gradient-based loss weight balancing
-    config.meta_learning.use_grad_weights = False
-
-    # Physical Pre-Conditioning - disabled for data-driven
-    config.meta_learning.use_physics_preconditioning = False
-    config.meta_learning.preconditioning_iters = 100
-    config.meta_learning.preconditioning_cases = 5
-    config.meta_learning.preconditioning_lr = 1e-3
 
     config.meta_learning.train_cases = [
         "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",

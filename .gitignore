@@ -10,8 +10,13 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.vti# W&B
+*.vti
+# W&B
 src/wandb_runs/
 src/wandb/
 wandb/
 *.wandb
+# Output directories
+src/figures/
+src/residuals/
+src/2d_plots/
