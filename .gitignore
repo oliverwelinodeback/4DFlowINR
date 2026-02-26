@@ -19,4 +19,4 @@ wandb/
 # Output directories
 src/figures/
 src/residuals/
-src/2d_plots/
+src/2D_plots/
