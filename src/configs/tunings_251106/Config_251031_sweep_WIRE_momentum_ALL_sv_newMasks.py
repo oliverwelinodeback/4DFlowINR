@@ -208,4 +208,11 @@ def get_config(sweep_config=None):
     config.predictions.denormalize = True
     config.predictions.fluid_region = True
 
+    # Meta-learning (disabled by default — set enabled=True to run MAML)
+    config.meta_learning = ml_collections.ConfigDict()
+    config.meta_learning.enabled = False
+    config.load_meta_init = False
+    config.decay_type = 'none'
+    config.training.save_h5_iters = []
+
     return config
