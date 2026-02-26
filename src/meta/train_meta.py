@@ -1,22 +1,4 @@
-"""
-train_meta_v2.py - Meta-Learning for 4D Flow MRI Super-Resolution
-
-Supports multiple meta-learning algorithms:
-- MAML (Model-Agnostic Meta-Learning) - Second-order, full gradient tracking
-- FOMAML (First-Order MAML) - First-order approximation, memory efficient
-- Reptile - First-order alternative, no higher library needed
-
-Key features:
-- Simple, direct data loss computation (compute_loss_from_pred)
-- Optional physics loss (Navier-Stokes) in inner and outer loops
-- SGD inner loop, Adam outer loop
-- Case-specific venc handling for cosine loss
-
-Config options:
-- meta_method: 'MAML', 'FOMAML', or 'Reptile'
-- reptile_epsilon: Interpolation factor for Reptile (default: 1.0)
-"""
-
+# Imports
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -38,26 +20,8 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, navier_sto
 import networks
 
 
-# ==========================================
-# Simple Loss Function (Original Working Version)
-# ==========================================
+# Loss function
 def compute_loss_from_pred(config, pred, velocities, venc, U_max=None):
-    """
-    Simple data loss computation - matches original working MAML implementation.
-
-    This function computes loss directly from predictions without calling the model,
-    and uses the case-specific venc for proper denormalization in cosine loss.
-
-    Args:
-        config: Configuration object
-        pred: Model predictions [N, 3] (u, v, w)
-        velocities: Ground truth velocities [N, 3] (u, v, w)
-        venc: Case-specific velocity encoding value
-        U_max: Maximum velocity for denormalization (optional)
-
-    Returns:
-        Scalar loss tensor
-    """
     if config.training.use_cosine:
         # Denormalize for cosine loss
         if config.vel_normalization == "characteristic":
@@ -99,12 +63,9 @@ def compute_loss_from_pred(config, pred, velocities, venc, U_max=None):
     return loss
 
 
-# ==========================================
-# 1. Data Container
-# ==========================================
+# Data container
 @dataclass
 class CaseData:
-    """Container for patient case data."""
     case_name: str
     venc: float
     std_factors: List[float]
@@ -130,13 +91,8 @@ class CaseData:
     n_boundary: Optional[int] = None
 
 
-# ==========================================
-# 2. Helper: Load Multiple Cases (LR + HR Pair)
-# ==========================================
+# Load multiple cases (LR + HR pair)
 def load_all_cases(file_list, config, device):
-    """
-    Loads pairs of Low-Res (for meta-learning) and High-Res (for monitoring).
-    """
     loaded_cases = []
     print(f"\nProcessing {len(file_list)} cases (LR + Ref Pair)...")
 
@@ -265,31 +221,8 @@ def load_all_cases(file_list, config, device):
     return loaded_cases
 
 
-# ==========================================
-# 3. MAML Step (Original Working Version)
-# ==========================================
-def maml_step_v2(model, meta_optimizer, all_cases_data, case_indices, config, device, current_iter=0, meta_method='FOMAML'):
-    """
-    MAML step with simple, direct loss computation.
-
-    Inner loop: Data loss + optional physics loss
-    Outer loop: Evaluate on query set
-
-    Uses SGD for inner loop (required by `higher` library).
-    Supports FOMAML (first-order) and full MAML (second-order).
-    Uses case-specific venc for proper cosine loss denormalization.
-
-    Memory-efficient physics mode (use_physics_outer_only=True):
-    - Inner loop: Data loss ONLY (no physics, saves memory)
-    - Outer loop: Data loss + Physics loss (guides meta-objective)
-    This learns a physics-aware initialization without the memory cost
-    of computing physics gradients through the inner loop.
-
-    Curriculum learning (physics_curriculum_start/end):
-    - Before curriculum_start: Pure data-driven (like working MAML)
-    - Between start and end: Physics weight ramps up linearly
-    - After curriculum_end: Full physics_weight applied
-    """
+# MAML step (supports FOMAML and full MAML)
+def maml_step(model, meta_optimizer, all_cases_data, case_indices, config, device, current_iter=0, meta_method='FOMAML'):
     meta_optimizer.zero_grad()
     query_losses = []
     support_losses = []
@@ -515,28 +448,8 @@ def maml_step_v2(model, meta_optimizer, all_cases_data, case_indices, config, de
     return meta_loss.item(), metrics
 
 
-# ==========================================
-# 3b. Reptile Step (First-Order Alternative)
-# ==========================================
+# Reptile step (first-order alternative, no higher library)
 def reptile_step(model, meta_optimizer, all_cases_data, case_indices, config, device):
-    """
-    Reptile meta-learning step.
-
-    Unlike MAML, Reptile doesn't differentiate through the inner loop.
-    Instead, it moves the initialization toward the average of adapted parameters.
-
-    Algorithm:
-    1. For each task: save init params, run SGD, get adapted params
-    2. Compute average direction: (adapted - init) across tasks
-    3. Update init params in that direction
-
-    Benefits over MAML:
-    - No second-order gradients (much faster, less memory)
-    - No need for `higher` library
-    - More stable training
-
-    Reference: Nichol et al., "On First-Order Meta-Learning Algorithms" (2018)
-    """
     support_losses = []
     query_losses_values = []
     physics_losses_inner = []
@@ -697,14 +610,8 @@ def reptile_step(model, meta_optimizer, all_cases_data, case_indices, config, de
     return avg_query_loss, metrics
 
 
-# ==========================================
-# 4. Validation (matches training loss computation)
-# ==========================================
-def validate_meta_v2(model, val_cases_data, config, device):
-    """
-    Validation using simple loss function (matches training).
-    Uses case-specific venc for proper cosine loss denormalization.
-    """
+# Validation
+def validate_meta(model, val_cases_data, config, device):
     model.eval()
     pre_losses_LR = []
     post_losses_LR = []
@@ -814,14 +721,8 @@ def validate_meta_v2(model, val_cases_data, config, device):
     }
 
 
-# ==========================================
-# 5. Main Training Loop
-# ==========================================
-def train_meta_learning_v2(config, run_name, use_sweep=False):
-    """
-    Main meta-learning training function.
-    Supports MAML, FOMAML, and Reptile via config.meta_learning.meta_method.
-    """
+# Main training loop
+def train_meta_learning(config, run_name, use_sweep=False):
     device = torch.device('cuda')
     print("\n" + "="*60)
     print("Meta-Learning with TrainingStep Integration")
@@ -917,7 +818,7 @@ def train_meta_learning_v2(config, run_name, use_sweep=False):
             )
         else:
             # MAML or FOMAML
-            meta_loss, train_metrics = maml_step_v2(
+            meta_loss, train_metrics = maml_step(
                 model, meta_optimizer, train_cases_data, case_indices, config, device,
                 current_iter=meta_iter, meta_method=meta_method
             )
@@ -952,7 +853,7 @@ def train_meta_learning_v2(config, run_name, use_sweep=False):
 
         # Validation
         if (meta_iter + 1) % 100 == 0:
-            val_metrics = validate_meta_v2(model, val_cases_data, config, device)
+            val_metrics = validate_meta(model, val_cases_data, config, device)
 
             print(f"   [VAL] Pre: {val_metrics['pre_LR']:.4f} -> Post: {val_metrics['post_LR']:.4f} (Δ={val_metrics['improvement_LR']:.4f})")
 

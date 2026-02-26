@@ -17,7 +17,7 @@ from datetime import datetime
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from meta.train_meta_v2 import train_meta_learning_v2
+from meta.train_meta import train_meta_learning
 
 def train(config=None, run_name=None, use_sweep=False):
 
@@ -397,7 +397,7 @@ def train(config=None, run_name=None, use_sweep=False):
         print("\n" + "="*60)
         print("Using META-LEARNING with TrainingStep Integration")
         print("="*60 + "\n")
-        return train_meta_learning_v2(config, run_name, use_sweep)
+        return train_meta_learning(config, run_name, use_sweep)
 
     # Store source files
     copy_cource_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
@@ -503,8 +503,7 @@ def train(config=None, run_name=None, use_sweep=False):
         checkpoint = torch.load(meta_checkpoint_path, map_location=DEVICE)
         model.load_state_dict(checkpoint['model_state_dict'])
         
-        print("✓ Meta-learned weights loaded successfully!")
-        print("  This should converge faster than random initialization.\n")
+        print("Meta-learned weights loaded successfully")
 
     ########
     c_weights = None

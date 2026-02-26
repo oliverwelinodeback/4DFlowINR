@@ -11,14 +11,18 @@ Logs raw curve data to W&B for later plotting/comparison.
 """
 
 import argparse
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 import torch
 import ml_collections
 import numpy as np
 
 import wandb
 import networks
-from meta.ntk_analysis import analyze_ntk_with_curve
-from meta.train_meta_v2 import load_all_cases
+from ntk_analysis import analyze_ntk_with_curve
+from meta.train_meta import load_all_cases
 from configs.tunings_251106.Config_MetaLearning_MAML_DataDriven import get_config
 
 
