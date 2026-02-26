@@ -14,15 +14,15 @@ def get_sweep_config():
 
             'data_file': {'values': [
 
-                #"../data/healthy/HV01_05mm3_20ms_LR_dv_hv17_tSNR8.h5", 
+                "../data/healthy/HV01_05mm3_20ms_LR_dv_hv17_tSNR8.h5", 
                 #"../data/healthy/HV03_05mm3_20ms_LR_dv_hv13_tSNR8.h5", 
                 #"../data/healthy/HV06_05mm3_20ms_LR_dv_hv12_tSNR8.h5", 
-                #"../data/stenosis_50/ICAD28_05mm3_20ms_LR_dv_hv13_tSNR8.h5", 
+                "../data/stenosis_50/ICAD28_05mm3_20ms_LR_dv_hv13_tSNR8.h5", 
                 #"../data/stenosis_50/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8.h5", 
-                "../data/stenosis_50/ICAD98_05mm3_20ms_LR_dv_hv51_tSNR8.h5", 
+                #"../data/stenosis_50/ICAD98_05mm3_20ms_LR_dv_hv51_tSNR8.h5", 
                 "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5", 
-                "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5",
-                "../data/stenosis_70/ICAD146_05mm3_20ms_LR_dv_hv17_tSNR8.h5",
+                #"../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5",
+                #"../data/stenosis_70/ICAD146_05mm3_20ms_LR_dv_hv17_tSNR8.h5",
                 
                 ]},
 
@@ -104,19 +104,19 @@ def get_config():
     config.template.t_len = 500
 
     config.constants = ml_collections.ConfigDict()
-    config.constants.U = 1.0
+    config.constants.U = 2.0
     config.constants.L = 0.005
     config.constants.T = config.constants.L / config.constants.U
     config.constants.rho = 1060
     config.constants.mu = 0.004
-    config.constants.venc = 1.3
+    config.constants.venc = 1.2
 
     # Network architecture
     config.network = ml_collections.ConfigDict()
     config.network.in_dim = 4
     config.network.out_dim = 3
     config.network.depth = 6
-    config.network.hidden_features = 64
+    config.network.hidden_features = 128
     config.network.arch = "WIRE"
     
     # SIREN parameters

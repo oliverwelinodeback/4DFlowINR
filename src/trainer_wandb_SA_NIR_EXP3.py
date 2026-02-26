@@ -7,15 +7,14 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, save_ckpt, save_ckpt_min, load_ckpt_min, load_ckpt, sample_to_device, sample_ref_to_device, sample_from_gpu, sample_ref_from_gpu, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
 import networks
-from torch.optim.lr_scheduler import LambdaLR
-from configs.tunings_251106.Config_251031_sweep_WIRE_momentum_ALL_sv_newMasks2 import get_config, get_sweep_config
+from configs.tunings_251106.Config_251031_sweep_WIRE_momentum_ALL_sv_newMasks_exp3 import get_config, get_sweep_config
 #try:
 #    from configs.Config_251008_sweep_test import get_sweep_config
 #except ImportError:
 #    get_sweep_config = None
 #from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
 from datetime import datetime
-
+from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
@@ -83,11 +82,7 @@ def train(config=None, run_name=None, use_sweep=False):
             file_type = "ICAD146_sv17"
             config.constants.venc = 1.7
             config.predictions.peak_flow_idx = 8
-
-        # Meta-learning initialization (optional sweep parameter)
-        load_meta_init = sweep_config.get("load_meta_init", getattr(config, 'load_meta_init', False))
-        config.load_meta_init = load_meta_init
-
+        
 
         #config.training.tau = sweep_config["training.tau"]
         #config.training.beta = sweep_config["training.beta"]
@@ -194,11 +189,17 @@ def train(config=None, run_name=None, use_sweep=False):
 
 
         # Sweep parameters:
-        #omega_0 = sweep_config["network.omega_0"]
-        #sigma_0 = sweep_config["network.sigma_0"]
-#
-        #config.network.omega_0 = omega_0
-        #config.network.sigma_0 = sigma_0
+        omega_0 = sweep_config["network.omega_0"]
+        sigma_0 = sweep_config["network.sigma_0"]
+
+        config.network.omega_0 = omega_0
+        config.network.sigma_0 = sigma_0
+        #lr = sweep_config["training.lr"]
+        #decay_type = sweep_config["decay_type"]
+        #decay_target = sweep_config["decay_target"]
+        #config.training.lr = lr
+        #config.decay_type = decay_type
+        #config.decay_target = decay_target
         ##fourier_mapping_size = sweep_config["network.fourier_mapping_size"]
         ##fourier_scale = sweep_config["network.fourier_scale"]
         #t_len = sweep_config["template.t_len"]
@@ -266,6 +267,8 @@ def train(config=None, run_name=None, use_sweep=False):
         #BFGS_history_size = sweep_config["training.BFGS_history_size"]
         #BFGS_tolerance_grad = sweep_config["training.BFGS_tolerance_grad"]
         #BFGS_tolerance_change = sweep_config["training.BFGS_tolerance_change"]
+        load_meta_init = sweep_config["load_meta_init"]
+        config.load_meta_init = load_meta_init
 
 
         # Run names
@@ -292,11 +295,11 @@ def train(config=None, run_name=None, use_sweep=False):
         #run.name = f"WIRE_MOMENTUM_HV01_LongRun"
         #run.name = f"WIRE_DIVERGENCE_HV01_VecPot{training_use_vector_potential}_Phys{training_sample_collocation}_itBFGS{training_iterations_before_BFGS}_gradWScheme{gradW}"
         #run.name = f"WIRE_SAPINN_TEST2"
-        #run.name = f"251209_WIRE_MOMENTUM_SV_NewMask_{file_type}_omega0{omega_0}_sigma0{sigma_0}"
+        run.name = f"260115_WIRE_MOMENTUM_SV_NewMask_{file_type}_metaInit{load_meta_init}_omega{omega_0}_sigma{sigma_0}"
+        #run.name = f"251216_WIRE_MOMENTUM_SV_NewMask_{file_type}_omega{omega_0}_sigma{sigma_0}"
         #run.name = f"251202_WIRE_MOMENTUM_SV_NewMask_{file_type}_BFGS_itBefore{iterations_before_BFGS}_lr{BFGS_lr}_maxIter{BFGS_max_iter}_historySize{BFGS_history_size}_tolGrad{BFGS_tolerance_grad}_tolChange{BFGS_tolerance_change}"
-
+        
         #run.name = f"251031_WIRE_MOMENTUM_INVIVO_{file_type}"
-        run.name = f"260127_PINN_{file_type}_metaInit{load_meta_init}"
         print("Run name: ", run.name)
         run.log({"run_name": run.name})
 
@@ -422,17 +425,20 @@ def train(config=None, run_name=None, use_sweep=False):
         ).to(DEVICE)
     else:
         raise ValueError("Unknown network.")
+    
+    # Load meta-learned initialization if enabled
+    if getattr(config, 'load_meta_init', False):
+        meta_checkpoint_path = config.meta_init_path
+        print(f"\n{'='*60}")
+        print(f"Loading meta-learned initialization from:")
+        print(f"  {meta_checkpoint_path}")
+        print(f"{'='*60}\n")
 
-    # Load meta-learned initialization if specified
-    if getattr(config, 'load_meta_init', False) and config.meta_init_path:
-        print(f"\n[Meta-Init] Loading meta-learned weights from: {config.meta_init_path}")
-        try:
-            meta_checkpoint = torch.load(config.meta_init_path, map_location=DEVICE)
-            model.load_state_dict(meta_checkpoint['model_state_dict'])
-            print(f"[Meta-Init] Successfully loaded meta-learned initialization!")
-        except Exception as e:
-            print(f"[Meta-Init] WARNING: Failed to load meta-learned weights: {e}")
-            print("[Meta-Init] Continuing with random initialization...")
+        checkpoint = torch.load(meta_checkpoint_path, map_location=DEVICE)
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+        print("Meta-learned weights loaded successfully!")
+
 
     ########
     c_weights = None
@@ -460,22 +466,29 @@ def train(config=None, run_name=None, use_sweep=False):
 
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config.training.lr)
-    #if config.decay_type == 'cosine':
-    #    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    #        Adam_optimizer, T_max=8000, eta_min=1e-7
-    #    )
-#
-    #elif config.decay_type == 'exp':
-    #    scheduler = torch.optim.lr_scheduler.ExponentialLR(
-    #        Adam_optimizer, gamma=0.9991
-    #    )
-#
-    #elif config.decay_type == 'multi':
-    #    scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    #        Adam_optimizer, milestones=[2000, 5000, 7000], gamma=0.1
-    #    )
-    #else:
-    #    scheduler = LambdaLR(Adam_optimizer, lambda x: 1)    
+    
+    """ if config.decay_type == 'none':
+        scheduler = LambdaLR(Adam_optimizer, lambda x: 1)
+    elif config.decay_type == 'exp':
+        scheduler = LambdaLR(Adam_optimizer, lambda x: config.decay_target**(x/config.training.iterations)) """
+        
+    if config.decay_type == 'cosine':
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            Adam_optimizer, T_max=8000, eta_min=1e-7
+        )
+
+    elif config.decay_type == 'exp':
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            Adam_optimizer, gamma=0.9991
+        )
+
+    elif config.decay_type == 'multi':
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            Adam_optimizer, milestones=[2000, 5000, 7000], gamma=0.1
+        )
+    else:
+        scheduler = LambdaLR(Adam_optimizer, lambda x: 1)
+
     if config.training.use_LBFGS:
         BFGS_optimizer = torch.optim.LBFGS(
             params=model.parameters(),
@@ -544,7 +557,7 @@ def train(config=None, run_name=None, use_sweep=False):
     # checkpoint = torch.load(network_path, map_location=DEVICE)
     # model.load_state_dict(checkpoint['model_state_dict'])
     
-    scheduler = None
+    #scheduler = None
     start_it = 0
     #w_before = sum(p.sum().item() for p in model.parameters())
     #print("Loading model weights...")
@@ -692,6 +705,7 @@ def train(config=None, run_name=None, use_sweep=False):
             Adam_optimizer.zero_grad()
             total_loss.backward()
             Adam_optimizer.step()
+            scheduler.step()
 
             # Learning rate decay
             if (it + 1) % config.training.lr_decay_iter == 0:
@@ -959,7 +973,7 @@ def train(config=None, run_name=None, use_sweep=False):
 
     wandb.finish()
 
-""" if __name__ == "__main__":
+if __name__ == "__main__":
     
     config = get_config()
     
@@ -972,9 +986,9 @@ def train(config=None, run_name=None, use_sweep=False):
 
     else:
         run_name = f"{config.network_name}"
-        train(config=config, run_name=run_name) """
+        train(config=config, run_name=run_name)
 
-if __name__ == "__main__":
+""" if __name__ == "__main__":
     
     config = get_config()
     
@@ -992,4 +1006,4 @@ if __name__ == "__main__":
 
     else:
         run_name = f"{config.network_name}"
-        train(config=config, run_name=run_name)
+        train(config=config, run_name=run_name) """

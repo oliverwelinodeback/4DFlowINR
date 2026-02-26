@@ -6,49 +6,51 @@ def get_sweep_config():
     
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'WIRE_MOMENTUM_SV_SA_3_{timestamp}', 
+        'name': f'WIRE-COMPLEX_ALL_{timestamp}', 
         'method': 'grid',
         'metric': {'name': 'FINAL Relative Error [Fluid]', 'goal': 'minimize'},
         'parameters': {
+            'constants.U': {'values': [1.0]},
 
             'data_file': {'values': [
 
-                #"../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5", 
-                #"../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                #"../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5", 
-                "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                #"../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                #"../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5", 
-                #"../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5", 
-                #"../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
-                #"../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
+                "../data/healthy/HV01_05mm3_20ms_LR_dv_hv17_tSNR8.h5", 
+                #"../data/healthy/HV03_05mm3_20ms_LR_dv_hv13_tSNR8.h5", 
+                #"../data/healthy/HV06_05mm3_20ms_LR_dv_hv12_tSNR8.h5", 
+                "../data/stenosis_50/ICAD28_05mm3_20ms_LR_dv_hv13_tSNR8.h5", 
+                #"../data/stenosis_50/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8.h5", 
+                #"../data/stenosis_50/ICAD98_05mm3_20ms_LR_dv_hv51_tSNR8.h5", 
+                "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5", 
+                #"../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5",
+                #"../data/stenosis_70/ICAD146_05mm3_20ms_LR_dv_hv17_tSNR8.h5",
                 
                 ]},
 
         },
     }
 
-def get_config(sweep_config=None):
+
+def get_config():
     
     """Get the default hyperparameter configuration."""
+    
     config = ml_collections.ConfigDict()
+    config.sweep = True 
 
-    config.sweep = True
     # Data
     config.data_file = "../data/XXX.h5"
     config.include_ref = True
     config.include_ref_loss = True
-    config.load_pressure_from_data = True
     config.data_file_ref = "../data/XXX.h5"
     config.ref_spatial_factor = 2
     config.ref_temporal_factor = 2
 
     # Model 
-    config.networks_folder = "../models/251128_WIRE_MOMENTUM_ICAD28_SV_SAPINN_SWEEP/"
-    config.network_name = "251128_WIRE_MOMENTUM_ICAD28_SV_SAPINN_SWEEP" 
+    config.networks_folder = "../models/251209_WIRE_CMPLX_lr_decay/"
+    config.network_name = "251209_WIRE_CMPLX_lr_decay" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
-    config.random_seed = 1234
+    config.random_seed = 123
 
     # Domain
     config.domain = ml_collections.ConfigDict()
@@ -72,13 +74,13 @@ def get_config(sweep_config=None):
 
     # Setup / Options
     config.setup = ml_collections.ConfigDict()
-    config.setup.include_pressure = True
+    config.setup.include_pressure = False
     config.setup.include_time = True
     config.setup.fluid_region = True
     config.setup.expand_mask = False
 
     # Collocation & Boundary points sampling
-    config.sample_collocation = True
+    config.sample_collocation = False
     config.collocation_in_fluid = True
     config.collocation_points = 1_500_000
     config.sample_boundary = False
@@ -86,7 +88,7 @@ def get_config(sweep_config=None):
 
     # Normalization and constants
     config.vel_normalization = "characteristic"
-    config.coords_characteristic = True
+    config.coords_characteristic = False
     config.coords_normalization = "standardize" 
     config.global_normalization = True
     
@@ -99,7 +101,7 @@ def get_config(sweep_config=None):
     config.template.x_len = 200
     config.template.y_len = config.template.x_len
     config.template.z_len = 50
-    config.template.t_len = 100 #!#
+    config.template.t_len = 500
 
     config.constants = ml_collections.ConfigDict()
     config.constants.U = 2.0
@@ -112,40 +114,47 @@ def get_config(sweep_config=None):
     # Network architecture
     config.network = ml_collections.ConfigDict()
     config.network.in_dim = 4
-    config.network.out_dim = 6
+    config.network.out_dim = 3
     config.network.depth = 6
     config.network.hidden_features = 128
     config.network.arch = "WIRE"
+    
     # SIREN parameters
-    #config.network.omega_0 = 30 #17
-    ## Fourier Feature Encoding parameters
+    #config.network.omega_0 = 0 #17
+
+    # Fourier Feature Encoding parameters
     #config.network.fourier_mapping_size = 128
-    #config.network.fourier_scale = 1.0
+    #config.network.fourier_scale = 2.5
+    
     # WIRE parameters
+    config.network.complex = True
+    config.network.omega_0 = 30
     config.network.sigma_0 = 30
-    config.network.omega_0 = 30 #17
-    config.network.complex = False
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 40_000 #15000 #!#
-    config.training.data_points_per_batch = 10000 # None to use all #20000
-    config.training.coll_points_per_batch = 10000 # None to use all #20000
-    config.training.boundary_points_per_batch = 10000 # None to use all #10000
+    config.training.iterations = 8000
+    config.training.data_points_per_batch = 20000 # None to use all
+    config.training.coll_points_per_batch = 20000 # None to use all
+    config.training.boundary_points_per_batch = 10000 # None to use all
     # Optimizer
     config.training.lr = 1e-4
-    config.training.lr_decay_iter = 25000
+    config.training.lr_decay_iter = 9999
     config.training.lr_decay_factor = 0.5
-    config.training.use_LBFGS = True
+    config.training.use_LBFGS = False
     config.training.BFGS_lr = 1e-1
-    config.training.iterations_before_BFGS = 99_999 #!#
+    config.training.iterations_before_BFGS = 9999
+    config.training.BFGS_max_iter = 3
+    config.training.BFGS_history_size = 50
+    config.training.BFGS_tolerance_grad = 1e-7
+    config.training.BFGS_tolerance_change = 1e-6
     # Loss details
     config.training.epochs_before_PDE = 0
-    config.training.grad_weight_scheme = True
+    config.training.grad_weight_scheme = False
     config.training.alpha = 0.95
 
-    config.training.self_adaptive = True
-    config.training.adaptive_sampling = True
+    config.training.self_adaptive = False
+    config.training.adaptive_sampling = False
     config.training.tau = 0.02 # 0.03
     config.training.weight_clip = [6, 0.2] # [5, 0.2]
     config.training.beta = 0.2 # 0.2
@@ -164,31 +173,31 @@ def get_config(sweep_config=None):
     config.training.w_weight = 1.0
     config.training.p_weight = 0.01
     # Physics loss options
-    config.training.use_physics_loss = True
-    config.training.physics_loss_on_data_points = True
-    config.training.use_navier_stokes = True
-    config.training.use_divergence = False
+    config.training.use_physics_loss = config.sample_collocation
+    config.training.physics_loss_on_data_points = config.sample_collocation
+    config.training.use_navier_stokes = False
+    config.training.use_divergence = config.sample_collocation
     config.training.use_PPE = False
     config.training.PPE_weight = 0.001
-    config.training.predict_gradients = True
-    config.training.reference_gradients = True
+    config.training.predict_gradients = False
+    config.training.reference_gradients = False
     config.training.physics_weight = 1
     # Boundary loss options
     config.training.pressure_in_boundary_loss = False
     config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
-    config.training.summary_iter = 5000
-    config.training.log_iter = 250
-    config.training.error_iter = 5000
+    config.training.summary_iter = 4000
+    config.training.log_iter = 250 #!#
+    config.training.error_iter = 4000
     config.training.denormalize = True
     # Plotting
     config.plot = ml_collections.ConfigDict()
-    config.plot.iter = 5000
+    config.plot.iter = 4000
     config.plot.gt = True
-    config.plot.t_step = 2
+    config.plot.t_step = 4
     config.plot.t_step_2 = 6
-    config.plot.z_slice = 20
+    config.plot.z_slice = 10
     config.plot.spatial_factor = 2
     config.plot.temporal_factor = 2
     config.plot.temp_upsampling_mode = 'extend'
@@ -200,8 +209,8 @@ def get_config(sweep_config=None):
 
     # Prediction
     config.predictions = ml_collections.ConfigDict()
-    config.predictions.peak_flow_idx = 6
-    config.predictions.flow_idx2 = 6
+    config.predictions.peak_flow_idx = 12
+    config.predictions.flow_idx2 = 2
     config.predictions.predict_reference_data = True
     config.predictions.predict_SR_data = False
     config.predictions.compare_noisy_vs_ref = False

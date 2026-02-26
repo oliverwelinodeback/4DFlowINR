@@ -203,8 +203,8 @@ if __name__ == '__main__':
     # Downsampling parameters
     targetSNR = 10
     targetSNR = targetSNR**2 # convert to variance    
-    downsample = 2
-    venc = 2.6 # in m/s
+    downsample = 1 #2 # 1
+    venc = 1.7 # in m/s
     mag_threshold = 30
 
     # tSNR = 12 (high), 8 (med), 4 (low) for downsample = 2
@@ -212,7 +212,7 @@ if __name__ == '__main__':
 
     # -----------------------
     input_filepath  =   f'{base_path}/{case_name}.h5'
-    outputLR_filename = f'{base_path}/{case_name}_LR_sv17_tSNR10_newMask.h5'
+    outputLR_filename = f'{base_path}/{case_name}_LR_sv17_tSNR10_newMask_05mm3_20ms.h5'
     
     crop_ratio = 1 / downsample
     #-----------------------
@@ -246,8 +246,8 @@ if __name__ == '__main__':
 
     start_time = time.time()
 
-    #for idx in range(0, data_count):
-    for idx in range(0, data_count, 2): # Temporal downsample
+    for idx in range(0, data_count):
+    #for idx in range(0, data_count, 2): # Temporal downsample
     #for idx in range(0, 4, 2): # testing
 
         print(f"\nProcessing {idx+1}/{data_count} - SNR {targetSNR}")

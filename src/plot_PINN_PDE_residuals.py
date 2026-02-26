@@ -5,7 +5,7 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from configs.tunings_251031.Config_251031_sweep_WIRE_momentum_ALL import get_config
+from configs.tunings_251106.Config_251031_sweep_WIRE_momentum_SA_sampling_sv import get_config
 from utils.prepare_data import prepare_data, load_data
 import networks
 from utils.loss_utils import navier_stokes_loss
@@ -126,7 +126,7 @@ def plot_residual_distribution(
             chunk_xyz.requires_grad_(True)
             with torch.enable_grad():
                 uvw_pred = model(chunk_xyz)
-                per_point = navier_stokes_loss(
+                per_point,_,_ = navier_stokes_loss(
                     uvw_pred, chunk_xyz, standardization_factors, config,
                     return_per_point=True
                 )
@@ -192,59 +192,60 @@ if __name__ == "__main__":
     print("Starting script")
     config = get_config()
 
-    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV01_hv17_20251031-1422/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_HV01_sv17_20251127-0926/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
     #results_directory = "residuals/HV01"
     #config.predictions.peak_flow_idx = 12
-    #config.data_file = "../data/healthy/HV01_05mm3_20ms_LR_dv_hv17_tSNR8.h5"
+    #config.data_file = "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5"
     #config.data_file_ref = "../data/healthy/HV01_05mm3_20ms.h5"
-    network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV03_hv13_20251031-1914/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
-    results_directory = "residuals/HV03"
-    res_case = 'HV03'
-    config.predictions.peak_flow_idx = 4
-    config.data_file = "../data/healthy/HV03_05mm3_20ms_LR_dv_hv13_tSNR8.h5"
-    config.data_file_ref = "../data/healthy/HV03_05mm3_20ms.h5"
-    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_HV06_hv12_20251101-0006/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #res_case = 'HV01'
+    #network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_HV03_sv13_20251126-1657/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
+    #results_directory = "residuals/HV03"
+    #res_case = 'HV03'
+    #config.predictions.peak_flow_idx = 4
+    #config.data_file = "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5"
+    #config.data_file_ref = "../data/healthy/HV03_05mm3_20ms.h5"
+    #network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_HV06_sv12_20251126-1657/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
     #results_directory = "residuals/HV06"
     #res_case = 'HV06'
     #config.predictions.peak_flow_idx = 2
-    #config.data_file = "../data/healthy/HV06_05mm3_20ms_LR_dv_hv12_tSNR8.h5"
+    #config.data_file = "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5"
     #config.data_file_ref = "../data/healthy/HV06_05mm3_20ms.h5"
-    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD17_hv41_20251101-0008/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_ICAD17_sv41_20251127-0701/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
     #results_directory = "residuals/ICAD17"
     #res_case = 'ICAD17'
     #config.predictions.peak_flow_idx = 8
-    #config.data_file = "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5"
+    #config.data_file = "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5"
     #config.data_file_ref = "../data/stenosis_70/ICAD17_05mm3_20ms.h5"
-    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD21_hv26_20251101-0504/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_ICAD21_sv26_20251127-0704/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
     #results_directory = "residuals/ICAD21"
     #res_case = 'ICAD21'
     #config.predictions.peak_flow_idx = 12
-    #config.data_file = "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5"
+    #config.data_file = "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5"
     #config.data_file_ref = "../data/stenosis_70/ICAD21_05mm3_20ms.h5"
-    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD28_hv13_20251101-0411/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_ICAD28_sv13_20251126-1657/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
     #results_directory = "residuals/ICAD28"
     #res_case = 'ICAD28'
     #config.predictions.peak_flow_idx = 2
-    #config.data_file = "../data/stenosis_50/ICAD28_05mm3_20ms_LR_dv_hv13_tSNR8.h5"
+    #config.data_file = "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5"
     #config.data_file_ref = "../data/stenosis_50/ICAD28_05mm3_20ms.h5"
-    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD48_hv13_20251031-1423/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_ICAD48_sv13_20251126-1657/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
     #results_directory = "residuals/ICAD48"
     #res_case = 'ICAD48'
     #config.predictions.peak_flow_idx = 14
-    #config.data_file = "../data/stenosis_50/ICAD48_05mm3_20ms_LR_dv_hv13_tSNR8.h5"
+    #config.data_file = "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5"
     #config.data_file_ref = "../data/stenosis_50/ICAD48_05mm3_20ms.h5"
-    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD98_hv51_20251031-1918/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
+    #network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_ICAD98_sv51_20251126-1657/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
     #results_directory = "residuals/ICAD98"
     #res_case = 'ICAD98'
     #config.predictions.peak_flow_idx = 12
-    #config.data_file = "../data/stenosis_50/ICAD98_05mm3_20ms_LR_dv_hv51_tSNR8.h5"
+    #config.data_file = "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5"
     #config.data_file_ref = "../data/stenosis_50/ICAD98_05mm3_20ms.h5"
-    #network_path = "../models/251031_WIRE_MOMENTUM_ALL/WIRE_MOMENTUM_ALL_ICAD146_hv17_20251101-0710/checkpoints/251031_WIRE_MOMENTUM_ALL_it10000.pth"
-    #results_directory = "residuals/ICAD146"
-    #res_case = 'ICAD146'
-    #config.predictions.peak_flow_idx = 8
-    #config.data_file = "../data/stenosis_70/ICAD146_05mm3_20ms_LR_dv_hv17_tSNR8.h5"
-    #config.data_file_ref = "../data/stenosis_70/ICAD146_05mm3_20ms.h5"
+    network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_ICAD146_sv17_20251127-0705/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it040000.pth"
+    results_directory = "residuals/ICAD146"
+    res_case = 'ICAD146'
+    config.predictions.peak_flow_idx = 8
+    config.data_file = "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5"
+    config.data_file_ref = "../data/stenosis_70/ICAD146_05mm3_20ms.h5"
 
     os.makedirs(results_directory, exist_ok=True)
 
@@ -321,7 +322,7 @@ if __name__ == "__main__":
         cmap="inferno",
         n_points=300_000,
         chunk=1_000,
-        out_prefix=os.path.join(results_directory, f"{res_case}_residuals_0.05"),
+        out_prefix=os.path.join(results_directory, f"{res_case}_residuals_0.01"),
         vmin=0,   # manually fix colorbar lower bound
-        vmax=0.05,   # manually fix colorbar upper bound
+        vmax=0.01,   # manually fix colorbar upper bound
     )

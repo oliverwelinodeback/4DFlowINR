@@ -279,6 +279,35 @@ class WIRE(nn.Module):
         self.net.append(final_linear)
         
         self.net = nn.Sequential(*self.net)
+    def functional_forward(self, x, params_dict):
+        """
+        Forward pass with external parameters.
+        
+        Args:
+            x: input coordinates
+            params_dict: dict of {param_name: param_tensor}
+        """
+        # Extract parameters by name
+        h = x
+        
+        for i, layer in enumerate(self.net[:-1]):  # All except final layer
+            if isinstance(layer, ComplexGaborLayer):
+                # Manually apply the layer with external params
+                freqs_weight = params_dict[f'net.{i}.linear.weight']
+                freqs_bias = params_dict[f'net.{i}.linear.bias']
+                
+                lin = F.linear(h, freqs_weight, freqs_bias)
+                omega = layer.omega_0 * lin
+                scale = layer.scale_0 * lin
+                h = torch.exp(1j * omega - scale.abs().square())
+            # Similar for RealGaborLayer
+        
+        # Final layer
+        final_weight = params_dict['net.-1.weight']
+        final_bias = params_dict['net.-1.bias']
+        output = F.linear(h, final_weight, final_bias)
+        
+        return output.real if self.net[0].complex else output
     
     def forward(self, coords):
         output = self.net(coords)

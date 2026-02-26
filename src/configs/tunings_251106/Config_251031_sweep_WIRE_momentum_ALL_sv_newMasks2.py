@@ -6,7 +6,7 @@ def get_sweep_config():
     
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'WIRE_MOMENTUM_SV_SA_3_{timestamp}', 
+        'name': f'WIRE_MOMENTUM_SV_GridPlot_ICAD48_11x11_{timestamp}', 
         'method': 'grid',
         'metric': {'name': 'FINAL Relative Error [Fluid]', 'goal': 'minimize'},
         'parameters': {
@@ -16,15 +16,34 @@ def get_sweep_config():
                 #"../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5", 
                 #"../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
                 #"../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5", 
-                "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                #"../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
+                #"../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
+                "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
                 #"../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5", 
                 #"../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5", 
                 #"../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
-                #"../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
-                
+                #"../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",    
                 ]},
-
+            'network.sigma_0': {'values': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]},
+            'network.omega_0': {'values': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
+            #'training.iterations_before_BFGS': {
+            #    'values': [5000, 12500]
+            #},
+            #'training.BFGS_lr': {
+            #    'values': [0.1, 0.05, 0.01]
+            #},
+            #'training.BFGS_max_iter': {
+            #    'values': [3, 5, 10, 20]
+            #},
+            #'training.BFGS_history_size': {
+            #    'values': [10, 20, 50]
+            #},
+            #'training.BFGS_tolerance_grad': {
+            #    'values': [1e-7, 1e-6, 1e-5]
+            #},
+            #'training.BFGS_tolerance_change': {
+            #    'values': [1e-9, 1e-7, 1e-6]
+            #},
+            
         },
     }
 
@@ -44,8 +63,8 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model 
-    config.networks_folder = "../models/251128_WIRE_MOMENTUM_ICAD28_SV_SAPINN_SWEEP/"
-    config.network_name = "251128_WIRE_MOMENTUM_ICAD28_SV_SAPINN_SWEEP" 
+    config.networks_folder = "../models/251221_WIRE_MOMENTUM_GridPlot_11x11/"
+    config.network_name = "251221_WIRE_MOMENTUM_ICAD48_GridPlot" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -81,7 +100,7 @@ def get_config(sweep_config=None):
     config.sample_collocation = True
     config.collocation_in_fluid = True
     config.collocation_points = 1_500_000
-    config.sample_boundary = False
+    config.sample_boundary = False #!#
     config.boundary_repetitions = 1000
 
     # Normalization and constants
@@ -112,7 +131,7 @@ def get_config(sweep_config=None):
     # Network architecture
     config.network = ml_collections.ConfigDict()
     config.network.in_dim = 4
-    config.network.out_dim = 6
+    config.network.out_dim = 4 #!#
     config.network.depth = 6
     config.network.hidden_features = 128
     config.network.arch = "WIRE"
@@ -123,29 +142,37 @@ def get_config(sweep_config=None):
     #config.network.fourier_scale = 1.0
     # WIRE parameters
     config.network.sigma_0 = 30
-    config.network.omega_0 = 30 #17
+    config.network.omega_0 = 60 #17
     config.network.complex = False
+
+    # Meta-learning initialization (load pre-trained MAML weights)
+    config.load_meta_init = True
+    config.meta_init_path = "../models/MetaLearningPINN_OuterPhysics/meta_learned_init_FINAL.pth"
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 40_000 #15000 #!#
-    config.training.data_points_per_batch = 10000 # None to use all #20000
-    config.training.coll_points_per_batch = 10000 # None to use all #20000
-    config.training.boundary_points_per_batch = 10000 # None to use all #10000
+    config.training.iterations = 15000 #!#
+    config.training.data_points_per_batch = 6000 # None to use all #20000
+    config.training.coll_points_per_batch = 6000 # None to use all #20000
+    config.training.boundary_points_per_batch = 6000 # None to use all #10000
     # Optimizer
     config.training.lr = 1e-4
     config.training.lr_decay_iter = 25000
     config.training.lr_decay_factor = 0.5
     config.training.use_LBFGS = True
-    config.training.BFGS_lr = 1e-1
-    config.training.iterations_before_BFGS = 99_999 #!#
+    config.training.BFGS_lr = 5e-2
+    config.training.iterations_before_BFGS = 10000 #!#
+    config.training.BFGS_max_iter = 3
+    config.training.BFGS_history_size = 50
+    config.training.BFGS_tolerance_grad = 1e-7
+    config.training.BFGS_tolerance_change = 1e-6
     # Loss details
     config.training.epochs_before_PDE = 0
     config.training.grad_weight_scheme = True
-    config.training.alpha = 0.95
+    config.training.alpha = 0.95 #!# 0.90
 
-    config.training.self_adaptive = True
-    config.training.adaptive_sampling = True
+    config.training.self_adaptive = False
+    config.training.adaptive_sampling = False
     config.training.tau = 0.02 # 0.03
     config.training.weight_clip = [6, 0.2] # [5, 0.2]
     config.training.beta = 0.2 # 0.2
@@ -167,11 +194,11 @@ def get_config(sweep_config=None):
     config.training.use_physics_loss = True
     config.training.physics_loss_on_data_points = True
     config.training.use_navier_stokes = True
-    config.training.use_divergence = False
+    config.training.use_divergence = True
     config.training.use_PPE = False
     config.training.PPE_weight = 0.001
-    config.training.predict_gradients = True
-    config.training.reference_gradients = True
+    config.training.predict_gradients = False
+    config.training.reference_gradients = False
     config.training.physics_weight = 1
     # Boundary loss options
     config.training.pressure_in_boundary_loss = False

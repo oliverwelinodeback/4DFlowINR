@@ -69,6 +69,86 @@ def save_to_h5(output_filepath, col_name, dataset, expand_dim=True):
             hf[col_name].resize((hf[col_name].shape[0]) + dataset.shape[0], axis = 0)
             hf[col_name][-dataset.shape[0]:] = dataset
 
+def save_h5_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref,
+                        p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref,
+                        U_max, standardization_factors):
+    """Lightweight h5 save: only forward pass + denormalize + write h5. No metrics."""
+    model.eval()
+    xyz_ref_t = torch.from_numpy(xyz_ref).float().to(device)
+    xyz_ref_t.requires_grad = config.training.use_vector_potential
+
+    if config.training.use_vector_potential:
+        with torch.set_grad_enabled(True):
+            uvw_pred = model(xyz_ref_t)
+            uvw_pred = vector_potential_fn(uvw_pred, xyz_ref_t)
+            uvw_pred = uvw_pred.detach().cpu().numpy()
+    else:
+        with torch.no_grad():
+            uvw_pred = model(xyz_ref_t)
+            uvw_pred = uvw_pred.cpu().numpy()
+
+    if config.plot.fluid_region:
+        fluid_indices = mask_flat_ref == 1
+        uvw_pred_full = np.zeros((len(mask_flat_ref), uvw_pred.shape[1]))
+        uvw_pred_full[fluid_indices] = uvw_pred
+        uvw_pred = uvw_pred_full
+
+    # Denormalize
+    if config.plot.denormalize:
+        if config.vel_normalization == "characteristic":
+            uvw_pred[:, 0] *= config.constants.U
+            uvw_pred[:, 1] *= config.constants.U
+            uvw_pred[:, 2] *= config.constants.U
+            if config.setup.include_pressure and config.training.reference_gradients:
+                _, _, _, std_x, _, std_y, _, std_z = standardization_factors
+                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x
+                uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y
+                uvw_pred[:, 5] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z
+            elif config.setup.include_pressure and not config.training.reference_gradients:
+                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)
+        elif config.vel_normalization == "max_velocity":
+            uvw_pred[:, 0] *= U_max
+            uvw_pred[:, 1] *= U_max
+            uvw_pred[:, 2] *= U_max
+            if config.setup.include_pressure and config.training.reference_gradients:
+                _, _, _, std_x, _, std_y, _, std_z = standardization_factors
+                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x
+                uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y
+                uvw_pred[:, 5] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z
+            elif config.setup.include_pressure and not config.training.reference_gradients:
+                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)
+
+    # Reshape
+    if config.setup.include_time:
+        T, X, Y, Z = u_ref.shape
+    else:
+        X, Y, Z = u_ref.shape
+        T = 1
+    D_pred = uvw_pred.shape[1]
+    uvw_pred = uvw_pred.reshape(T, X, Y, Z, D_pred)
+
+    u_pred = uvw_pred[:, :, :, :, 0]
+    v_pred = uvw_pred[:, :, :, :, 1]
+    w_pred = uvw_pred[:, :, :, :, 2]
+
+    # Save h5
+    h5_filename = f"{config.log_dir}/SR_it{it:06d}.h5"
+    save_to_h5(h5_filename, "u", u_pred, expand_dim=False)
+    save_to_h5(h5_filename, "v", v_pred, expand_dim=False)
+    save_to_h5(h5_filename, "w", w_pred, expand_dim=False)
+    if config.setup.include_pressure and not config.training.reference_gradients:
+        p_pred = uvw_pred[:, :, :, :, 3]
+        save_to_h5(h5_filename, "p", p_pred, expand_dim=False)
+    elif config.training.reference_gradients:
+        save_to_h5(h5_filename, "p_x", uvw_pred[:, :, :, :, 3], expand_dim=False)
+        save_to_h5(h5_filename, "p_y", uvw_pred[:, :, :, :, 4], expand_dim=False)
+        save_to_h5(h5_filename, "p_z", uvw_pred[:, :, :, :, 5], expand_dim=False)
+    if config.include_ref:
+        save_to_h5(h5_filename, "mask", mask_ref, expand_dim=False)
+
+    print(f"[Iteration {it}] Saved h5 predictions to {h5_filename}")
+
+
 def set_seed(seed):
     if seed is not None:
         random.seed(seed)
@@ -846,15 +926,15 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         'W m [Core] Peak': Ms[config.predictions.peak_flow_idx][2][2],
         'W r^2 [Core] Peak': Rs[config.predictions.peak_flow_idx][2][2],
 
-        #'U 2 k [Core]': Ks[config.predictions.flow_idx2][0][2],
-        #'U 2 m [Core]': Ms[config.predictions.flow_idx2][0][2],
-        #'U 2 r^2 [Core]': Rs[config.predictions.flow_idx2][0][2],
-        #'V 2 k [Core]': Ks[config.predictions.flow_idx2][1][2],
-        #'V 2 m [Core]': Ms[config.predictions.flow_idx2][1][2],
-        #'V 2 r^2 [Core]': Rs[config.predictions.flow_idx2][1][2],
-        #'W 2 k [Core]': Ks[config.predictions.flow_idx2][2][2],
-        #'W 2 m [Core]': Ms[config.predictions.flow_idx2][2][2],
-        #'W 2 r^2 [Core]': Rs[config.predictions.flow_idx2][2][2],
+        'U 2 k [Core]': Ks[config.predictions.flow_idx2][0][2],
+        'U 2 m [Core]': Ms[config.predictions.flow_idx2][0][2],
+        'U 2 r^2 [Core]': Rs[config.predictions.flow_idx2][0][2],
+        'V 2 k [Core]': Ks[config.predictions.flow_idx2][1][2],
+        'V 2 m [Core]': Ms[config.predictions.flow_idx2][1][2],
+        'V 2 r^2 [Core]': Rs[config.predictions.flow_idx2][1][2],
+        'W 2 k [Core]': Ks[config.predictions.flow_idx2][2][2],
+        'W 2 m [Core]': Ms[config.predictions.flow_idx2][2][2],
+        'W 2 r^2 [Core]': Rs[config.predictions.flow_idx2][2][2],
 
     }
 
@@ -917,24 +997,25 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
     if save_pred:
         
         # Save ref predictions to results directory
-        save_to_h5(f"{config.log_dir}/SR_final.h5", "u", u_pred, expand_dim=False)
-        save_to_h5(f"{config.log_dir}/SR_final.h5", "v", v_pred, expand_dim=False)
-        save_to_h5(f"{config.log_dir}/SR_final.h5", "w", w_pred, expand_dim=False)
+        h5_filename = f"{config.log_dir}/SR_it{it:06d}.h5"
+        save_to_h5(h5_filename, "u", u_pred, expand_dim=False)
+        save_to_h5(h5_filename, "v", v_pred, expand_dim=False)
+        save_to_h5(h5_filename, "w", w_pred, expand_dim=False)
         if (config.setup.include_pressure and not config.training.reference_gradients):
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "p", p_pred, expand_dim=False)
+            save_to_h5(h5_filename, "p", p_pred, expand_dim=False)
         elif config.training.reference_gradients:
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_x", p_pred_x, expand_dim=False)
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_y", p_pred_y, expand_dim=False)
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_z", p_pred_z, expand_dim=False)
+            save_to_h5(h5_filename, "p_x", p_pred_x, expand_dim=False)
+            save_to_h5(h5_filename, "p_y", p_pred_y, expand_dim=False)
+            save_to_h5(h5_filename, "p_z", p_pred_z, expand_dim=False)
 
         if config.include_ref:
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "mask", mask_ref, expand_dim=False)
+            save_to_h5(h5_filename, "mask", mask_ref, expand_dim=False)
 
         if save_vti:
             h5_to_vtk(
-                f"{config.log_dir}/SR_final.h5", 
-                f"{config.log_dir}/SR_final_t{config.predictions.peak_flow_idx}", 
-                index=config.predictions.peak_flow_idx, 
+                h5_filename,
+                f"{config.log_dir}/SR_it{it:06d}_t{config.predictions.peak_flow_idx}",
+                index=config.predictions.peak_flow_idx,
                 gradients=config.training.predict_gradients,
                 save_ref_mask=config.include_ref,
             )
@@ -1226,7 +1307,7 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
 
         plt.subplot(1, 3, 2)
         plt.title('Reference p')
-        plt.imshow(p_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis'.T, origin='lower', vmin=14100)
+        plt.imshow(p_ref[t_step, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis', origin='lower', vmin=14100)
         plt.colorbar()
 
         plt.subplot(1, 3, 3)
@@ -1419,11 +1500,11 @@ def plot_predictions(config, model, device, it, u, mask, U_max, save_pred=False,
     plt.imshow(w_pred[config.plot.t_step, :, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
 
-    if config.setup.include_pressure and p_pred is not None:
+    """ if config.setup.include_pressure and p_pred is not None:
         plt.subplot(2, 2, 4)
         plt.title('Predicted px')
         plt.imshow(px_pred[config.plot.t_step, :, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
-        plt.colorbar()
+        plt.colorbar() """
 
     plt.savefig(os.path.join(directory, f"predictions.png"))
     plt.close()
@@ -1436,10 +1517,10 @@ def plot_predictions(config, model, device, it, u, mask, U_max, save_pred=False,
         save_to_h5(f"{config.log_dir}/SR_final.h5", "w", w_pred, expand_dim=False)
         if (config.setup.include_pressure and not config.training.reference_gradients):
             save_to_h5(f"{config.log_dir}/SR_final.h5", "p", p_pred, expand_dim=False)
-        elif config.training.reference_gradients:
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_x", px_pred, expand_dim=False)
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_y", py_pred, expand_dim=False)
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "p_z", pz_pred, expand_dim=False)
+        #elif config.training.reference_gradients:
+        #    save_to_h5(f"{config.log_dir}/SR_final.h5", "p_x", px_pred, expand_dim=False)
+        #    save_to_h5(f"{config.log_dir}/SR_final.h5", "p_y", py_pred, expand_dim=False)
+        #    save_to_h5(f"{config.log_dir}/SR_final.h5", "p_z", pz_pred, expand_dim=False)
 
         if save_vti:
             h5_to_vtk(

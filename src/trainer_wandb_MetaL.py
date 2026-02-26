@@ -5,19 +5,19 @@ import torch
 import wandb
 from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_boundary_loss, update_loss_weights, navier_stokes_loss
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
-from utils.utils import copy_cource_code, save_checkpoint, save_ckpt, save_ckpt_min, load_ckpt_min, load_ckpt, sample_to_device, sample_ref_to_device, sample_from_gpu, sample_ref_from_gpu, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed
+from utils.utils import copy_cource_code, save_checkpoint, save_ckpt, save_ckpt_min, load_ckpt_min, load_ckpt, sample_to_device, sample_ref_to_device, sample_from_gpu, sample_ref_from_gpu, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed, save_h5_predictions
 import networks
-from torch.optim.lr_scheduler import LambdaLR
-from configs.tunings_251106.Config_251031_sweep_WIRE_momentum_ALL_sv_newMasks2 import get_config, get_sweep_config
+from configs.tunings_251106.Config_MetaLearning_MAML_DataDriven_ForPINN import get_config, get_sweep_config
 #try:
 #    from configs.Config_251008_sweep_test import get_sweep_config
 #except ImportError:
 #    get_sweep_config = None
 #from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
 from datetime import datetime
-
+from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+from meta.train_meta_v2 import train_meta_learning_v2
 
 def train(config=None, run_name=None, use_sweep=False):
 
@@ -83,12 +83,15 @@ def train(config=None, run_name=None, use_sweep=False):
             file_type = "ICAD146_sv17"
             config.constants.venc = 1.7
             config.predictions.peak_flow_idx = 8
-
-        # Meta-learning initialization (optional sweep parameter)
-        load_meta_init = sweep_config.get("load_meta_init", getattr(config, 'load_meta_init', False))
-        config.load_meta_init = load_meta_init
-
-
+        
+        #inner_lr = sweep_config["meta_learning.inner_lr"]
+        #inner_steps = sweep_config["meta_learning.inner_steps"]
+        #outer_lr = sweep_config["meta_learning.outer_lr"]
+        #meta_batch_size = sweep_config["meta_learning.meta_batch_size"]
+        #config.meta_learning.inner_lr = inner_lr
+        #config.meta_learning.inner_steps = inner_steps
+        #config.meta_learning.outer_lr = outer_lr
+        #config.meta_learning.meta_batch_size = meta_batch_size
         #config.training.tau = sweep_config["training.tau"]
         #config.training.beta = sweep_config["training.beta"]
         #config.training.K = sweep_config["training.K"]
@@ -192,13 +195,74 @@ def train(config=None, run_name=None, use_sweep=False):
         #    config.constants.venc = 2.6
         #    config.predictions.peak_flow_idx = 12
 
+        # Meta-learning PINN sweep setup - use .get() with defaults for optional params
+        load_meta_init = sweep_config.get("load_meta_init", config.load_meta_init)
+        #iterations = sweep_config.get("training.iterations", config.training.iterations)
+        #use_LBFGS = sweep_config.get("training.use_LBFGS", config.training.use_LBFGS)
+        config.load_meta_init = load_meta_init
+        #config.training.iterations = iterations
+        #config.training.use_LBFGS = use_LBFGS
+        #inner_lr = sweep_config.get("meta_learning.inner_lr", config.meta_learning.inner_lr)
+        #inner_steps = sweep_config.get("meta_learning.inner_steps", config.meta_learning.inner_steps)
+        #outer_lr = sweep_config.get("meta_learning.outer_lr", config.meta_learning.outer_lr)
+        #meta_batch_size = sweep_config.get("meta_learning.meta_batch_size", config.meta_learning.meta_batch_size)
+        #physics_weight = sweep_config.get("meta_learning.physics_weight", config.meta_learning.physics_weight)
+        #coll_points_outer = sweep_config.get("meta_learning.coll_points_outer", config.meta_learning.coll_points_outer)
+        #physics_curriculum_start = sweep_config.get("meta_learning.physics_curriculum_start", config.meta_learning.physics_curriculum_start)
+        #physics_curriculum_end = sweep_config.get("meta_learning.physics_curriculum_end", config.meta_learning.physics_curriculum_end)
+        #reptile_epsilon = sweep_config.get("meta_learning.reptile_epsilon", config.meta_learning.reptile_epsilon)
+        #physics_weight = sweep_config.get("meta_learning.physics_weight", config.meta_learning.physics_weight)
+        #coll_points_inner = sweep_config.get("meta_learning.coll_points_inner", config.meta_learning.coll_points_inner)
+        #inner_points = sweep_config.get("meta_learning.inner_points", config.meta_learning.inner_points)
+        #support_fraction = sweep_config.get("meta_learning.support_fraction", config.meta_learning.support_fraction)
+        #div_weight = sweep_config.get("meta_learning.div_weight", config.meta_learning.div_weight)
+
+        # Apply sweep parameters to config
+        #config.meta_learning.inner_lr = inner_lr
+        #config.meta_learning.inner_steps = inner_steps
+        #config.meta_learning.outer_lr = outer_lr
+        #config.meta_learning.meta_batch_size = meta_batch_size
+        #config.meta_learning.physics_weight = physics_weight
+        #config.meta_learning.coll_points_outer = coll_points_outer
+        #config.meta_learning.physics_curriculum_start = physics_curriculum_start
+        #config.meta_learning.physics_curriculum_end = physics_curriculum_end
+        
+        #config.meta_learning.reptile_epsilon = reptile_epsilon
+        #config.meta_learning.physics_weight = physics_weight
+        #config.meta_learning.coll_points_outer = coll_points_inner
+        #config.meta_learning.inner_points = inner_points
+        #config.meta_learning.support_fraction = support_fraction
+        #config.meta_learning.div_weight = div_weight
+
+        # Print sweep parameters for logging
+        #print(f"\n[Sweep Parameters]")
+        #print(f"  inner_lr: {inner_lr}")
+        #print(f"  inner_steps: {inner_steps}")
+        #print(f"  outer_lr: {outer_lr}")
+        #print(f"  meta_batch_size: {meta_batch_size}")
+        #print(f"  reptile_epsilon: {reptile_epsilon}")
+        #print(f"  physics_weight: {physics_weight}")
+        #print(f"  coll_points_inner: {coll_points_inner}")
+        #print(f"  inner_points: {inner_points}")
+        #print(f"  support_fraction: {support_fraction}")
+        #print(f"  div_weight: {div_weight}")
+        
+
 
         # Sweep parameters:
         #omega_0 = sweep_config["network.omega_0"]
         #sigma_0 = sweep_config["network.sigma_0"]
-#
+
         #config.network.omega_0 = omega_0
         #config.network.sigma_0 = sigma_0
+        #if sigma_0 == 0:
+        #    config.network.complex = False
+        #lr = sweep_config["training.lr"]
+        #decay_type = sweep_config["decay_type"]
+        #decay_target = sweep_config["decay_target"]
+        #config.training.lr = lr
+        #config.decay_type = decay_type
+        #config.decay_target = decay_target
         ##fourier_mapping_size = sweep_config["network.fourier_mapping_size"]
         ##fourier_scale = sweep_config["network.fourier_scale"]
         #t_len = sweep_config["template.t_len"]
@@ -291,12 +355,11 @@ def train(config=None, run_name=None, use_sweep=False):
         #run.name = f"WIRE_CMPLX_data_maskTest_{file_type}"
         #run.name = f"WIRE_MOMENTUM_HV01_LongRun"
         #run.name = f"WIRE_DIVERGENCE_HV01_VecPot{training_use_vector_potential}_Phys{training_sample_collocation}_itBFGS{training_iterations_before_BFGS}_gradWScheme{gradW}"
-        #run.name = f"WIRE_SAPINN_TEST2"
-        #run.name = f"251209_WIRE_MOMENTUM_SV_NewMask_{file_type}_omega0{omega_0}_sigma0{sigma_0}"
-        #run.name = f"251202_WIRE_MOMENTUM_SV_NewMask_{file_type}_BFGS_itBefore{iterations_before_BFGS}_lr{BFGS_lr}_maxIter{BFGS_max_iter}_historySize{BFGS_history_size}_tolGrad{BFGS_tolerance_grad}_tolChange{BFGS_tolerance_change}"
-
+        # Dynamic run name with key sweep parameters
+        run.name = f"MetaMAML_10it_DataDriven_ForPINN_{data_file}_loadMetaInit{load_meta_init}"
+        #run.name = f"MetaMAML_PINN_innerLR{inner_lr}_innerSteps{inner_steps}_outerLR{outer_lr}_metaBS{meta_batch_size}_physW{physics_weight}_collPtsOuter{coll_points_outer}_physCurStart{physics_curriculum_start}_physCurEnd{physics_curriculum_end}"
+        
         #run.name = f"251031_WIRE_MOMENTUM_INVIVO_{file_type}"
-        run.name = f"260127_PINN_{file_type}_metaInit{load_meta_init}"
         print("Run name: ", run.name)
         run.log({"run_name": run.name})
 
@@ -327,7 +390,14 @@ def train(config=None, run_name=None, use_sweep=False):
 
     else:
         # Initialize wandb for this run
-        wandb.init(project="SRFlowNIR", name=run_name, config=config.to_dict())
+        wandb.init(project="SRFlow-NTK-Analysis", name=run_name, config=config.to_dict())
+
+    if config.meta_learning.enabled:
+        # Meta-learning with TrainingStep integration
+        print("\n" + "="*60)
+        print("Using META-LEARNING with TrainingStep Integration")
+        print("="*60 + "\n")
+        return train_meta_learning_v2(config, run_name, use_sweep)
 
     # Store source files
     copy_cource_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
@@ -423,16 +493,18 @@ def train(config=None, run_name=None, use_sweep=False):
     else:
         raise ValueError("Unknown network.")
 
-    # Load meta-learned initialization if specified
-    if getattr(config, 'load_meta_init', False) and config.meta_init_path:
-        print(f"\n[Meta-Init] Loading meta-learned weights from: {config.meta_init_path}")
-        try:
-            meta_checkpoint = torch.load(config.meta_init_path, map_location=DEVICE)
-            model.load_state_dict(meta_checkpoint['model_state_dict'])
-            print(f"[Meta-Init] Successfully loaded meta-learned initialization!")
-        except Exception as e:
-            print(f"[Meta-Init] WARNING: Failed to load meta-learned weights: {e}")
-            print("[Meta-Init] Continuing with random initialization...")
+    if config.load_meta_init:
+        meta_checkpoint_path = config.meta_init_path
+        print(f"\n{'='*60}")
+        print(f"Loading meta-learned initialization from:")
+        print(f"  {meta_checkpoint_path}")
+        print(f"{'='*60}\n")
+        
+        checkpoint = torch.load(meta_checkpoint_path, map_location=DEVICE)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        
+        print("✓ Meta-learned weights loaded successfully!")
+        print("  This should converge faster than random initialization.\n")
 
     ########
     c_weights = None
@@ -460,22 +532,29 @@ def train(config=None, run_name=None, use_sweep=False):
 
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config.training.lr)
-    #if config.decay_type == 'cosine':
-    #    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    #        Adam_optimizer, T_max=8000, eta_min=1e-7
-    #    )
-#
-    #elif config.decay_type == 'exp':
-    #    scheduler = torch.optim.lr_scheduler.ExponentialLR(
-    #        Adam_optimizer, gamma=0.9991
-    #    )
-#
-    #elif config.decay_type == 'multi':
-    #    scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    #        Adam_optimizer, milestones=[2000, 5000, 7000], gamma=0.1
-    #    )
-    #else:
-    #    scheduler = LambdaLR(Adam_optimizer, lambda x: 1)    
+    
+    """ if config.decay_type == 'none':
+        scheduler = LambdaLR(Adam_optimizer, lambda x: 1)
+    elif config.decay_type == 'exp':
+        scheduler = LambdaLR(Adam_optimizer, lambda x: config.decay_target**(x/config.training.iterations))
+         """
+    if config.decay_type == 'cosine':
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            Adam_optimizer, T_max=8000, eta_min=1e-7
+        )
+
+    elif config.decay_type == 'exp':
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            Adam_optimizer, gamma=0.9991
+        )
+
+    elif config.decay_type == 'multi':
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            Adam_optimizer, milestones=[2000, 5000, 7000], gamma=0.1
+        )
+    else:
+        scheduler = LambdaLR(Adam_optimizer, lambda x: 1)
+
     if config.training.use_LBFGS:
         BFGS_optimizer = torch.optim.LBFGS(
             params=model.parameters(),
@@ -544,7 +623,7 @@ def train(config=None, run_name=None, use_sweep=False):
     # checkpoint = torch.load(network_path, map_location=DEVICE)
     # model.load_state_dict(checkpoint['model_state_dict'])
     
-    scheduler = None
+    #scheduler = None
     start_it = 0
     #w_before = sum(p.sum().item() for p in model.parameters())
     #print("Loading model weights...")
@@ -692,6 +771,7 @@ def train(config=None, run_name=None, use_sweep=False):
             Adam_optimizer.zero_grad()
             total_loss.backward()
             Adam_optimizer.step()
+            scheduler.step()
 
             # Learning rate decay
             if (it + 1) % config.training.lr_decay_iter == 0:
@@ -755,16 +835,21 @@ def train(config=None, run_name=None, use_sweep=False):
         if (it + 1) % config.plot.iter == 0:
             plot_predictions(config, model, DEVICE, it+1, u, mask, U_max)
        
+        # Save h5 predictions (lightweight, no metrics)
+        if config.include_ref:
+            if (it + 1) in getattr(config.training, 'save_h5_iters', []):
+                save_h5_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors)
+                model.train()
+
         # Compare with reference data
         if config.include_ref:
             if (it + 1) % config.training.error_iter == 0 or it == 0:
-                
-                metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=False)
-        
-                plot_predictions_vs_reference(config, model, DEVICE, it+1, xyz_ref, 
-                                            u, v, w, p, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, 
+                metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors)
+
+                plot_predictions_vs_reference(config, model, DEVICE, it+1, xyz_ref,
+                                            u, v, w, p, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref,
                                             mask_flat_ref, U_max, standardization_factors)
-                
+
                 # Log metrics to wandb
                 log_dict = {
                     "Relative Error [Fluid]": metrics_eval['Relative error [Fluid]'],
@@ -959,7 +1044,7 @@ def train(config=None, run_name=None, use_sweep=False):
 
     wandb.finish()
 
-""" if __name__ == "__main__":
+if __name__ == "__main__":
     
     config = get_config()
     
@@ -967,14 +1052,15 @@ def train(config=None, run_name=None, use_sweep=False):
 
         # Define sweep configuration
         sweep_config = get_sweep_config()
-        sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlowNIR")
+        #sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlowNIR")
+        sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlow-NTK-Analysis")
         wandb.agent(sweep_id, function=lambda: train(config=config, use_sweep=True))#, count=20)
 
     else:
         run_name = f"{config.network_name}"
-        train(config=config, run_name=run_name) """
+        train(config=config, run_name=run_name)
 
-if __name__ == "__main__":
+""" if __name__ == "__main__":
     
     config = get_config()
     
@@ -983,13 +1069,14 @@ if __name__ == "__main__":
             sweep_id = sys.argv[1]
             print(f"Starting worker for Sweep ID: {sweep_id}")
             
-            wandb.agent(sweep_id, project="SRFlowNIR", function=lambda: train(config=config, use_sweep=True))
+            wandb.agent(sweep_id, project="SRFlow-NTK-Analysis", function=lambda: train(config=config, use_sweep=True))
             
         else:
             sweep_config = get_sweep_config()
-            sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlowNIR")
+            #sweep_config = get_sweep_config_quick()
+            sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlow-NTK-Analysis")
             print(f"Sweep ID: {sweep_id}")
 
     else:
         run_name = f"{config.network_name}"
-        train(config=config, run_name=run_name)
+        train(config=config, run_name=run_name) """

@@ -7,8 +7,13 @@ def get_sweep_config():
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
         'name': f'WIRE_MOMENTUM_SV_SA_3_{timestamp}', 
-        'method': 'grid',
+        'method': 'bayes',#'grid',
         'metric': {'name': 'FINAL Relative Error [Fluid]', 'goal': 'minimize'},
+        'early_terminate': {
+            'type': 'hyperband',
+            'min_iter': 15_000,
+            'eta': 2,
+        },
         'parameters': {
 
             'data_file': {'values': [
@@ -22,8 +27,13 @@ def get_sweep_config():
                 #"../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5", 
                 #"../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
                 #"../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
-                
-                ]},
+            ]},
+            'training.tau': {'values': [0.01, 0.05, 0.1, 0.2]},
+            'training.beta': {'values': [0.1, 0.3, 0.5, 0.7]},
+            'training.K': {'values': [10, 50, 100, 250]},
+            'training.weight_clip_min': {'value': 0.2},
+            'training.weight_clip_max': {'values': [5.0, 10.0, 20.0]},
+            'training.points_to_update': {'values': [250000, 500000, 750000]},
 
         },
     }
@@ -44,8 +54,8 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model 
-    config.networks_folder = "../models/251128_WIRE_MOMENTUM_ICAD28_SV_SAPINN_SWEEP/"
-    config.network_name = "251128_WIRE_MOMENTUM_ICAD28_SV_SAPINN_SWEEP" 
+    config.networks_folder = "../models/251130_WIRE_MOMENTUM_ICAD28_SV_SAPINN_SWEEP/"
+    config.network_name = "251130_WIRE_MOMENTUM_ICAD28_SV_SAPINN_SWEEP" 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -147,12 +157,12 @@ def get_config(sweep_config=None):
     config.training.self_adaptive = True
     config.training.adaptive_sampling = True
     config.training.tau = 0.02 # 0.03
-    config.training.weight_clip = [6, 0.2] # [5, 0.2]
-    config.training.beta = 0.2 # 0.2
+    config.training.weight_clip = [6, 0.2]
+    config.training.beta = 0.2
     config.training.K_initial = 10_000 #10_000 # 500
     config.training.K = 20 # 250
     config.training.points_to_update = 750_000 # 500_000
-    config.training.chunk_size = 2_000
+    config.training.chunk_size = 2_000 
 
     # Data loss options
     config.training.use_mse = False
