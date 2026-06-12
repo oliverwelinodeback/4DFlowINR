@@ -453,10 +453,10 @@ def sample_from_gpu(config, xyz_train_gpu, xyz_collocation_gpu, xyz_boundary_gpu
             
             if c_weights is not None:
                 # weighted sampling without replacement
-                p = torch.as_tensor(c_weights, device=device, dtype=torch.float32)
-                p = p / (p.sum() + 1e-12)
-                # Sanitize probabilities
-                p = torch.as_tensor(c_weights, device=xyz_collocation_gpu.device, dtype=torch.float32)
+                if isinstance(c_weights, torch.Tensor):
+                    p = c_weights.to(device=xyz_collocation_gpu.device, dtype=torch.float32)
+                else:
+                    p = torch.as_tensor(c_weights, device=xyz_collocation_gpu.device, dtype=torch.float32)
                 p = torch.nan_to_num(p, nan=0.0, posinf=0.0, neginf=0.0)
                 p.clamp_(min=1e-12)
                 p /= p.sum() + 1e-12

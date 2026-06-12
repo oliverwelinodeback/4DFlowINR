@@ -1,4 +1,5 @@
 # Imports
+import os
 import sys
 import time
 import torch
@@ -28,61 +29,24 @@ def train(config=None, run_name=None, use_sweep=False):
         run = wandb.init(project="SRFlowNIR")
         sweep_config = wandb.config
 
-        data_file = sweep_config["data_file"]
-        if data_file == "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5":
+        data_file = sweep_config.get("data_file", config.data_file)
+        LR_ROUTING = {
+            "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5":        ("../data/healthy/HV01_05mm3_20ms.h5",        "HV01_sv17",    1.7, 12),
+            "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":        ("../data/healthy/HV03_05mm3_20ms.h5",        "HV03_sv13",    1.3,  4),
+            "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5":        ("../data/healthy/HV06_05mm3_20ms.h5",        "HV06_sv12",    1.2,  2),
+            "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":  ("../data/stenosis_50/ICAD28_05mm3_20ms.h5",  "ICAD28_sv13",  1.3,  2),
+            "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":  ("../data/stenosis_50/ICAD48_05mm3_20ms.h5",  "ICAD48_sv13",  1.3, 14),
+            "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5":  ("../data/stenosis_50/ICAD98_05mm3_20ms.h5",  "ICAD98_sv51",  5.1, 12),
+            "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5":  ("../data/stenosis_70/ICAD17_05mm3_20ms.h5",  "ICAD17_sv41",  4.1,  8),
+            "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5":  ("../data/stenosis_70/ICAD21_05mm3_20ms.h5",  "ICAD21_sv26",  2.6, 12),
+            "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5": ("../data/stenosis_70/ICAD146_05mm3_20ms.h5", "ICAD146_sv17", 1.7,  8),
+        }
+        if data_file in LR_ROUTING:
+            ref_file, file_type, venc, peak_idx = LR_ROUTING[data_file]
             config.data_file = data_file
-            config.data_file_ref = "../data/healthy/HV01_05mm3_20ms.h5"
-            file_type = "HV01_sv17"
-            config.constants.venc = 1.7
-            config.predictions.peak_flow_idx = 12
-        if data_file == "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":
-            config.data_file = data_file
-            config.data_file_ref = "../data/healthy/HV03_05mm3_20ms.h5"
-            file_type = "HV03_sv13"
-            config.constants.venc = 1.3
-            config.predictions.peak_flow_idx = 4
-        if data_file == "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5":
-            config.data_file = data_file
-            config.data_file_ref = "../data/healthy/HV06_05mm3_20ms.h5"
-            file_type = "HV06_sv12"
-            config.constants.venc = 1.2
-            config.predictions.peak_flow_idx = 2
-        if data_file == "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":
-            config.data_file = data_file
-            config.data_file_ref = "../data/stenosis_50/ICAD28_05mm3_20ms.h5"
-            file_type = "ICAD28_sv13"
-            config.constants.venc = 1.3
-            config.predictions.peak_flow_idx = 2
-        if data_file == "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":
-            config.data_file = data_file
-            config.data_file_ref = "../data/stenosis_50/ICAD48_05mm3_20ms.h5"
-            file_type = "ICAD48_sv13"
-            config.constants.venc = 1.3
-            config.predictions.peak_flow_idx = 14
-        if data_file == "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5":
-            config.data_file = data_file
-            config.data_file_ref = "../data/stenosis_50/ICAD98_05mm3_20ms.h5"
-            file_type = "ICAD98_sv51"
-            config.constants.venc = 5.1
-            config.predictions.peak_flow_idx = 12
-        if data_file == "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5":
-            config.data_file = data_file
-            config.data_file_ref = "../data/stenosis_70/ICAD17_05mm3_20ms.h5"
-            file_type = "ICAD17_sv41"
-            config.constants.venc = 4.1
-            config.predictions.peak_flow_idx = 8
-        if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5":
-            config.data_file = data_file
-            config.data_file_ref = "../data/stenosis_70/ICAD21_05mm3_20ms.h5"
-            file_type = "ICAD21_sv26"
-            config.constants.venc = 2.6
-            config.predictions.peak_flow_idx = 12
-        if data_file == "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5":
-            config.data_file = data_file
-            config.data_file_ref = "../data/stenosis_70/ICAD146_05mm3_20ms.h5"
-            file_type = "ICAD146_sv17"
-            config.constants.venc = 1.7
-            config.predictions.peak_flow_idx = 8
+            config.data_file_ref = ref_file
+            config.constants.venc = venc
+            config.predictions.peak_flow_idx = peak_idx
         
         #inner_lr = sweep_config["meta_learning.inner_lr"]
         #inner_steps = sweep_config["meta_learning.inner_steps"]
