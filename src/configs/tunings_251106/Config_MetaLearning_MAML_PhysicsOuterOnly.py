@@ -81,7 +81,7 @@ def get_sweep_config():
     
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'MetaLearn_PINN_1000it_h5_{timestamp}', 
+        'name': f'PINN_MAML_PhysicsOuterOnly_omega60_1000it_h5_{timestamp}',
         'method': 'grid',
         'metric': {'name': 'FINAL Relative Error [Fluid]', 'goal': 'minimize'},
         'parameters': {
@@ -90,13 +90,9 @@ def get_sweep_config():
 
                 #"../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5", 
                 #"../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5", 
-                #"../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                #"../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                ##"../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5", 
-                #"../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5", 
-                #"../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
-                ##"../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",    
+                "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5",
+                "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5",
+                "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
                 ]},
             
             'load_meta_init': {'values': [True, False]},
@@ -135,8 +131,8 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model
-    config.networks_folder = "../models/MetaLearn_PINN_1000it_h5/"
-    config.network_name = "260203_MAML_PhysicsOuterOnly"
+    config.networks_folder = "../models/260606_PINN_PhysicsOuterOnly_omega60_1000it_h5/"
+    config.network_name = "260606_PINN_PhysicsOuterOnly_omega60"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -298,6 +294,7 @@ def get_config(sweep_config=None):
     # Fine-tuning (disabled for meta-learning sweep)
     config.load_meta_init = True
     config.meta_init_path = "../models/MetaLearning_MAML_PhysicsOuterOnly/260203_MAML_PhysicsOuterOnly_20260205-0755/meta_best.pth"
+    config.warm_start_path = ""
 
     # Training parameters (for fine-tuning after meta-learning)
     config.training = ml_collections.ConfigDict()

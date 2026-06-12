@@ -5,7 +5,7 @@ def get_sweep_config():
     
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'WIRE_SV_MAML_DataDriven_1000it_h5_{timestamp}', 
+        'name': f'INR_MAML_DataDriven_omega20_1000it_h5_{timestamp}',
         'method': 'grid',
         'metric': {'name': 'FINAL Relative Error [Fluid]', 'goal': 'minimize'},
         'parameters': {
@@ -106,8 +106,8 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model
-    config.networks_folder = "../models/MetaLearning_MAML_DataDriven_h5/"
-    config.network_name = "260202_MAML_DataDriven"
+    config.networks_folder = "../models/260606_INR_DataDriven_omega20_1000it_h5/"
+    config.network_name = "260606_INR_DataDriven_omega20"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -250,6 +250,7 @@ def get_config(sweep_config=None):
     # Fine-tuning
     config.load_meta_init = True
     config.meta_init_path = "../models/MetaLearning_BestHyperPArameters/260202_MAML_DataDriven_20260203-1034/meta_best.pth"
+    config.warm_start_path = ""
 
     # Training parameters (for fine-tuning after meta-learning)
     config.training = ml_collections.ConfigDict()
