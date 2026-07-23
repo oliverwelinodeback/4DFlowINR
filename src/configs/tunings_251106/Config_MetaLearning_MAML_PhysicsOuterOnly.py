@@ -120,7 +120,7 @@ def get_config(sweep_config=None):
     """
     config = ml_collections.ConfigDict()
 
-    config.sweep = True
+    config.sweep = False
     # Data
     config.data_file = "../data/XXX.h5"
     config.include_ref = True
@@ -131,8 +131,10 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model
-    config.networks_folder = "../models/260606_PINN_PhysicsOuterOnly_omega60_1000it_h5/"
-    config.network_name = "260606_PINN_PhysicsOuterOnly_omega60"
+    config.networks_folder = "../models/MetaLearning_BestHyperPArameters/"
+    config.network_name = "260202_MAML_PhysicsOuter_REPRO"
+    #config.networks_folder = "../models/260606_PINN_PhysicsOuterOnly_omega60_1000it_h5/"
+    #config.network_name = "260606_PINN_PhysicsOuterOnly_omega60"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -212,7 +214,7 @@ def get_config(sweep_config=None):
     # META-LEARNING CONFIGURATION (MAML + Physics Outer Only)
     # ==========================================
     config.meta_learning = ml_collections.ConfigDict()
-    config.meta_learning.enabled = False
+    config.meta_learning.enabled = True
 
     # Meta-learning method: FULL SECOND-ORDER MAML
     config.meta_learning.meta_method = 'MAML'
@@ -292,7 +294,7 @@ def get_config(sweep_config=None):
     }
 
     # Fine-tuning (disabled for meta-learning sweep)
-    config.load_meta_init = True
+    config.load_meta_init = False
     config.meta_init_path = "../models/MetaLearning_MAML_PhysicsOuterOnly/260203_MAML_PhysicsOuterOnly_20260205-0755/meta_best.pth"
     config.warm_start_path = ""
 

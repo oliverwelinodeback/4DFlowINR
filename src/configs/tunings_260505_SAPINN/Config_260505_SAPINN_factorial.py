@@ -4,43 +4,47 @@ from datetime import datetime
 
 def get_sweep_config():
     """
-    Iteration-budget ablation — repro (random init)
+    SA-PINN factorial — 27-run grid: 3 cases × 3 data types × 3 optimizer settings.
 
-    Fixes all settings at repro_SA best and sweeps total training budget.
-    LBFGS phase is fixed at 10k iters; Adam phase shrinks as budget decreases.
-    trainer.py readback derives iterations_before_BFGS and lr_decay_iter automatically
-    from training.iterations and config.training.lbfgs_phase_length.
+    Factors:
+      case:      HV01 (healthy), ICAD48 (50% stenosis), ICAD21 (70% stenosis)
+      data_type: LR (1 mm, tSNR10), HRLR-tSNR10 (0.5 mm), HRLR-tSNR2 (0.5 mm, low SNR)
+      optimizer: LBFGS (no SA), SA-Adam (SA only), SA+LBFGS (SA + LBFGS)
 
-    Patient: ICAD48 (reference patient for all ablations).
-    Method: grid (4 runs).
+    All per-run overrides applied by trainer.py SWEEP_VINCENT routing block.
     """
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'SAPINN_repro_iters_ablation_{timestamp}',
+        'name': f'SAPINN_allCases_{timestamp}',
         'method': 'grid',
         'metric': {'name': 'FINAL Relative Error [Fluid]', 'goal': 'minimize'},
         'parameters': {
-            'training.iterations': {'values': [25000, 30000, 35000, 40000]},
+            'run_id': {'values': [
+                "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9",
+                "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9",
+                "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9",
+            ]},
+            'sweep_group': {'values': ["VINCENT"]},
         },
     }
 
 
 def get_config(sweep_config=None):
     """
-    Iteration-budget ablation — repro baseline (random init).
+    SA-PINN factorial base config.
 
-    All settings identical to lbfgs_multipatient_repro. Only training.iterations
-    is swept; itBFGS and lr_decay are derived automatically in trainer.py readback
-    using lbfgs_phase_length=10_000.
+    Base data: ICAD48 LR (placeholder — all data/venc/resolution overridden by
+    trainer.py SWEEP_VINCENT routing block per run_id).
 
-    data_file fixed at ICAD48 — no patient sweep here.
+    Architecture: omega_0=30, sigma_0=30, out_dim=6, depth=6, hidden=128.
+    No meta-init for any run.
     """
     config = ml_collections.ConfigDict()
 
     config.sweep = True
 
     # ==========================================
-    # DATA — fixed to ICAD48 for this ablation
+    # DATA — placeholder; overridden by routing
     # ==========================================
     config.data_file = "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5"
     config.include_ref = True
@@ -53,8 +57,8 @@ def get_config(sweep_config=None):
     # ==========================================
     # MODEL
     # ==========================================
-    config.networks_folder = "../models/260303_SAPINN_lbfgs_repro_iters_ablation/"
-    config.network_name = "260303_lbfgs_repro_iters_ablation"
+    config.networks_folder = "../models/260505_SAPINN_factorial/"
+    config.network_name = "260505_SAPINN"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -74,11 +78,11 @@ def get_config(sweep_config=None):
     config.domain.z_end = None
 
     # ==========================================
-    # RESOLUTION  (LR input: 1 mm voxels, 40 ms)
+    # RESOLUTION — LR defaults; overridden by routing for HRLR runs
     # ==========================================
     config.resolution = ml_collections.ConfigDict()
     config.resolution.from_file = False
-    config.resolution.dx = 0.0005 * 2
+    config.resolution.dx = 0.0005 * 2   # 1 mm — LR default
     config.resolution.dy = 0.0005 * 2
     config.resolution.dz = 0.0005 * 2
     config.resolution.dt = 0.02 * 2
@@ -126,7 +130,7 @@ def get_config(sweep_config=None):
     config.constants.T = config.constants.L / config.constants.U
     config.constants.rho = 1060
     config.constants.mu = 0.004
-    config.constants.venc = 1.3  # ICAD48
+    config.constants.venc = 1.3  # placeholder; overridden by routing
 
     # ==========================================
     # NETWORK ARCHITECTURE
@@ -172,46 +176,44 @@ def get_config(sweep_config=None):
     config.meta_learning.case_venc = {}
 
     # ==========================================
-    # META-INIT (disabled — random init)
+    # META-INIT — disabled for all runs
     # ==========================================
     config.load_meta_init = False
     config.meta_init_path = ""
+    config.warm_start_path = ""
 
     # ==========================================
-    # TRAINING PARAMETERS
+    # TRAINING PARAMETERS — overridden by routing
     # ==========================================
     config.training = ml_collections.ConfigDict()
-    config.training.iterations = 30_000       # default; overridden by sweep readback
+    config.training.iterations = 30_000
     config.training.data_points_per_batch = 10000
     config.training.coll_points_per_batch = 10000
     config.training.boundary_points_per_batch = 10000
 
-    # LBFGS — itBFGS and lr_decay derived in trainer.py from iterations and lbfgs_phase_length
     config.training.lr = 1e-4
-    config.training.lbfgs_phase_length = 10_000   # LBFGS phase kept fixed across all runs
-    config.training.lr_decay_iter = 28_000         # default (40k - 10k - 2k); overridden by readback
+    config.training.lr_decay_iter = 99_999
     config.training.lr_decay_factor = 0.5
+    config.training.disable_lr_decay = True
     config.training.use_LBFGS = True
     config.training.BFGS_lr = 1e-1
-    config.training.iterations_before_BFGS = 30_000  # default; overridden by readback
+    config.training.iterations_before_BFGS = 10_000
     config.training.BFGS_max_iter = 3
     config.training.BFGS_history_size = 50
     config.training.BFGS_tolerance_grad = 1e-7
     config.training.BFGS_tolerance_change = 1e-6
 
-    # Scheduler
     config.decay_type = 'none'
 
-    # Loss details
     config.training.epochs_before_PDE = 0
     config.training.grad_weight_scheme = True
     config.training.alpha = 0.95
 
     # ==========================================
-    # SELF-ADAPTIVE PINN — repro_SA params
+    # SELF-ADAPTIVE PINN — disabled in base; enabled for R2/R3 by routing
     # ==========================================
-    config.training.self_adaptive = True
-    config.training.adaptive_sampling = True
+    config.training.self_adaptive = False
+    config.training.adaptive_sampling = False
     config.training.tau = 0.02
     config.training.weight_clip = [6, 0.2]
     config.training.beta = 0.2
@@ -255,9 +257,9 @@ def get_config(sweep_config=None):
     # ==========================================
     # LOGGING AND EVALUATION
     # ==========================================
-    config.training.summary_iter = 5000
+    config.training.summary_iter = 2500
     config.training.log_iter = 250
-    config.training.error_iter = 5000
+    config.training.error_iter = 2500
     config.training.save_h5_iters = []
     config.training.denormalize = True
 
@@ -270,8 +272,8 @@ def get_config(sweep_config=None):
     config.plot.t_step = 2
     config.plot.t_step_2 = 6
     config.plot.z_slice = 20
-    config.plot.spatial_factor = 2
-    config.plot.temporal_factor = 2
+    config.plot.spatial_factor = 2       # LR default; overridden for HRLR
+    config.plot.temporal_factor = 2      # LR default; overridden for HRLR
     config.plot.temp_upsampling_mode = 'extend'
     config.plot.spat_upsampling_mode = 'centered'
     config.plot.fluid_region = True
@@ -283,7 +285,7 @@ def get_config(sweep_config=None):
     # PREDICTIONS
     # ==========================================
     config.predictions = ml_collections.ConfigDict()
-    config.predictions.peak_flow_idx = 14   # ICAD48
+    config.predictions.peak_flow_idx = 14   # placeholder; overridden by routing
     config.predictions.flow_idx2 = 14
     config.predictions.predict_reference_data = True
     config.predictions.predict_SR_data = False

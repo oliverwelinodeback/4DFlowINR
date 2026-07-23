@@ -8,7 +8,7 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, save_ckpt, save_ckpt_min, load_ckpt_min, load_ckpt, sample_to_device, sample_ref_to_device, sample_from_gpu, sample_ref_from_gpu, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed, save_h5_predictions
 import networks
-from configs.tunings_251106.Config_MetaLearning_MAML_DataDriven_ForPINN import get_config, get_sweep_config
+from configs.tunings_251106.Config_MetaLearning_MAML_DataDriven import get_config, get_sweep_config
 #try:
 #    from configs.Config_251008_sweep_test import get_sweep_config
 #except ImportError:
@@ -216,7 +216,6 @@ def train(config=None, run_name=None, use_sweep=False):
         # Sweep parameters:
         #omega_0 = sweep_config["network.omega_0"]
         #sigma_0 = sweep_config["network.sigma_0"]
-
         #config.network.omega_0 = omega_0
         #config.network.sigma_0 = sigma_0
         #if sigma_0 == 0:

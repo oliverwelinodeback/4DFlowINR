@@ -683,6 +683,32 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
         velocities.append(pz_flat)
 
     # Ground truth data
+    '''
+    print(u_flat.shape, v_flat.shape, w_flat.shape)
+    print(config.setup.include_pressure)
+    print(p_flat.shape)
+    print(config.training.reference_gradients)
+    print('------------------')
+
+    print("\n--- REFERENCE ARRAY DIAGNOSTICS ---")
+    print("config.data_file_ref:", config.data_file_ref)
+
+    print("u_ref:", u_ref.shape, u_ref.size, u_ref.dtype)
+    print("v_ref:", v_ref.shape, v_ref.size, v_ref.dtype)
+    print("w_ref:", w_ref.shape, w_ref.size, w_ref.dtype)
+    print("p_ref:", p_ref.shape, p_ref.size, p_ref.dtype)
+
+    print("rho:", repr(rho), "shape:", np.shape(rho), "type:", type(rho))
+    print("U:", repr(U), "shape:", np.shape(U), "type:", type(U))
+
+    print("p_normalized:", p_normalized.shape, p_normalized.size)
+    print("u_flat:", u_flat.shape)
+    print("p_flat:", p_flat.shape)
+    '''
+
+    for i, arr in enumerate(velocities):
+        print(f"velocities[{i}]: shape={arr.shape}, size={arr.size}")
+
     uvw_data_ref = np.stack(velocities, axis=1) # (T*h*w*d, 4) = (29087100, 4)
     
     return uvw_data_ref, xyz_data, mask_flat, boundary_mask_flat

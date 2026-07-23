@@ -95,7 +95,7 @@ def get_config(sweep_config=None):
     """Get the default hyperparameter configuration."""
     config = ml_collections.ConfigDict()
 
-    config.sweep = True
+    config.sweep = False
     # Data
     config.data_file = "../data/XXX.h5"
     config.include_ref = True
@@ -106,8 +106,10 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model
-    config.networks_folder = "../models/260606_INR_DataDriven_omega20_1000it_h5/"
-    config.network_name = "260606_INR_DataDriven_omega20"
+    config.networks_folder = "../models/MetaLearning_BestHyperPArameters/"
+    config.network_name = "260202_MAML_DataDriven_REPRO"
+    #config.networks_folder = "../models/260606_INR_DataDriven_omega20_1000it_h5/"
+    #config.network_name = "260606_INR_DataDriven_omega20"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -187,7 +189,7 @@ def get_config(sweep_config=None):
     # META-LEARNING CONFIGURATION
     # ==========================================
     config.meta_learning = ml_collections.ConfigDict()
-    config.meta_learning.enabled = False
+    config.meta_learning.enabled = True
 
     # Meta-learning method: 'MAML', 'FOMAML', or 'Reptile'
     config.meta_learning.meta_method = 'MAML'  # Full second-order MAML
@@ -248,7 +250,7 @@ def get_config(sweep_config=None):
     }
 
     # Fine-tuning
-    config.load_meta_init = True
+    config.load_meta_init = False
     config.meta_init_path = "../models/MetaLearning_BestHyperPArameters/260202_MAML_DataDriven_20260203-1034/meta_best.pth"
     config.warm_start_path = ""
 

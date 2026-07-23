@@ -23,8 +23,10 @@ def get_sweep_config():
                 #"../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
                 #"../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",    
                 ]},
-            'network.sigma_0': {'values': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]},
-            'network.omega_0': {'values': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
+            #'network.sigma_0': {'values': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]},
+            #'network.omega_0': {'values': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
+            'network.sigma_0': {'values': [30]},
+            'network.omega_0': {'values': [60]}
             #'training.iterations_before_BFGS': {
             #    'values': [5000, 12500]
             #},
@@ -146,7 +148,9 @@ def get_config(sweep_config=None):
     config.network.complex = False
 
     # Meta-learning initialization (load pre-trained MAML weights)
-    config.load_meta_init = True
+    config.meta_learning = ml_collections.ConfigDict()
+    config.meta_learning.enabled = False
+    config.load_meta_init = False
     config.meta_init_path = "../models/MetaLearningPINN_OuterPhysics/meta_learned_init_FINAL.pth"
 
     # Training parameters
@@ -159,6 +163,7 @@ def get_config(sweep_config=None):
     config.training.lr = 1e-4
     config.training.lr_decay_iter = 25000
     config.training.lr_decay_factor = 0.5
+    config.decay_type = "none"  
     config.training.use_LBFGS = True
     config.training.BFGS_lr = 5e-2
     config.training.iterations_before_BFGS = 10000 #!#

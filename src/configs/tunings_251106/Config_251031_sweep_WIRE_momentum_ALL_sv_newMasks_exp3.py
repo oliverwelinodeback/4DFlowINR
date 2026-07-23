@@ -159,7 +159,12 @@ def get_config(sweep_config=None):
     config.network.complex = False
 
     # Meta-learning initialization (set to True to load pre-trained MAML weights)
-    config.load_meta_init = False  # Set to True to use meta-learned weights
+    #config.load_meta_init = False  # Set to True to use meta-learned weights
+    #config.meta_init_path = "../models/finetune_ICAD146_meta/251223_WIRE_SV_NewMask_MetaLearn_HV06_sv12_20260113-1540/meta_best.pth"
+    # Meta-learning initialization (load pre-trained MAML weights)
+    config.meta_learning = ml_collections.ConfigDict()
+    config.meta_learning.enabled = False
+    config.load_meta_init = False
     config.meta_init_path = "../models/finetune_ICAD146_meta/251223_WIRE_SV_NewMask_MetaLearn_HV06_sv12_20260113-1540/meta_best.pth"
 
     # Training parameters
