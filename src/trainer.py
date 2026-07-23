@@ -8,12 +8,6 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
 from utils.utils import copy_cource_code, save_checkpoint, save_ckpt, save_ckpt_min, load_ckpt_min, load_ckpt, sample_to_device, sample_ref_to_device, sample_from_gpu, sample_ref_from_gpu, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed, save_h5_predictions
 import networks
-from configs.tunings_251106.Config_MetaLearning_MAML_DataDriven import get_config, get_sweep_config
-#try:
-#    from configs.Config_251008_sweep_test import get_sweep_config
-#except ImportError:
-#    get_sweep_config = None
-#from configs.Config_250923_KI_HV01_x2_tx2_momentum import get_config
 from datetime import datetime
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.tensorboard import SummaryWriter
@@ -1005,40 +999,3 @@ def train(config=None, run_name=None, use_sweep=False):
                 model.train()
 
     wandb.finish()
-
-if __name__ == "__main__":
-    
-    config = get_config()
-    
-    if config.sweep:
-
-        # Define sweep configuration
-        sweep_config = get_sweep_config()
-        #sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlowNIR")
-        sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlow-NTK-Analysis")
-        wandb.agent(sweep_id, function=lambda: train(config=config, use_sweep=True))#, count=20)
-
-    else:
-        run_name = f"{config.network_name}"
-        train(config=config, run_name=run_name)
-
-""" if __name__ == "__main__":
-    
-    config = get_config()
-    
-    if config.sweep:
-        if len(sys.argv) > 1:
-            sweep_id = sys.argv[1]
-            print(f"Starting worker for Sweep ID: {sweep_id}")
-            
-            wandb.agent(sweep_id, project="SRFlow-NTK-Analysis", function=lambda: train(config=config, use_sweep=True))
-            
-        else:
-            sweep_config = get_sweep_config()
-            #sweep_config = get_sweep_config_quick()
-            sweep_id = wandb.sweep(sweep=sweep_config, project="SRFlow-NTK-Analysis")
-            print(f"Sweep ID: {sweep_id}")
-
-    else:
-        run_name = f"{config.network_name}"
-        train(config=config, run_name=run_name) """
