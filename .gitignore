@@ -6,6 +6,7 @@
 /src/prepare_data/geometries/
 /src/data/vti_files/
 /src/prepare_data/vti_files/
+/src/configs/development/
 __pycache__/
 *.pyc
 *.py[cod]
