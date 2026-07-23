@@ -8,15 +8,18 @@
 /src/prepare_data/vti_files/
 __pycache__/
 *.pyc
+*.py[cod]
 *.pyo
 *.pyd
 *.vti
-# W&B
+*.out
+*.err
 src/wandb_runs/
 src/wandb/
 wandb/
 *.wandb
-# Output directories
 src/figures/
 src/residuals/
 src/2D_plots/
+.DS_Store
+.vscode/
