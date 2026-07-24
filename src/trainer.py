@@ -1,12 +1,34 @@
 # Imports
-import os
-import sys
 import time
 import torch
 import wandb
-from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_boundary_loss, update_loss_weights, navier_stokes_loss
-from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data
-from utils.utils import copy_cource_code, save_checkpoint, save_ckpt, save_ckpt_min, load_ckpt_min, load_ckpt, sample_to_device, sample_ref_to_device, sample_from_gpu, sample_ref_from_gpu, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed, save_h5_predictions
+from utils.loss_utils import (
+    compute_data_loss, 
+    compute_physics_loss, 
+    compute_boundary_loss, 
+    update_loss_weights, 
+    navier_stokes_loss
+)
+from utils.prepare_data import (
+    prepare_data, 
+    load_data, 
+    extract_fluid_region, 
+    sample_collocation_points, 
+    sample_boundary_points, 
+    load_ref_data, 
+    prepare_ref_data
+)
+from utils.utils import (
+    copy_cource_code,
+    save_ckpt,
+    sample_from_gpu,
+    sample_ref_from_gpu,
+    plot_predictions,
+    evaluate_predictions,
+    plot_predictions_vs_reference,
+    set_seed,
+    save_h5_predictions,
+)
 import networks
 from datetime import datetime
 from torch.optim.lr_scheduler import LambdaLR
@@ -14,13 +36,43 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from meta.train_meta import train_meta_learning
 
+def init_wandb(config, run_name=None, use_sweep=False):
+    """Initialize W&B with consistent experiment metadata."""
+
+    if config.meta_learning.enabled:
+        job_type = "meta-train"
+    elif use_sweep:
+        job_type = "sweep"
+    else:
+        job_type = "train"
+
+    init_kwargs = {
+        "project": config.wandb.project,
+        "group": config.wandb.group,
+        "job_type": job_type,
+        "tags": list(config.wandb.tags),
+    }
+
+    if run_name is not None:
+        init_kwargs["name"] = run_name
+
+    # For non-sweep runs, store the complete configuration immediately
+    # Sweep parameters are populated by the W&B agent instead
+    if not use_sweep:
+        init_kwargs["config"] = config.to_dict()
+
+    return wandb.init(**init_kwargs)
+
 def train(config=None, run_name=None, use_sweep=False):
 
     print("Starting script")
 
     if use_sweep:
-        # Initialize wandb for this run
-        run = wandb.init(project="SRFlowNIR")
+        run = init_wandb(
+            config,
+            run_name=run_name,
+            use_sweep=True,
+        )
         sweep_config = wandb.config
 
         data_file = sweep_config.get("data_file", config.data_file)
@@ -35,319 +87,44 @@ def train(config=None, run_name=None, use_sweep=False):
             "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5":  ("../data/stenosis_70/ICAD21_05mm3_20ms.h5",  "ICAD21_sv26",  2.6, 12),
             "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5": ("../data/stenosis_70/ICAD146_05mm3_20ms.h5", "ICAD146_sv17", 1.7,  8),
         }
+
         if data_file in LR_ROUTING:
-            ref_file, file_type, venc, peak_idx = LR_ROUTING[data_file]
+            ref_file, _, venc, peak_idx = LR_ROUTING[data_file]
             config.data_file = data_file
             config.data_file_ref = ref_file
             config.constants.venc = venc
             config.predictions.peak_flow_idx = peak_idx
-        
-        #inner_lr = sweep_config["meta_learning.inner_lr"]
-        #inner_steps = sweep_config["meta_learning.inner_steps"]
-        #outer_lr = sweep_config["meta_learning.outer_lr"]
-        #meta_batch_size = sweep_config["meta_learning.meta_batch_size"]
-        #config.meta_learning.inner_lr = inner_lr
-        #config.meta_learning.inner_steps = inner_steps
-        #config.meta_learning.outer_lr = outer_lr
-        #config.meta_learning.meta_batch_size = meta_batch_size
-        #config.training.tau = sweep_config["training.tau"]
-        #config.training.beta = sweep_config["training.beta"]
-        #config.training.K = sweep_config["training.K"]
-        #config.points_to_update = sweep_config["training.points_to_update"]
-        #config.training.weight_clip = [sweep_config["training.weight_clip_max"], sweep_config["training.weight_clip_min"]]
-        #config.training.iterations_before_BFGS = sweep_config["training.iterations_before_BFGS"]
-        #config.training.BFGS_lr = sweep_config["training.BFGS_lr"]
-        #config.training.BFGS_max_iter = sweep_config["training.BFGS_max_iter"]
-        #config.training.BFGS_history_size = sweep_config["training.BFGS_history_size"]
-        #config.training.BFGS_tolerance_grad = sweep_config["training.BFGS_tolerance_grad"]
-        #config.training.BFGS_tolerance_change = sweep_config["training.BFGS_tolerance_change"]
 
-        #data_file = sweep_config["data_file"]
-        #if data_file == "../data/invivo/HV01.h5":
-        #    config.data_file = data_file
-        #    file_type = "HV01_invivo"
-        #    config.resolution.dx = 0.0009821 #0.0005*2
-        #    config.resolution.dy =  0.0009821 # 0.0005*2
-        #    config.resolution.dz =  0.001 
-        #    config.resolution.dt = 0.0826 #0.02*2
-        #if data_file == "../data/invivo/HV03.h5":
-        #    config.data_file = data_file
-        #    file_type = "HV03_invivo"
-        #    config.resolution.dx = 0.0009821 #0.0005*2
-        #    config.resolution.dy =  0.0009821 # 0.0005*2
-        #    config.resolution.dz =  0.001 
-        #    config.resolution.dt = 0.0826 #0.02*2
-        #if data_file == "../data/invivo/HV06.h5":
-        #    config.data_file = data_file
-        #    file_type = "HV06_invivo"
-        #    config.resolution.dx = 0.0009821 #0.0005*2
-        #    config.resolution.dy =  0.0009821 # 0.0005*2
-        #    config.resolution.dz =  0.001 
-        #    config.resolution.dt = 0.0826 #0.02*2
+        config.network.omega_0 = sweep_config.get(
+            "network.omega_0",
+            config.network.omega_0,
+        )
 
-        #if data_file == "../data/invivo/ICAD28.h5":
-        #    config.data_file = data_file
-        #    file_type = "ICAD28_invivo"
-        #    config.resolution.dx = 0.00098214 #0.0005*2
-        #    config.resolution.dy =  0.00098214 # 0.0005*2
-        #    config.resolution.dz =  0.001 
-        #    config.resolution.dt = 0.0868 #0.02*2
-        #if data_file == "../data/invivo/ICAD48.h5":
-        #    config.data_file = data_file
-        #    file_type = "ICAD48_invivo"
-        #    config.resolution.dx = 0.00098214 #0.0005*2
-        #    config.resolution.dy =  0.00098214 # 0.0005*2
-        #    config.resolution.dz =  0.001 
-        #    config.resolution.dt = 0.0868 #0.02*2
-        #if data_file == "../data/invivo/ICAD98.h5":
-        #    config.data_file = data_file
-        #    file_type = "ICAD98_invivo"
-        #    config.resolution.dx =  0.0010417 #0.0005*2
-        #    config.resolution.dy =  0.0010417 # 0.0005*2
-        #    config.resolution.dz =  0.001 
-        #    config.resolution.dt = 0.042699 #0.02*2
+        config.network.sigma_0 = sweep_config.get(
+            "network.sigma_0",
+            config.network.sigma_0,
+        )
 
-        #if data_file == "../data/invivo/ICAD17.h5":
-        #    config.data_file = data_file
-        #    file_type = "ICAD17_invivo"
-        #    config.resolution.dx = 0.00098214 #0.0005*2
-        #    config.resolution.dy =  0.00098214 # 0.0005*2
-        #    config.resolution.dz =  0.001 
-        #    config.resolution.dt = 0.0868 #0.02*2
-        #if data_file == "../data/invivo/ICAD21.h5":
-        #    config.data_file = data_file
-        #    file_type = "ICAD21_invivo"
-        #    config.resolution.dx =  0.0011458 #0.0005*2
-        #    config.resolution.dy =  0.0011458 # 0.0005*2
-        #    config.resolution.dz =  0.0011 
-        #    config.resolution.dt = 0.042699 #0.02*2
-        #if data_file == "../data/invivo/ICAD146.h5":
-        #    config.data_file = data_file
-        #    file_type = "ICAD146_invivo"
-        #    config.resolution.dx = 0.00098214 #0.0005*2
-        #    config.resolution.dy =  0.00098214 # 0.0005*2
-        #    config.resolution.dz =  0.001 
-        #    config.resolution.dt = 0.0434 #0.02*2
+        config.load_meta_init = sweep_config.get(
+            "load_meta_init",
+            config.load_meta_init,
+        )
 
-        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_sv26_tSNR10.h5":
-        #    config.data_file = data_file
-        #    file_type = "sv26_original"
-        #    config.constants.venc = 2.6
-        #    config.predictions.peak_flow_idx = 12
-#
-        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_sv26_tSNR10_newMask.h5":
-        #    config.data_file = data_file
-        #    file_type = "sv26_newMask"
-        #    config.constants.venc = 2.6
-        #    config.predictions.peak_flow_idx = 12
-#
-        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8_newMask.h5":
-        #    config.data_file = data_file
-        #    file_type = "dv26_newMask"
-        #    config.constants.venc = 2.6
-        #    config.predictions.peak_flow_idx = 12
-#
-        #if data_file == "../data/stenosis_70/ICAD21_05mm3_20ms_LR_dv_hv26_tSNR8.h5":
-        #    config.data_file = data_file
-        #    file_type = "dv26_original"
-        #    config.constants.venc = 2.6
-        #    config.predictions.peak_flow_idx = 12
-
-        # Meta-learning PINN sweep setup - use .get() with defaults for optional params
-        load_meta_init = sweep_config.get("load_meta_init", config.load_meta_init)
-        #iterations = sweep_config.get("training.iterations", config.training.iterations)
-        #use_LBFGS = sweep_config.get("training.use_LBFGS", config.training.use_LBFGS)
-        config.load_meta_init = load_meta_init
-        #config.training.iterations = iterations
-        #config.training.use_LBFGS = use_LBFGS
-        #inner_lr = sweep_config.get("meta_learning.inner_lr", config.meta_learning.inner_lr)
-        #inner_steps = sweep_config.get("meta_learning.inner_steps", config.meta_learning.inner_steps)
-        #outer_lr = sweep_config.get("meta_learning.outer_lr", config.meta_learning.outer_lr)
-        #meta_batch_size = sweep_config.get("meta_learning.meta_batch_size", config.meta_learning.meta_batch_size)
-        #physics_weight = sweep_config.get("meta_learning.physics_weight", config.meta_learning.physics_weight)
-        #coll_points_outer = sweep_config.get("meta_learning.coll_points_outer", config.meta_learning.coll_points_outer)
-        #physics_curriculum_start = sweep_config.get("meta_learning.physics_curriculum_start", config.meta_learning.physics_curriculum_start)
-        #physics_curriculum_end = sweep_config.get("meta_learning.physics_curriculum_end", config.meta_learning.physics_curriculum_end)
-        #reptile_epsilon = sweep_config.get("meta_learning.reptile_epsilon", config.meta_learning.reptile_epsilon)
-        #physics_weight = sweep_config.get("meta_learning.physics_weight", config.meta_learning.physics_weight)
-        #coll_points_inner = sweep_config.get("meta_learning.coll_points_inner", config.meta_learning.coll_points_inner)
-        #inner_points = sweep_config.get("meta_learning.inner_points", config.meta_learning.inner_points)
-        #support_fraction = sweep_config.get("meta_learning.support_fraction", config.meta_learning.support_fraction)
-        #div_weight = sweep_config.get("meta_learning.div_weight", config.meta_learning.div_weight)
-
-        # Apply sweep parameters to config
-        #config.meta_learning.inner_lr = inner_lr
-        #config.meta_learning.inner_steps = inner_steps
-        #config.meta_learning.outer_lr = outer_lr
-        #config.meta_learning.meta_batch_size = meta_batch_size
-        #config.meta_learning.physics_weight = physics_weight
-        #config.meta_learning.coll_points_outer = coll_points_outer
-        #config.meta_learning.physics_curriculum_start = physics_curriculum_start
-        #config.meta_learning.physics_curriculum_end = physics_curriculum_end
-        
-        #config.meta_learning.reptile_epsilon = reptile_epsilon
-        #config.meta_learning.physics_weight = physics_weight
-        #config.meta_learning.coll_points_outer = coll_points_inner
-        #config.meta_learning.inner_points = inner_points
-        #config.meta_learning.support_fraction = support_fraction
-        #config.meta_learning.div_weight = div_weight
-
-        # Print sweep parameters for logging
-        #print(f"\n[Sweep Parameters]")
-        #print(f"  inner_lr: {inner_lr}")
-        #print(f"  inner_steps: {inner_steps}")
-        #print(f"  outer_lr: {outer_lr}")
-        #print(f"  meta_batch_size: {meta_batch_size}")
-        #print(f"  reptile_epsilon: {reptile_epsilon}")
-        #print(f"  physics_weight: {physics_weight}")
-        #print(f"  coll_points_inner: {coll_points_inner}")
-        #print(f"  inner_points: {inner_points}")
-        #print(f"  support_fraction: {support_fraction}")
-        #print(f"  div_weight: {div_weight}")
-        
-
-
-        # Sweep parameters:
-        #omega_0 = sweep_config["network.omega_0"]
-        #sigma_0 = sweep_config["network.sigma_0"]
-        #config.network.omega_0 = omega_0
-        #config.network.sigma_0 = sigma_0
-        #if sigma_0 == 0:
-        #    config.network.complex = False
-        #lr = sweep_config["training.lr"]
-        #decay_type = sweep_config["decay_type"]
-        #decay_target = sweep_config["decay_target"]
-        #config.training.lr = lr
-        #config.decay_type = decay_type
-        #config.decay_target = decay_target
-        ##fourier_mapping_size = sweep_config["network.fourier_mapping_size"]
-        ##fourier_scale = sweep_config["network.fourier_scale"]
-        #t_len = sweep_config["template.t_len"]
-        #hidden_features = sweep_config["network.hidden_features"]
-        #if hidden_features == 128:
-        #    config.training.data_points_per_batch = 10000
-        #    config.training.coll_points_per_batch = 10000
-
-        ##network_arch = sweep_config["network.arch"]
-        ##hidden_features = sweep_config["network.hidden_features"]
-        ##BFGS_lr = sweep_config["training.BFGS_lr"]
-        ##iterations_before_BFGS = sweep_config["training.iterations_before_BFGS"]
-        ##lr_decay_iter = sweep_config["training.lr_decay_iter"]
-        ##network_sigma_0 = sweep_config["network.sigma_0"]
-        #training_use_vector_potential = sweep_config["training.use_vector_potential"]
-        #training_sample_collocation = sweep_config["training.sample_collocation"]
-        #if training_sample_collocation:
-        #    config.training.use_physics_loss = True
-        #    config.training.physics_loss_on_data_points = True
-        #    config.training.use_divergence = True
-        #else:
-        #    config.training.use_physics_loss = False
-        #    config.training.physics_loss_on_data_points = False
-        #    config.training.use_divergence = False
-        ###training_lr_decay_iter = sweep_config["training.lr_decay_iter"]
-        ###training_BFGS_lr = sweep_config["training.BFGS_lr"]
-        #training_iterations_before_BFGS = sweep_config["training.iterations_before_BFGS"]
-        #gradW = sweep_config["training.grad_weight_scheme"]
-        ##training_use_cosine = sweep_config["training.use_cosine"]
-        #training_sample_boundary = sweep_config["training.sample_boundary"]
-        #if training_use_cosine:
-        #    config.training.use_mse = False
-        #    config.training.use_cosine = True
-        #else:
-        #    config.training.use_mse = True
-        #    config.training.use_cosine = False
-        #U_const = sweep_config["constants.U"]
-        #L_const = sweep_config["constants.L"]
-        #iterationes = sweep_config["training.iterations"]
-
-        #train_loss = sweep_config["training.loss"]
-        #loss_change_iter = None
-        #if train_loss == 'mse':
-        #    config.training.use_mse = True
-        #    config.training.use_cosine = False
-        #elif train_loss=='cos':
-        #    config.training.use_mse = False
-        #    config.training.use_cosine = True
-        #elif train_loss == "mse_and_cos":
-        #    config.training.use_mse = True
-        #    config.training.use_cosine = False
-        #    loss_change_iter = 1000
-
-        #data_file = sweep_config["data_file"]
-        #if data_file == "../data/stenosis_70/ICAD17_05mm3_20ms_LR_dv_hv41_tSNR8.h5":
-        #    file_type = "ICAD17_hv41"
-        #    #config.constants.venc = 2.6
-        #tau = sweep_config["training.tau"]
-        #beta = sweep_config["training.beta"]
-        #k = sweep_config["training.K"]
-        #points_to_update = sweep_config["training.points_to_update"]
-        #iterations_before_BFGS = sweep_config["training.iterations_before_BFGS"]
-        #BFGS_lr = sweep_config["training.BFGS_lr"]
-        #BFGS_max_iter = sweep_config["training.BFGS_max_iter"]
-        #BFGS_history_size = sweep_config["training.BFGS_history_size"]
-        #BFGS_tolerance_grad = sweep_config["training.BFGS_tolerance_grad"]
-        #BFGS_tolerance_change = sweep_config["training.BFGS_tolerance_change"]
-
-
-        # Run names
-        #run.name = f"SIREN_sweep_Omega{omega_0}"
-        #run.name = f"GAUSS_sweep_Sigma{sigma_0}"
-        #run.name = f"WIRE_COMPLEX_sweep_Sigma{sigma_0}_Omega{omega_0}"
-        #run.name = f"FFN_bias_sweep_fourier_mapping_size{fourier_mapping_size}_fourier_scale{fourier_scale}"
-
-        #run.name = f"FFN_TEMPORAL_ICAD21_sweep_t{t_len}"
-        
-        #run.name = f"HV01_WIRE_REAL_itBFGS{iterations_before_BFGS}_lrdecay{lr_decay_iter}"
-        #run.name = f"HV01_WIRE_REALsweep_sigma{sigma_0}_VecPot{training_use_vector_potential}_Phys{training_sample_collocation}_tlen{t_len}_Bnd{training_sample_boundary}"
-        #run.name = f"{network_arch}_hidden{hidden_features}_BFGSlr{BFGS_lr}_itBFGS{iterations_before_BFGS}_lrdecay{lr_decay_iter}_t{t_len}"
-        #run.name = f"WIRE_sweep_Sigma{network_sigma_0}_VecPot{training_use_vector_potential}_Phys{training_use_physics_loss}_lrdecay{training_lr_decay_iter}_BFGSlr{training_BFGS_lr}_itBFGS{training_iterations_before_BFGS}_trueCos{training_use_cosine}_trainSampleBound{training_sample_boundary}"
-        #run.name = f"HV01_WIRE_REAL_REY_U{U_const}_L{L_const}"
-        #run.name = f"HV01_WIRE_REAL_LONG_ITERS_{iterationes}"
-        #run.name = f"HV01_WIRE_REAL_128FEAT_tlen{t_len}_FEAT{hidden_features}"
-        #run.name = f"HV01_WIRE_CMPLXsweep_VecPot{training_use_vector_potential}_Phys{training_sample_collocation}_tlen{t_len}_Bnd{training_sample_boundary}"
-        #run.name = f"HV01_WIRE_REAL_momentum_data{file_type}_loss{train_loss}"
-        #run.name = f"ICAD21_WIRE_momentum_data{file_type}_loss{train_loss}"
-        #run.name = f"WIRE_CMPLX_data_ALL_{file_type}_U{U_const}"
-        #run.name = f"WIRE_MOMENTUM_ALL_{file_type}"
-        #run.name = f"WIRE_CMPLX_data_maskTest_{file_type}"
-        #run.name = f"WIRE_MOMENTUM_HV01_LongRun"
-        #run.name = f"WIRE_DIVERGENCE_HV01_VecPot{training_use_vector_potential}_Phys{training_sample_collocation}_itBFGS{training_iterations_before_BFGS}_gradWScheme{gradW}"
-        # Dynamic run name with key sweep parameters
-        run.name = f"MetaMAML_10it_DataDriven_ForPINN_{data_file}_loadMetaInit{load_meta_init}"
-        #run.name = f"MetaMAML_PINN_innerLR{inner_lr}_innerSteps{inner_steps}_outerLR{outer_lr}_metaBS{meta_batch_size}_physW{physics_weight}_collPtsOuter{coll_points_outer}_physCurStart{physics_curriculum_start}_physCurEnd{physics_curriculum_end}"
-        
-        #run.name = f"251031_WIRE_MOMENTUM_INVIVO_{file_type}"
-        print("Run name: ", run.name)
-        run.log({"run_name": run.name})
-
-        # Sweep overrides
-        #config.network.fourier_mapping_size = fourier_mapping_size
-        #config.network.fourier_scale = fourier_scale
-        #config.template.t_len = t_len
-        ##config.network.arch = network_arch
-        #config.network.hidden_features = hidden_features
-        ##config.training.BFGS_lr = BFGS_lr
-        ##config.training.iterations_before_BFGS = iterations_before_BFGS
-        ##config.training.lr_decay_iter = lr_decay_iter
-        #config.network.sigma_0 = sigma_0
-        #config.sample_collocation = training_sample_collocation
-        #config.training.use_vector_potential = training_use_vector_potential
-        ####config.training.lr_decay_iter = training_lr_decay_iter
-        ####config.training.BFGS_lr = training_BFGS_lr
-        #config.training.iterations_before_BFGS = training_iterations_before_BFGS
-        ##config.sample_boundary = training_sample_boundary
-        ##config.data_file = data_file
-        ##config.constants.L = L_const
-        ##config.constants.U = U_const
-        ##config.training.iterations = iterationes
-        #config.training.grad_weight_scheme = gradW
+        # Store the complete resolved configuration used by this run
+        run.config.update(
+            {"resolved_config": config.to_dict()},
+            allow_val_change=True,
+        )
 
         timestamp = datetime.now().strftime('%Y%m%d-%H%M')
         config.log_dir = f"{config.networks_folder}/{run.name}_{timestamp}"
 
     else:
-        # Initialize wandb for this run
-        wandb.init(project="SRFlow-NTK-Analysis", name=run_name, config=config.to_dict())
+        run = init_wandb(
+            config,
+            run_name=run_name,
+            use_sweep=False,
+        )
 
     if config.meta_learning.enabled:
         # Meta-learning with TrainingStep integration
@@ -384,7 +161,6 @@ def train(config=None, run_name=None, use_sweep=False):
     xyz_collocation = None
     if config.sample_collocation:
         xyz_collocation = sample_collocation_points(config, xyz_data, mask_flat)
-    ### xyz_collocation = np.copy(xyz_train)
 
     # Sample boundary points
     xyz_boundary = None
@@ -462,7 +238,6 @@ def train(config=None, run_name=None, use_sweep=False):
         
         print("Meta-learned weights loaded successfully")
 
-    ########
     c_weights = None
     if config.sample_collocation and config.training.self_adaptive:
         N_c = xyz_collocation.shape[0]
@@ -485,15 +260,9 @@ def train(config=None, run_name=None, use_sweep=False):
         uvw_ref_gpu = torch.from_numpy(uvw_ref).float().to(DEVICE)
         mask_flat_ref_gpu = torch.from_numpy(mask_flat_ref).float().to(DEVICE).view(-1, 1)
 
-
     # Initialize optimizers
     Adam_optimizer = torch.optim.Adam(params=model.parameters(), lr=config.training.lr)
     
-    """ if config.decay_type == 'none':
-        scheduler = LambdaLR(Adam_optimizer, lambda x: 1)
-    elif config.decay_type == 'exp':
-        scheduler = LambdaLR(Adam_optimizer, lambda x: config.decay_target**(x/config.training.iterations))
-         """
     if config.decay_type == 'cosine':
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             Adam_optimizer, T_max=8000, eta_min=1e-7
@@ -571,32 +340,11 @@ def train(config=None, run_name=None, use_sweep=False):
     # Initialize loss weights
     loss_weights = None
 
-    # Initialize csv logger    
-    writer = SummaryWriter(log_dir=f"{config.log_dir}/tensorboard")
-
-    # Ability to PRELOAD NETWORK incl optimizer here HERE
-    # network_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_ICAD28_sv13_20251126-1657/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it010000.pth"
-    # checkpoint = torch.load(network_path, map_location=DEVICE)
-    # model.load_state_dict(checkpoint['model_state_dict'])
-    
-    #scheduler = None
+    # Initialize TensorBoard writer    
+    writer = SummaryWriter(
+        log_dir=f"{config.log_dir}/tensorboard"
+    )
     start_it = 0
-    #w_before = sum(p.sum().item() for p in model.parameters())
-    #print("Loading model weights...")
-    #resume_path = "../models/251125_WIRE_MOMENTUM_ALL_SV_SAPINN/251125_WIRE_MOMENTUM_ALL_SV_NewMask_SA_ICAD28_sv13_20251126-1657/checkpoints/251125_WIRE_MOMENTUM_ALL_SV_SAPINN_it010000.pth"
-    #start_it = 10_000
-    #if resume_path:
-    #    start_it, c_weights, loss_weights = load_ckpt(resume_path, model, DEVICE,
-    #                            adam_opt=Adam_optimizer,
-    #                            lbfgs_opt=BFGS_optimizer if config.training.use_LBFGS else None,
-    #                            scheduler=scheduler)
-    #    #torch.cuda.empty_cache()
-    #    #model.train()
-    #    Adam_optimizer.zero_grad(set_to_none=True)
-    #    if BFGS_optimizer: BFGS_optimizer.zero_grad()
-    #    w_after  = sum(p.sum().item() for p in model.parameters())
-    #    print(f"Weights before loading: {w_before}, after loading: {w_after}")
-    #    print(loss_weights)
 
     # Start training
     start_time = time.time()
@@ -608,19 +356,8 @@ def train(config=None, run_name=None, use_sweep=False):
         # Train
         model.train()
 
-        # Sample random points and set to device
-        #(
-        #    xyz_data_batch, 
-        #    uvw_data_batch, 
-        #    mask_batch,
-        #    xyz_collocation_batch, 
-        #    xyz_boundary_batch
-        #) = sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train, mask_flat, DEVICE)
-
         # Sample random points
-        
-
-        if config.training.self_adaptive and config.training.adaptive_sampling: ## 0. Adaptive sampling - CHECK
+        if config.training.self_adaptive and config.training.adaptive_sampling:
             (
                 xyz_data_batch, 
                 uvw_data_batch, 
@@ -639,7 +376,6 @@ def train(config=None, run_name=None, use_sweep=False):
                 coll_indices
             ) = sample_from_gpu(config, xyz_train_gpu, xyz_collocation_gpu, xyz_boundary_gpu, uvw_train_gpu, mask_flat_gpu)
 
-
         # Build batch weights tensor if available
         c_batch_weights = None
         if (coll_indices is not None) and (c_weights is not None):
@@ -647,8 +383,6 @@ def train(config=None, run_name=None, use_sweep=False):
                 c_weights[coll_indices.detach().cpu().numpy()],
                 device=DEVICE, dtype=torch.float32
             )
-
-            #c_batch_weights = c_batch_weights / (c_batch_weights.mean() + 1e-12)
 
         # Track gradients
         xyz_data_batch.requires_grad = True
@@ -666,7 +400,7 @@ def train(config=None, run_name=None, use_sweep=False):
 
         # Predict and calculate PDE residuals (physics loss)
         if config.training.self_adaptive:
-            physics_losses = compute_physics_loss( ## 1. ADD c_weights to physics loss
+            physics_losses = compute_physics_loss(
                 config,
                 it,
                 model,
@@ -736,7 +470,6 @@ def train(config=None, run_name=None, use_sweep=False):
 
         if config.include_ref_loss:
             # Sample random points and set to device
-            #xyz_ref_batch, uvw_ref_batch, mask_ref_batch = sample_ref_to_device(config, xyz_ref, uvw_ref, mask_flat_ref, DEVICE)
             xyz_ref_batch, uvw_ref_batch, mask_ref_batch = sample_ref_from_gpu(config, xyz_ref_gpu, uvw_ref_gpu, mask_flat_ref_gpu)
             if config.training.use_vector_potential:
                 xyz_ref_batch.requires_grad = True
@@ -833,25 +566,13 @@ def train(config=None, run_name=None, use_sweep=False):
                 wandb.log(log_dict, step=it + 1)
                     
         # Save model at checkpoint
-        if (it + 1) % config.training.summary_iter == 0:
-            #save_checkpoint(model, it+1, config)
-            #save_ckpt(
-            #    f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
-            #    model, Adam_optimizer, BFGS_optimizer if config.training.use_LBFGS else None,
-            #    scheduler=None, iteration=it+1
-            #)
+        if (it + 1) % config.training.summary_iter == 0 and (it + 1) != config.training.iterations:
             save_ckpt(f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
                         model, Adam_optimizer, BFGS_optimizer if config.training.use_LBFGS else None,
                         scheduler=scheduler, loss_weights=loss_weights, c_weights=c_weights, iteration=it+1)
 
         # Save model at end of training
         if (it + 1) == config.training.iterations:
-            #save_checkpoint(model, it+1, config, final=True)
-            #save_ckpt(
-            #    f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
-            #    model, Adam_optimizer, BFGS_optimizer if config.training.use_LBFGS else None,
-            #    scheduler=None, iteration=it+1
-            #)
             save_ckpt(f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
                         model, Adam_optimizer, BFGS_optimizer if config.training.use_LBFGS else None,
                         scheduler=scheduler, loss_weights=loss_weights, c_weights=c_weights, iteration=it+1)
@@ -873,7 +594,6 @@ def train(config=None, run_name=None, use_sweep=False):
                         "FINAL Pressure Gradient Relative Error [Fluid]": metrics_eval['Relative error Pressure Gradient (%) [Fluid]'],
                         "FINAL Pressure gradient PZ k [Core]": metrics_eval['PZ K [Core]'],
                         "FINAL Pressure gradient PZ r^2 [Core] Peak": metrics_eval['PZ r^2 [Core] Peak'],
-                        # "FINAL Pressure gradient PZ 2 r^2 [Core]": metrics_eval['PZ 2 r^2 [Core]'],
                     })
             
             else:
@@ -963,10 +683,8 @@ def train(config=None, run_name=None, use_sweep=False):
                 w_new_core = np.clip(w_new_core, clip_min, clip_max)
                 w_new_core = np.nan_to_num(w_new_core, nan=1.0, posinf=clip_max, neginf=clip_min)
 
-                # 5) Scatter back into full-sized w_new aligned to subset_idx
-                w_new = np.ones_like(subset_idx, dtype=np.float64)
-                # res was computed on resid_subset which corresponds to subset_idx; lengths match
-                w_new = w_new_core  # same length as subset_idx
+                # 5) Use the newly computed weights for the sampled subset
+                w_new = w_new_core 
 
                 # 6) EMA blend + renorm + floor
                 beta = float(config.training.beta)
@@ -983,7 +701,6 @@ def train(config=None, run_name=None, use_sweep=False):
                 
                 # Log metrics to wandb
                 log_dict = {
-                    #"c_weights/mean":m,
                     "c_weights/min":a,
                     "c_weights/max":b,
                     "c_weights/p50": float(np.percentile(c_weights, 50)),
@@ -998,4 +715,5 @@ def train(config=None, run_name=None, use_sweep=False):
 
                 model.train()
 
+    writer.close()
     wandb.finish()

@@ -1,82 +1,6 @@
 import ml_collections
 from datetime import datetime
 
-
-def get_sweep_config_quick():
-    """
-    Quick test sweep for MAML + Physics with Curriculum Learning.
-
-    Uses your best data-driven MAML hyperparameters as baseline,
-    only sweeps physics-related parameters to validate the approach.
-
-    Run this first to check if curriculum learning helps!
-    """
-    return {
-        'name': 'Meta_MAML_Physics_QuickTest',
-        'method': 'grid',
-        'metric': {'name': 'Val/Post_LR', 'goal': 'minimize'},
-        'parameters': {
-            # Use best hyperparameters from data-driven MAML
-            'meta_learning.inner_lr': {'values': [0.000611]},  # Best from data-driven
-            'meta_learning.outer_lr': {'values': [1.51e-05]},  # Best from data-driven
-            'meta_learning.inner_steps': {'values': [10]},     # Best from data-driven
-            'meta_learning.meta_batch_size': {'values': [3]},  # Slightly lower for physics memory
-
-            # Sweep physics parameters
-            'meta_learning.physics_weight': {'values': [0.1, 0.5, 1.0]},
-            'meta_learning.coll_points_outer': {'values': [1000, 2000]},
-
-            # Curriculum: compare with vs without
-            'meta_learning.physics_curriculum_start': {'values': [0, 500]},  # 0 = no curriculum
-            'meta_learning.physics_curriculum_end': {'values': [1, 2000]},   # 1 = no curriculum (instant full weight)
-        }
-    }
-
-
-""" def get_sweep_config():
-    return {
-        'name': 'Meta_MAML_PhysicsOuterOnly_Curriculum',
-        'method': 'bayes',
-        'metric': {'name': 'Val/Post_LR', 'goal': 'minimize'},
-        'early_terminate': {
-            'type': 'hyperband',
-            'min_iter': 1000,  # Increased to allow curriculum to take effect
-            'max_iter': 5000
-        },
-        'parameters': {
-            'meta_learning.inner_lr': {
-                'distribution': 'log_uniform_values',
-                'min': 1e-4,
-                'max': 1e-2
-            },
-            'meta_learning.outer_lr': {
-                'distribution': 'log_uniform_values',
-                'min': 1e-5,
-                'max': 1e-4
-            },
-            'meta_learning.inner_steps': {
-                'values': [5, 7, 10]  # Can use more steps (no physics memory in inner)
-            },
-            'meta_learning.meta_batch_size': {
-                'values': [2, 3]  # Can use larger batch than full PINN MAML
-            },
-            'meta_learning.physics_weight': {
-                'distribution': 'log_uniform_values',
-                'min': 0.01,  # Lower minimum - physics should be gentle regularization
-                'max': 1.0   # Lower max - avoid physics dominating
-            },
-            'meta_learning.coll_points_outer': {
-                'values': [1000, 2000, 3000]
-            },
-            # Curriculum parameters
-            'meta_learning.physics_curriculum_start': {
-                'values': [300, 500, 750]  # When to start adding physics
-            },
-            'meta_learning.physics_curriculum_end': {
-                'values': [1500, 2000, 3000]  # When physics reaches full weight
-            },
-        }
-    } """
 def get_sweep_config():
     
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
@@ -139,6 +63,12 @@ def get_config(sweep_config=None):
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
 
+    # Weights & Biases
+    config.wandb = ml_collections.ConfigDict()
+    config.wandb.project = "4DFlowINR"
+    config.wandb.group = "paper-meta-pinn"
+    config.wandb.tags = ["paper", "meta-learning", "pinn"]
+
     # Domain
     config.domain = ml_collections.ConfigDict()
     config.domain.crop = False
@@ -175,7 +105,7 @@ def get_config(sweep_config=None):
 
     # Normalization and constants
     config.vel_normalization = "characteristic"
-    config.coords_characteristic = True  # IMPORTANT: Must match PINN fine-tuning config!
+    config.coords_characteristic = True 
     config.coords_normalization = "standardize"
     config.global_normalization = True
 
@@ -242,7 +172,7 @@ def get_config(sweep_config=None):
     config.meta_learning.use_physics_outer_only = True  # OUTER LOOP ONLY!
 
     # Physics settings (applied ONLY in outer loop)
-    config.meta_learning.physics_weight = 1.0           # Sweep this!
+    config.meta_learning.physics_weight = 1.0       
     config.meta_learning.coll_points_outer = 2000       # Collocation for outer loop
     config.meta_learning.use_boundary_loss = False
     config.meta_learning.div_weight = 1.0
@@ -254,8 +184,10 @@ def get_config(sweep_config=None):
     # Phase 1 (0 to curriculum_start): Pure data-driven (like working MAML)
     # Phase 2 (curriculum_start to curriculum_end): Physics weight ramps up linearly
     # Phase 3 (after curriculum_end): Full physics_weight applied
-    config.meta_learning.physics_curriculum_start = 0   # Start adding physics at iter 500
-    config.meta_learning.physics_curriculum_end = 0    # Full physics by iter 2000
+
+    # Physics curriculum disabled for the paper experiment.
+    config.meta_learning.physics_curriculum_start = 0
+    config.meta_learning.physics_curriculum_end = 0
 
     # Other settings
     config.meta_learning.support_fraction = 0.5

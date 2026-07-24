@@ -24,71 +24,8 @@ def get_sweep_config():
                 ]},
             
             'load_meta_init': {'values': [True, False]},
-            #'training.iterations': {'values': [250, 500]},
-            #'training.iterations': {'values': [500, 1000, 2500, 5000]},
-            #'network.sigma_0': {'values': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]},
-            #'network.omega_0': {'values': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
-            #'training.lr': {'values': [ 2e-4, 1e-4]},
-            #'decay_type': {'values': ['none','multi', 'exp', 'cosine']},
-            #'decay_target': {'values': [0.1, 0.01, 0.001]}
-            
-            #'network.sigma_0': {'values': [0, 25, 50, 75, 100]},
-            #'network.omega_0': {'values': [0, 25, 50, 75, 100]}
-            #'training.iterations_before_BFGS': {
-            #    'values': [5000, 12500]
-            #},
-            #'training.BFGS_lr': {
-            #    'values': [0.1, 0.05, 0.01]
-            #},
-            #'training.BFGS_max_iter': {
-            #    'values': [3, 5, 10, 20]
-            #},
-            #'training.BFGS_history_size': {
-            #    'values': [10, 20, 50]
-            #},
-            #'training.BFGS_tolerance_grad': {
-            #    'values': [1e-7, 1e-6, 1e-5]
-            #},
-            #'training.BFGS_tolerance_change': {
-            #    'values': [1e-9, 1e-7, 1e-6]
-            #},
-            
-
-
-
         },
     }
-
-""" def get_sweep_config():
-    return {
-        'name': 'Meta_MAML_DataDriven',
-        'method': 'bayes',
-        'metric': {'name': 'Val/Post_LR', 'goal': 'minimize'},
-        'early_terminate': {
-            'type': 'hyperband',
-            'min_iter': 500,
-            'max_iter': 5000
-        },
-        'parameters': {
-            'meta_learning.inner_lr': {
-                'distribution': 'log_uniform_values',
-                'min': 1e-4,
-                'max': 1e-2
-            },
-            'meta_learning.outer_lr': {
-                'distribution': 'log_uniform_values',
-                'min': 1e-5,
-                'max': 5e-4
-            },
-            'meta_learning.inner_steps': {
-                'values': [3, 5, 7, 10]
-            },
-            'meta_learning.meta_batch_size': {
-                'values': [2, 3, 4]
-            },
-        }
-    } """
-
 
 def get_config(sweep_config=None):
 
@@ -108,11 +45,15 @@ def get_config(sweep_config=None):
     # Model
     config.networks_folder = "../models/MetaLearning_BestHyperPArameters/"
     config.network_name = "260202_MAML_DataDriven_REPRO"
-    #config.networks_folder = "../models/260606_INR_DataDriven_omega20_1000it_h5/"
-    #config.network_name = "260606_INR_DataDriven_omega20"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
+
+    # Weights & Biases
+    config.wandb = ml_collections.ConfigDict()
+    config.wandb.project = "4DFlowINR"
+    config.wandb.group = "paper-meta-inr"
+    config.wandb.tags = ["paper", "meta-learning", "inr"]
 
     # Domain
     config.domain = ml_collections.ConfigDict()

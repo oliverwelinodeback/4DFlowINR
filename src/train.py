@@ -144,7 +144,7 @@ def main() -> None:
     os.chdir(SRC_DIR)
 
     if config.sweep:
-        sweep_project = "SRFlow-NTK-Analysis"
+        sweep_project = config.wandb.project
 
         if args.sweep_id is not None:
             print(f"Joining existing W&B sweep: {args.sweep_id}")

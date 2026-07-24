@@ -36,7 +36,7 @@ def add_complex_signal_noise(imgfft, targetSNR):
 
     """    
     add_complex_noise =True
-    # adding noise on the real and complex image
+
     # print("--------------Adding Gauss noise to COMPLEX signal----------------")
 
     # Deconstruct the complex numbers into real and imaginary
@@ -238,11 +238,6 @@ def rectangular_crop(f, crop_ratio):
     return new_kspace
 
 def downsample_complex_img(complex_img, crop_ratio, targetSNR, k_space_filter):
-    #mag_signal_imspace = np.abs(complex_img)
-    #signal_power = np.mean((mag_signal_imspace) ** 2)
-    #noise_power = signal_power / targetSNR
-    #print(f"signal power imspace: {signal_power}")
-    #print(f"noise power imspace: {noise_power}")
 
     imgfft = np.fft.fftn(complex_img)
 
@@ -299,7 +294,7 @@ def downsample_phase_img(velocity_img, mag_image, venc, crop_ratio, targetSNR, k
     new_complex_img, shifted_freqmag = downsample_complex_img(complex_img, crop_ratio, targetSNR, k_space_filter)
     # -----------------------------------------------------------
 
-    # Get the MAGnitude and rescale
+    # Get the Magnitude and rescale
     new_mag = np.abs(new_complex_img)
     new_mag = rescale_magnitude_on_ratio(new_mag, mag_image)
 
