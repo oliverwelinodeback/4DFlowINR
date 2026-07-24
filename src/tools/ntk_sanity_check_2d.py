@@ -6,7 +6,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, os.path.dirname(__file__))
+SRC_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")
+)
+sys.path.insert(0, SRC_DIR)
+
 import networks
 from utils.ntk import ntk_eigendecomposition
 
@@ -17,7 +21,7 @@ BATCH   = 128
 DEPTH   = 6
 HIDDEN  = 64
 SEED    = 42
-RES     = 64  # 64x64 = 4096 points — matches paper's image grid
+RES     = 64  # 64x64 = 4096 points
 
 torch.manual_seed(SEED)
 np.random.seed(SEED)
@@ -39,8 +43,8 @@ for omega in OMEGAS:
         first_omega_0=omega, hidden_omega_0=omega
     ).to(DEVICE)
     model.eval()
-    with torch.no_grad():
-        eigvals, eigvecs, ntk_matrix = ntk_eigendecomposition(model, coords, k=K_EIGS, batch_size=BATCH)
+    eigvals, eigvecs, ntk_matrix = ntk_eigendecomposition(
+        model, coords, k=K_EIGS, batch_size=BATCH)
     eigs = eigvals.numpy()
     cond = eigs[0] / eigs[-1] if eigs[-1] != 0 else float('inf')
     print(f"  λ_max={eigs[0]:.4f}  λ_min={eigs[-1]:.4f}  κ={cond:.2f}")

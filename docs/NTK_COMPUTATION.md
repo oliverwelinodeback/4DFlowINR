@@ -25,14 +25,15 @@ $e(t) = f_\theta(X) - y$ evolves as:
 $$\dot{e}(t) = -K \cdot e(t)$$
 
 This means:
-- **Eigenvalues** of $K$ are the learning rates for each mode. Large eigenvalues → fast learning.
+- **Eigenvalues** of $K$ determine the relative learning rates of its corresponding modes under gradient descent. 
+  Modes associated with larger eigenvalues generally converge faster. 
 - **Eigenvectors** of $K$ are the spatial patterns the network learns, in order of speed.
 - **Condition number** $\kappa = \lambda_{\max} / \lambda_{\min}$ measures optimization difficulty.
   A large condition number means some modes learn much faster than others.
 
-At initialization, the NTK depends only on the network architecture (depth, width, activations,
-hyperparameters like $\omega_0$, $\sigma_0$) — not on the training data or loss. This makes it
-a pure diagnostic of the network's inductive bias.
+At initialization, the NTK is determined by the network architecture, its initialization, and the 
+input coordinates at which it is evaluated; it does not depend on the target values or subsequent 
+optimization trajectory. This makes it a pure diagnostic of the network's inductive bias.
 
 ### Spectral bias
 
@@ -172,7 +173,7 @@ The eigenvectors $v_i \in \mathbb{R}^n$ contain one scalar value per input point
 points are sampled from a **regular 2D grid**, the eigenvector can be directly reshaped into an
 image and displayed as a heatmap — no interpolation needed.
 
-**Grid construction** (`compare_ntk_wire.py`, `ntk_sanity_check_2d.py`):
+**Grid construction** (`tools/run_ntk.py`, `tools/ntk_sanity_check_2d.py`):
 
 ```python
 RES = 64
@@ -212,6 +213,14 @@ network, aside from any distortion introduced by the two constant extra dimensio
 
 ---
 
+## 6. Files in This Project
+
+| File | Purpose |
+|---|---|
+| `utils/ntk.py` | Core empirical NTK computation and eigendecomposition. |
+| `tools/run_ntk.py` | Main script for computing and visualizing NTK eigenfunctions for WIRE and SIREN on a regular 2D slice through the 4D input domain. |
+| `tools/ntk_sanity_check_2d.py` | Independent 2D SIREN sanity check of the NTK implementation. |
+
 ## 7. References
 
 1. **Jacot, A., Gabriel, F., & Hongler, C. (2018)**. *Neural Tangent Kernel: Convergence and
@@ -238,13 +247,3 @@ network, aside from any distortion introduced by the two constant extra dimensio
    *(Reference implementation for `vmap + jacrev` NTK computation.)*
 
 ---
-
-## 8. Files in This Project
-
-| File | Purpose |
-|---|---|
-| `utils/ntk.py` | Core NTK functions: `get_ntk_fn`, `ntk_eigendecomposition`, `visualize_ntk_results` |
-| `compare_ntk_wire.py` | WIRE NTK comparison across (ω, σ) configs on a 4D slice |
-| `ntk_sanity_check_2d.py` | SIREN NTK on native 2D grid — validates against Tancik et al. Fig 5 |
-| `ntk_siren_4d_slice.py` | SIREN NTK on 4D slice — compares to WIRE and to 2D baseline |
-| `get_ntk.py` | Original NTK script using real MRI coordinates (scattered, uses griddata) |
