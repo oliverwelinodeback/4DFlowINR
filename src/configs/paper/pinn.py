@@ -9,7 +9,7 @@ def get_sweep_config():
         'name': "paper-pinn", 
         'method': 'grid',
         'metric': {
-            'name': 'FINAL Relative Error [Fluid]', 
+            'name': 'Final/Relative error [Fluid]', 
             'goal': 'minimize'
         },
         'parameters': {
@@ -194,30 +194,25 @@ def get_config(sweep_config=None):
     config.training.log_iter = 250
     config.training.error_iter = 5000
     config.training.denormalize = True
-    # Plotting
-    config.plot = ml_collections.ConfigDict()
-    config.plot.iter = 5000
-    config.plot.gt = True
-    config.plot.t_step = 2
-    config.plot.t_step_2 = 6
-    config.plot.z_slice = 20
-    config.plot.spatial_factor = 2
-    config.plot.temporal_factor = 2
-    config.plot.temp_upsampling_mode = 'extend'
-    config.plot.spat_upsampling_mode = 'centered'
-    config.plot.fluid_region = True
-    config.plot.non_fluid_value = 0
-    config.plot.expand_mask = False
-    config.plot.denormalize = True
+
+    # Visualization
+    config.visualization = ml_collections.ConfigDict()
+    config.visualization.enabled = True
+    config.visualization.time_index_lr = 1
+    config.visualization.z_index_lr = 20
 
     # Prediction
     config.predictions = ml_collections.ConfigDict()
+    # Evaluation indices
     config.predictions.peak_flow_idx = 6
-    config.predictions.flow_idx2 = 6
-    config.predictions.predict_reference_data = True
-    config.predictions.predict_SR_data = False
-    config.predictions.compare_noisy_vs_ref = False
-    config.predictions.denormalize = True
+    # Arbitrary-grid INR prediction
+    config.predictions.spatial_factor = 2
+    config.predictions.temporal_factor = 2
+    config.predictions.temporal_upsampling_mode = "extend"
+    config.predictions.spatial_upsampling_mode = "centered"
     config.predictions.fluid_region = True
+    config.predictions.non_fluid_value = 0
+    config.predictions.expand_mask = False
+    config.predictions.denormalize = True
 
     return config

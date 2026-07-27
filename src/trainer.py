@@ -9,24 +9,21 @@ from utils.loss_utils import (
     update_loss_weights, 
     navier_stokes_loss
 )
+from utils.data_io import load_data, load_ref_data
 from utils.prepare_data import (
-    prepare_data, 
-    load_data, 
     extract_fluid_region, 
     sample_collocation_points, 
     sample_boundary_points, 
-    load_ref_data, 
+    prepare_data, 
     prepare_ref_data
 )
-from utils.utils import (
-    copy_cource_code,
-    save_ckpt,
-    sample_from_gpu,
-    sample_ref_from_gpu,
-    plot_predictions,
+from utils.checkpoints import save_ckpt
+from utils.sampling import sample_from_gpu, sample_ref_from_gpu
+from utils.reproducibility import set_seed, copy_source_code
+from utils.prediction_utils import (
     evaluate_predictions,
-    plot_predictions_vs_reference,
-    set_seed,
+    plot_reference_comparison,
+    predict_superresolved_grid,
     save_h5_predictions,
 )
 import networks
@@ -35,6 +32,54 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from meta.train_meta import train_meta_learning
+
+# Metrics reported to W&B during reference-data evaluation.
+EVAL_METRIC_KEYS = (
+    "Relative error [Fluid]",
+    "VNRMSE [Fluid]",
+    "Directional error [Fluid]",
+    "Divergence prediction [Fluid]",
+    "Divergence reference [Fluid]",
+    "W K [Core]",
+    "W R2 [Core]",
+    "W k [Core] Peak",
+    "W r^2 [Core] Peak",
+    "W 2 k [Core]",
+    "W 2 r^2 [Core]",
+)
+
+PRESSURE_EVAL_METRIC_KEYS = (
+    "Relative error Pressure Gradient (%) [Fluid]",
+    "PX K [Core]",
+    "PX R2 [Core]",
+    "PY K [Core]",
+    "PY R2 [Core]",
+    "PZ K [Core]",
+    "PZ R2 [Core]",
+    "PZ k [Core] Peak",
+    "PZ r^2 [Core] Peak",
+)
+
+def build_eval_log(metrics_eval, include_pressure=False, prefix="Eval"):
+    """Select evaluation metrics for W&B logging."""
+
+    keys = list(EVAL_METRIC_KEYS)
+
+    if include_pressure:
+        keys.extend(PRESSURE_EVAL_METRIC_KEYS)
+
+    missing_keys = [key for key in keys if key not in metrics_eval]
+    if missing_keys:
+        raise KeyError(
+            "Missing evaluation metrics: "
+            + ", ".join(missing_keys)
+        )
+
+    return {
+        f"{prefix}/{key}": float(metrics_eval[key])
+        for key in keys
+    }
+
 
 def init_wandb(config, run_name=None, use_sweep=False):
     """Initialize W&B with consistent experiment metadata."""
@@ -134,7 +179,7 @@ def train(config=None, run_name=None, use_sweep=False):
         return train_meta_learning(config, run_name, use_sweep)
 
     # Store source files
-    copy_cource_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
+    copy_source_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
 
     # Set random seed
     set_seed(config.random_seed)
@@ -478,7 +523,7 @@ def train(config=None, run_name=None, use_sweep=False):
             ref_loss, mse_px, mse_py, mse_pz = torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0)
 
         # Logging
-        metrics = {
+        train_metrics = {
             "Loss/Train": total_loss.item(),
             "Loss/Data": data_loss.item(),
             "Loss/Physics": physics_loss.item(),
@@ -489,40 +534,25 @@ def train(config=None, run_name=None, use_sweep=False):
             "Loss/Momentum_data": momentum_loss_data.item(),
             "Loss/Divergence_data": div_loss_data.item(),
             "Loss/Pressure_x": mse_px.item() if mse_px is not None else 0.0,
-            "Loss/Pressure_y": mse_py.item() if mse_px is not None else 0.0,
-            "Loss/Pressure_z": mse_pz.item() if mse_px is not None else 0.0,
+            "Loss/Pressure_y": mse_py.item() if mse_py is not None else 0.0,
+            "Loss/Pressure_z": mse_pz.item() if mse_pz is not None else 0.0,
             "Loss/Ref": ref_loss.item(),
             "Loss/data_weight": data_weight if data_weight is not None else 0.0,
             "Loss/physics_weight": physics_weight if physics_weight is not None else 0.0,
             "Loss/boundary_weight": bound_weight if bound_weight is not None else 0.0,
         }
-        for key, value in metrics.items():
-            writer.add_scalar(key, value, it)
-        if (it + 1) % config.training.log_iter == 0:
-            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f}, physics_loss={physics_loss.item():.4E}, it_time={round((time.time()-it_start_time)/config.training.log_iter, 5)} s total_time={round((time.time()-start_time)/60, 1)} min")
 
-            wandb.log({
-                "Loss/Train": total_loss.item(),
-                "Loss/Data": data_loss.item(),
-                "Loss/Physics": physics_loss.item(),
-                "Loss/Boundary": bound_loss.item(),
-                "Loss/Momentum": momentum_loss.item(),
-                "Loss/Divergence": div_loss.item(),
-                "Loss/Physics_data": physics_loss_data.item(),
-                "Loss/Momentum_data": momentum_loss_data.item(),
-                "Loss/Divergence_data": div_loss_data.item(),
-                "Loss/Pressure_x": mse_px.item() if mse_px is not None else 0.0,
-                "Loss/Pressure_y": mse_py.item() if mse_px is not None else 0.0,
-                "Loss/Pressure_z": mse_pz.item() if mse_px is not None else 0.0,
-                "Loss/Ref": ref_loss.item(),
-                "Loss/data_weight": data_weight if data_weight is not None else 0.0,
-                "Loss/physics_weight": physics_weight if physics_weight is not None else 0.0,
-                "Loss/boundary_weight": bound_weight if bound_weight is not None else 0.0,
-            }, step=it+1)
-            
-        # Plot current model predictions
-        if (it + 1) % config.plot.iter == 0:
-            plot_predictions(config, model, DEVICE, it+1, u, mask, U_max)
+        for key, value in train_metrics.items():
+            writer.add_scalar(key, value, it+1)
+
+        if (it + 1) % config.training.log_iter == 0:
+            print(f"[Iteration {it+1}] total_loss={total_loss.item():.4f}, "
+            f"data_loss={data_loss.item():.4f}, ref_loss={ref_loss.item():.4f}, "
+            f"physics_loss={physics_loss.item():.4E}, "
+            f"it_time={round((time.time()-it_start_time)/config.training.log_iter, 5)}s, "
+            f"total_time={round((time.time()-start_time)/60, 1)} min")
+
+            wandb.log(train_metrics, step=it+1)
        
         # Save h5 predictions (lightweight, no metrics)
         if config.include_ref:
@@ -534,36 +564,18 @@ def train(config=None, run_name=None, use_sweep=False):
         if config.include_ref:
             if (it + 1) % config.training.error_iter == 0 or it == 0:
                 metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors)
+                if config.visualization.enabled:
+                    plot_reference_comparison(config, model, DEVICE, it+1, xyz_ref,
+                                                u, v, w, p, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref,
+                                                mask_flat_ref, U_max, standardization_factors)
 
-                plot_predictions_vs_reference(config, model, DEVICE, it+1, xyz_ref,
-                                            u, v, w, p, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref,
-                                            mask_flat_ref, U_max, standardization_factors)
-
-                # Log metrics to wandb
-                log_dict = {
-                    "Relative Error [Fluid]": metrics_eval['Relative error [Fluid]'],
-                    "VNRMSE [Fluid]": metrics_eval['VNRMSE [Fluid]'],
-                    "Directional error [Fluid]": metrics_eval["Directional error [Fluid]"],
-                    "Divergence prediction [Fluid]": metrics_eval["Divergence prediction [Fluid]"],
-                    "Divergence reference [Fluid]": metrics_eval["Divergence reference [Fluid]"],
-                    "W K [Core]": metrics_eval['W K [Core]'],
-                    "W R2 [Core]": metrics_eval['W R2 [Core]'],
-                }
-
-                # Add pressure metrics only if reference gradients are used
-                if config.training.reference_gradients:
-                    log_dict.update({
-                        "Pressure Gradient Relative Error [Fluid]": metrics_eval['Relative error Pressure Gradient (%) [Fluid]'],
-                        "Pressure gradient PX K [Core]": metrics_eval['PX K [Core]'],
-                        "Pressure gradient PX R2 [Core]": metrics_eval['PX R2 [Core]'],
-                        "Pressure gradient PY K [Core]": metrics_eval['PY K [Core]'],
-                        "Pressure gradient PY R2 [Core]": metrics_eval['PY R2 [Core]'],
-                        "Pressure gradient PZ K [Core]": metrics_eval['PZ K [Core]'],
-                        "Pressure gradient PZ R2 [Core]": metrics_eval['PZ R2 [Core]'],
-                    })
-
-                # Log to W&B
-                wandb.log(log_dict, step=it + 1)
+                # Log selected evaluation metrics to W&B.
+                eval_log = build_eval_log(
+                    metrics_eval,
+                    include_pressure=config.training.reference_gradients,
+                    prefix="Eval",
+                )
+                wandb.log(eval_log, step=it + 1)
                     
         # Save model at checkpoint
         if (it + 1) % config.training.summary_iter == 0 and (it + 1) != config.training.iterations:
@@ -573,34 +585,54 @@ def train(config=None, run_name=None, use_sweep=False):
 
         # Save model at end of training
         if (it + 1) == config.training.iterations:
-            save_ckpt(f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
-                        model, Adam_optimizer, BFGS_optimizer if config.training.use_LBFGS else None,
-                        scheduler=scheduler, loss_weights=loss_weights, c_weights=c_weights, iteration=it+1)
+            save_ckpt(
+                f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
+                model, 
+                Adam_optimizer, 
+                BFGS_optimizer if config.training.use_LBFGS else None,
+                scheduler=scheduler, 
+                loss_weights=loss_weights, 
+                c_weights=c_weights, 
+                iteration=it+1
+            )
             
             final_log_time = time.time() - start_time
+
             if config.include_ref:
-                metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors, save_pred=True, save_vti=True)
-                final_log_dict = {
-                    "FINAL Relative Error [Fluid]": metrics_eval['Relative error [Fluid]'],
-                    "FINAL VNRMSE [Fluid]": metrics_eval['VNRMSE [Fluid]'],
-                    "FINAL training time [min]": round(final_log_time/60, 2),
-                    "FINAL W k [Core]": metrics_eval['W K [Core]'],
-                    "FINAL W r^2 [Core] Peak": metrics_eval['W r^2 [Core] Peak'],
-                    "FINAL W 2 k [Core]": metrics_eval['W 2 k [Core]'],
-                    "FINAL W 2 r^2 [Core]": metrics_eval['W 2 r^2 [Core]'],
-                }
-                if config.training.reference_gradients:
-                    final_log_dict.update({
-                        "FINAL Pressure Gradient Relative Error [Fluid]": metrics_eval['Relative error Pressure Gradient (%) [Fluid]'],
-                        "FINAL Pressure gradient PZ k [Core]": metrics_eval['PZ K [Core]'],
-                        "FINAL Pressure gradient PZ r^2 [Core] Peak": metrics_eval['PZ r^2 [Core] Peak'],
-                    })
+                metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, 
+                u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, 
+                mask_ref, mask_flat_ref, U_max, standardization_factors, 
+                save_pred=True
+                )
+
+                if config.visualization.enabled:
+                    plot_reference_comparison(
+                        config, model, DEVICE, it+1, xyz_ref,
+                        u, v, w, p, u_ref, v_ref, w_ref,
+                        p_ref, px_ref, py_ref, pz_ref,
+                        mask_ref, mask_flat_ref, U_max,
+                        standardization_factors,
+                    )
+
+                final_log_dict = build_eval_log(
+                    metrics_eval,
+                    include_pressure=config.training.reference_gradients,
+                    prefix="Final",
+                )
+
+                final_log_dict["Final/training_time_min"] = round(
+                    final_log_time / 60,
+                    2,
+                )
             
             else:
                 final_log_dict = {
-                    "FINAL training time [min]": round(final_log_time/60, 2),
+                    "Final/training_time_min": round(
+                        final_log_time / 60,
+                        2,
+                    ),
                 }
-                plot_predictions(config, model, DEVICE, it+1, u, mask, U_max, save_pred=True, save_vti=True)
+                predict_superresolved_grid(config, model, DEVICE, it+1, u, mask, U_max, save_pred=True)
 
             # Log metrics to wandb
             wandb.log(final_log_dict)

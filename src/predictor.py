@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import pandas as pd
 from scipy.ndimage import zoom
-from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract_fluid_region, compute_outer_boundary_mask
+from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract_fluid_region
 from utils.evaluation_utils import (
     create_boundary_and_core_masks, calculate_relative_error, calculate_absolute_error, 
     calculate_rmse, calculate_absolute_error_pressure, calculate_rmse_pressure, linreg,

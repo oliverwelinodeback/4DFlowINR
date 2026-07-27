@@ -1,5 +1,4 @@
 import numpy as np
-import tensorflow as tf
 import h5py
 import loss_utils
 import evaluation_utils as e_utils
@@ -10,13 +9,9 @@ import os
 import sys
 sys.path.append('../')
 
-
 data_dir = '../../../data/icad_sim'
-
 lr_filename = '../../../data/icad_sim/ICAD48_05mm_dv_lowSNR_x2.h5'
-
 hr_filename = '../../../data/icad_sim/ICAD48_05mm.h5'   
-
 prediction_dir = "../../results/icad/benchmark_metrics/ICAD48"
 
 if not os.path.isdir(prediction_dir):
@@ -37,8 +32,6 @@ z_start = 0
 z_end =   200
 
 resolution = 0.0005*2
-
-
 ref_spatial_factor = 2
 
 # Open HR file
@@ -114,7 +107,6 @@ u_lr = bicubic_upsampling(u_lr)
 v_lr = bicubic_upsampling(v_lr)
 w_lr = bicubic_upsampling(w_lr)
 
-
 rel_err = np.zeros((T,3))
 abs_err = np.zeros((T,4))
 rmse = np.zeros((T,4))
@@ -142,8 +134,6 @@ for t in range(T):
     rmse[t,1] = (e_utils.calculate_rmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
     rmse[t,2] = (e_utils.calculate_rmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], core_mask))
     rmse[t,3] = (e_utils.calculate_rmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], nf_mask))
-
-    ### OPTIONALLY - ADD MORE METRICS
 
     vnrmse[t,0] = (e_utils.calculate_vnrmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
     vnrmse[t,1] = (e_utils.calculate_vnrmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
@@ -294,7 +284,6 @@ metrics = {
     'V [Bound] r^2': Rs[peak_flow_idx][1][1],
     'V [Core] r^2': Rs[peak_flow_idx][1][2],
 
-
     'W [Fluid] k': Ks[peak_flow_idx][2][0],
     'W [Bound] k': Ks[peak_flow_idx][2][1],
     'W [Core] k': Ks[peak_flow_idx][2][2],
@@ -328,8 +317,6 @@ def save_to_h5(output_filepath, col_name, dataset, expand=False):
         else:
             hf[col_name].resize((hf[col_name].shape[0]) + dataset.shape[0], axis = 0)
             hf[col_name][-dataset.shape[0]:] = dataset
-
-
 
 save_to_h5(f"{prediction_dir}/healthy-05mm3_dv_lowSNR_x2_interpolated.h5", "u", u_lr[peak_flow_idx]*mask)
 save_to_h5(f"{prediction_dir}/healthy-05mm3_dv_lowSNR_x2_interpolated.h5", "v", v_lr[peak_flow_idx]*mask)
