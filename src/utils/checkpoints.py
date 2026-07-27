@@ -1,8 +1,5 @@
-"""Checkpoint utilities."""
-
 import random
 from pathlib import Path
-
 import numpy as np
 import torch
 
@@ -71,3 +68,22 @@ def save_ckpt(
         }
 
     torch.save(checkpoint, str(path))
+
+def load_model_weights(path, model, device):
+    """Load model weights from a 4DFlowINR checkpoint."""
+
+    checkpoint = torch.load(
+        path,
+        map_location=device,
+    )
+
+    if "model_state_dict" not in checkpoint:
+        raise KeyError(
+            f"Checkpoint '{path}' does not contain model_state_dict."
+        )
+
+    model.load_state_dict(
+        checkpoint["model_state_dict"]
+    )
+
+    return checkpoint

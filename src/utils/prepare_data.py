@@ -1,11 +1,10 @@
 # Imports
 import numpy as np
 from utils.preprocessing_utils import (
-    standardize, compute_outer_boundary_mask,
-    generate_collocation_points, generate_collocation_points_in_fluid_region,
-    generate_boundary_points, min_max_normalize
+    standardize,
+    min_max_normalize,
+    compute_outer_boundary_mask,
 )
-import h5py
 
 def compute_template_parameters(config): 
     """Compute the template parameters for baseline normalization."""
@@ -376,7 +375,6 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
     # Prepare coordinates
     if config.setup.include_time:
         t_len, x_len, y_len, z_len = u.shape # (T, h, w, d)
-        print("U SHAPE " , u.shape)
 
     else:
         x_len, y_len, z_len = u.shape # (h, w, d)
@@ -405,8 +403,6 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
     if config.setup.include_time:
         # Tile the masks
         mask_flat = np.tile(mask.ravel(), len(t_ups))
-
-        print("LENGTH OF TUPS " , len(t_ups))
         boundary_mask_flat = np.tile(boundary_mask.ravel(), len(t_ups))
     else:
         mask_flat = mask.ravel()

@@ -1,13 +1,13 @@
-import numpy as np
+from pathlib import Path
+import sys
+SRC_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SRC_DIR))
 import h5py
-import loss_utils
-import evaluation_utils as e_utils
+import numpy as np
 import pandas as pd
 from scipy.ndimage import zoom
+from utils import evaluation_utils as e_utils
 from PIL import Image
-import os
-import sys
-sys.path.append('../')
 
 data_dir = '../../../data/icad_sim'
 lr_filename = '../../../data/icad_sim/ICAD48_05mm_dv_lowSNR_x2.h5'
@@ -93,7 +93,7 @@ def lanczos_upsampling(volume):
     return upsampled_volume
 
 # Function for Bicubic Interpolation
-def bicubic_upsampling(volume):
+def tricubic_upsampling(volume):
     return zoom(volume, (1, 2, 2, 2), order=3)
 
 # Apply upsampling
@@ -103,9 +103,9 @@ print(u_lr.shape)
 #v_lr = lanczos_upsampling(v_lr)
 #w_lr = lanczos_upsampling(w_lr)
 
-u_lr = bicubic_upsampling(u_lr)
-v_lr = bicubic_upsampling(v_lr)
-w_lr = bicubic_upsampling(w_lr)
+u_lr = tricubic_upsampling(u_lr)
+v_lr = tricubic_upsampling(v_lr)
+w_lr = tricubic_upsampling(w_lr)
 
 rel_err = np.zeros((T,3))
 abs_err = np.zeros((T,4))
@@ -121,9 +121,9 @@ Rs = np.zeros((T,3,3))
 
 for t in range(T):
     print(np.shape(u_lr),np.shape(u_hr))
-    rel_err[t,0] = (e_utils.calculate_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
-    rel_err[t,1] = (e_utils.calculate_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
-    rel_err[t,2] = (e_utils.calculate_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], core_mask))
+    rel_err[t,0] = (e_utils.calculate_tanh_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
+    rel_err[t,1] = (e_utils.calculate_tanh_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
+    rel_err[t,2] = (e_utils.calculate_tanh_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], core_mask))
 
     abs_err[t,0] = (e_utils.calculate_absolute_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
     abs_err[t,1] = (e_utils.calculate_absolute_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))

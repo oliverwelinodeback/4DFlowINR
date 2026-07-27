@@ -131,6 +131,11 @@ def train(config=None, run_name=None, use_sweep=False):
             "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5":  ("../data/stenosis_70/ICAD17_05mm3_20ms.h5",  "ICAD17_sv41",  4.1,  8),
             "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5":  ("../data/stenosis_70/ICAD21_05mm3_20ms.h5",  "ICAD21_sv26",  2.6, 12),
             "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5": ("../data/stenosis_70/ICAD146_05mm3_20ms.h5", "ICAD146_sv17", 1.7,  8),
+
+            # SA-PINN test cases - continue here...
+            "../data/healthy/HV01_05mm3_20ms_HRLR_sv17_tSNR10.h5": ("../data/healthy/HV01_05mm3_20ms.h5", "HV01_sv17", 1.7, 12),
+
+            "../data/healthy/HV01_05mm3_20ms_HRLR_sv17_tSNR2.h5": ("../data/healthy/HV01_05mm3_20ms.h5", "HV01_sv17", 1.7, 12),
         }
 
         if data_file in LR_ROUTING:
@@ -228,48 +233,7 @@ def train(config=None, run_name=None, use_sweep=False):
 
     # Initialize network
     DEVICE = torch.device('cuda')
-    if config.network.arch == "SIREN":
-        model = networks.SIREN(
-            in_dim=config.network.in_dim,
-            out_dim=config.network.out_dim,
-            depth=config.network.depth,
-            hidden_features=config.network.hidden_features,
-            first_omega_0=config.network.omega_0,
-            hidden_omega_0=config.network.omega_0
-        ).to(DEVICE)
-    elif config.network.arch == "FF_SIREN":
-        model = networks.FF_SIREN(
-            in_dim=config.network.in_dim,
-            out_dim=config.network.out_dim,
-            depth=config.network.depth,
-            hidden_features=config.network.hidden_features,
-            first_omega_0=config.network.omega_0,
-            hidden_omega_0=config.network.omega_0,
-            fourier_mapping_size=config.network.fourier_mapping_size,
-            scale=config.network.fourier_scale
-        ).to(DEVICE)
-    elif config.network.arch == "FFN":
-        model = networks.FFN(
-            input_dim=config.network.in_dim,
-            output_dim=config.network.out_dim,
-            depth=config.network.depth,
-            hidden_dim=config.network.hidden_features,
-            fourier_mapping_size=config.network.fourier_mapping_size,
-            scale=config.network.fourier_scale
-        ).to(DEVICE)
-    elif config.network.arch == "WIRE":
-        model = networks.WIRE(
-            in_dim=config.network.in_dim,
-            out_dim=config.network.out_dim,
-            depth=config.network.depth,
-            hidden_features=config.network.hidden_features,
-            first_omega_0=config.network.omega_0,
-            hidden_omega_0=config.network.omega_0,
-            scale=config.network.sigma_0,
-            complex=config.network.complex
-        ).to(DEVICE)
-    else:
-        raise ValueError("Unknown network.")
+    model = networks.build_model(config).to(DEVICE)
 
     if config.load_meta_init:
         meta_checkpoint_path = config.meta_init_path
@@ -562,7 +526,10 @@ def train(config=None, run_name=None, use_sweep=False):
 
         # Compare with reference data
         if config.include_ref:
-            if (it + 1) % config.training.error_iter == 0 or it == 0:
+            if (
+                ((it + 1) % config.training.error_iter == 0 or it == 0)
+                and (it + 1) != config.training.iterations
+            ):
                 metrics_eval = evaluate_predictions(config, model, DEVICE, it+1, xyz_ref, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_ref, mask_ref, mask_flat_ref, U_max, standardization_factors)
                 if config.visualization.enabled:
                     plot_reference_comparison(config, model, DEVICE, it+1, xyz_ref,
@@ -579,20 +546,21 @@ def train(config=None, run_name=None, use_sweep=False):
                     
         # Save model at checkpoint
         if (it + 1) % config.training.summary_iter == 0 and (it + 1) != config.training.iterations:
-            save_ckpt(f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
-                        model, Adam_optimizer, BFGS_optimizer if config.training.use_LBFGS else None,
-                        scheduler=scheduler, loss_weights=loss_weights, c_weights=c_weights, iteration=it+1)
+            save_ckpt(
+                f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
+                model, Adam_optimizer, BFGS_optimizer if config.training.use_LBFGS else None,
+                scheduler=scheduler, loss_weights=loss_weights, c_weights=c_weights, 
+                standardization_factors=standardization_factors, U_max=U_max, 
+                config_dict=config.to_dict(), iteration=it+1
+            )
 
         # Save model at end of training
         if (it + 1) == config.training.iterations:
             save_ckpt(
                 f"{config.log_dir}/checkpoints/{config.network_name}_it{it+1:06d}.pth",
-                model, 
-                Adam_optimizer, 
-                BFGS_optimizer if config.training.use_LBFGS else None,
-                scheduler=scheduler, 
-                loss_weights=loss_weights, 
-                c_weights=c_weights, 
+                model, Adam_optimizer, BFGS_optimizer if config.training.use_LBFGS else None, 
+                scheduler=scheduler, loss_weights=loss_weights, c_weights=c_weights, 
+                standardization_factors=standardization_factors, U_max=U_max, 
                 iteration=it+1
             )
             

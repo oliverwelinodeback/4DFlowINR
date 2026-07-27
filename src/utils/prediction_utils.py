@@ -109,7 +109,7 @@ def save_h5_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref,
         uvw_pred = uvw_pred_full
 
     # Denormalize
-    if config.plot.denormalize:
+    if config.predictions.denormalize:
         if config.vel_normalization == "characteristic":
             uvw_pred[:, 0] *= config.constants.U
             uvw_pred[:, 1] *= config.constants.U
@@ -177,9 +177,12 @@ def evaluate_predictions(config, model, device, it, xyz_ref,
     save_pred=False):
 
     # Create directory
-    directory = f'{config.log_dir}/errors/iter_{it}'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    directory = os.path.join(
+        config.log_dir,
+        "evaluation",
+        f"iter_{it:06d}",
+    )
+    os.makedirs(directory, exist_ok=True)
 
     # Predict reference coordinates
     model.eval()
@@ -203,7 +206,7 @@ def evaluate_predictions(config, model, device, it, xyz_ref,
         uvw_pred = uvw_pred_full
 
     # Denormalize predictions
-    if config.plot.denormalize:
+    if config.predictions.denormalize:
         if config.vel_normalization == "characteristic":
             uvw_pred[:, 0] *= config.constants.U  # u
             uvw_pred[:, 1] *= config.constants.U  # v
@@ -649,7 +652,7 @@ def plot_reference_comparison(config, model, device, it, xyz_ref,
         uvw_pred = uvw_pred_full
 
     # Denormalize predictions
-    if config.plot.denormalize:
+    if config.predictions.denormalize:
         if config.vel_normalization == "characteristic":
             uvw_pred[:, 0] *= config.constants.U  # u
             uvw_pred[:, 1] *= config.constants.U  # v
@@ -658,7 +661,6 @@ def plot_reference_comparison(config, model, device, it, xyz_ref,
             #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
             if (config.setup.include_pressure and config.training.reference_gradients):
                 _, _, _, std_x, _, std_y, _, std_z = standardization_factors
-                print(std_x, std_y, std_z)
 
                 uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x # px
                 uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y # py
@@ -674,7 +676,6 @@ def plot_reference_comparison(config, model, device, it, xyz_ref,
             #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
             if (config.setup.include_pressure and config.training.reference_gradients):
                 _, _, _, std_x, _, std_y, _, std_z = standardization_factors
-                print(std_x, std_y, std_z)
 
                 uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x # px
                 uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y # py
@@ -875,7 +876,6 @@ def predict_superresolved_grid(config, model, device, it, u, mask,
         v_pred = uvw_pred_plot[:, :, :, :, 1]
         w_pred = uvw_pred_plot[:, :, :, :, 2]
 
-        #p_pred = uvw_pred[config.plot.t_stepr, :, :, :, 3] if config.setup.include_pressure else None
         px_pred = uvw_pred_plot[:, :, :, :, 3] if config.training.reference_gradients else None
         py_pred = uvw_pred_plot[:, :, :, :, 4] if config.training.reference_gradients else None
         pz_pred = uvw_pred_plot[:, :, :, :, 5] if config.training.reference_gradients else None
@@ -890,18 +890,16 @@ def predict_superresolved_grid(config, model, device, it, u, mask,
         p_pred = uvw_pred_plot[0, :, :, :, 3] if config.setup.include_pressure else None
 
     # Denormalize predictions
-    if config.plot.denormalize:
+    if config.predictions.denormalize:
         if config.vel_normalization == "characteristic":
             u_pred = u_pred*config.constants.U
             v_pred = v_pred*config.constants.U
             w_pred = w_pred*config.constants.U
 
-
             #if config.setup.include_pressure:
             #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
             if (config.setup.include_pressure and config.training.reference_gradients):
                 _, _, _, std_x, _, std_y, _, std_z = standardization_factors
-                print(std_x, std_y, std_z)
 
                 px_pred *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x # px
                 py_pred *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y # py
@@ -934,12 +932,6 @@ def predict_superresolved_grid(config, model, device, it, u, mask,
     plt.title('Predicted w')
     plt.imshow(w_pred[t_pred, :, :, z_pred].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
     plt.colorbar()
-
-    """ if config.setup.include_pressure and p_pred is not None:
-        plt.subplot(2, 2, 4)
-        plt.title('Predicted px')
-        plt.imshow(px_pred[config.plot.t_step, :, :, z_slice].T, origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
-        plt.colorbar() """
 
     plt.savefig(os.path.join(directory, f"predictions.png"))
     plt.close()

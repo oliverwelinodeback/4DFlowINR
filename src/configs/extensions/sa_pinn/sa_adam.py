@@ -59,11 +59,19 @@ def get_config(sweep_config=None):
     # ==========================================
     # MODEL
     # ==========================================
-    config.networks_folder = "../models/260505_SAPINN_SA_Adam/"
-    config.network_name = "260505_SAPINN_SA_Adam"
+    config.networks_folder = "../models/extensions/sa_pinn/"
+    config.network_name = "sa_pinn_adam"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
+
+    # ==========================================
+    # Weights & Biases
+    # ==========================================
+    config.wandb = ml_collections.ConfigDict()
+    config.wandb.project = "4DFlowINR"
+    config.wandb.group = "sa-adam"
+    config.wandb.tags = ["extension", "sa-pinn", "sa-adam"]
 
     # ==========================================
     # DOMAIN
@@ -182,7 +190,6 @@ def get_config(sweep_config=None):
     # ==========================================
     config.load_meta_init = False
     config.meta_init_path = ""
-    config.warm_start_path = ""
 
     # ==========================================
     # TRAINING — SA-Adam only (30k Adam, no LBFGS)
@@ -196,7 +203,6 @@ def get_config(sweep_config=None):
     config.training.lr = 1e-4
     config.training.lr_decay_iter = 99_999
     config.training.lr_decay_factor = 0.5
-    config.training.disable_lr_decay = True
     config.training.use_LBFGS = False              # SA-Adam only — no LBFGS
     config.training.BFGS_lr = 1e-1
     config.training.iterations_before_BFGS = 99_999

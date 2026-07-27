@@ -301,3 +301,56 @@ class ComplexGaborLayer(nn.Module):
         scale = self.scale_0 * lin
         
         return torch.exp(1j*omega - scale.abs().square())
+
+
+
+def build_model(config):
+    """Construct a network from a 4DFlowINR configuration."""
+
+    if config.network.arch == "FFN":
+        return FFN(
+            input_dim=config.network.in_dim,
+            output_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_dim=config.network.hidden_features,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale,
+        )
+
+    if config.network.arch == "SIREN":
+        return SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+        )
+
+    if config.network.arch == "FF_SIREN":
+        return FF_SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale,
+        )
+
+    if config.network.arch == "WIRE":
+        return WIRE(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.omega_0,
+            hidden_omega_0=config.network.omega_0,
+            scale=config.network.sigma_0,
+            complex=config.network.complex,
+        )
+
+    raise ValueError(
+        f"Unknown network architecture: {config.network.arch}"
+    )

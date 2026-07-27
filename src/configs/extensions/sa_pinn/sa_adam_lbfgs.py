@@ -4,16 +4,17 @@ from datetime import datetime
 
 def get_sweep_config():
     """
-    SA-PINN replication — LBFGS-only optimizer.
+    SA-PINN replication — SA + L-BFGS optimizer.
 
     Sweeps over 3 patients × 3 data types (LR, HRLR-tSNR10, HRLR-tSNR2).
-    Optimizer: 10k Adam → 20k L-BFGS (30k total), no self-adaptive weights.
+    Optimizer: 20k Adam+SA → 10k L-BFGS (30k total).
 
-    Corresponds to R4 runs from the original factorial experiment.
+    Corresponds to R2 runs from the original factorial experiment.
+    This is the best-performing setup in the factorial results.
     """
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'SAPINN_LBFGS_{timestamp}',
+        'name': f'SAPINN_SA_LBFGS_{timestamp}',
         'method': 'grid',
         'metric': {'name': 'Final/Relative error [Fluid]', 'goal': 'minimize'},
         'parameters': {
@@ -37,8 +38,8 @@ def get_sweep_config():
 
 def get_config(sweep_config=None):
     """
-    LBFGS-only replication of the factorial experiment (R4 runs).
-    10k Adam → 20k L-BFGS, no self-adaptive weights.
+    SA+LBFGS replication of the factorial experiment (R2 runs).
+    20k Adam with self-adaptive weights → 10k L-BFGS (30k total).
     venc/ref/peak_idx resolved automatically by trainer.py LR_ROUTING.
     """
     config = ml_collections.ConfigDict()
@@ -59,11 +60,19 @@ def get_config(sweep_config=None):
     # ==========================================
     # MODEL
     # ==========================================
-    config.networks_folder = "../models/260505_SAPINN_LBFGS/"
-    config.network_name = "260505_SAPINN_LBFGS"
+    config.networks_folder = "../models/extensions/sa_pinn/"
+    config.network_name = "sa_pinn_adam_lbfgs"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
+
+    # ==========================================
+    # Weights & Biases
+    # ==========================================
+    config.wandb = ml_collections.ConfigDict()
+    config.wandb.project = "4DFlowINR"
+    config.wandb.group = "sa-adam-lbfgs"
+    config.wandb.tags = ["extension", "sa-pinn", "sa-adam-lbfgs"]
 
     # ==========================================
     # DOMAIN
@@ -182,10 +191,9 @@ def get_config(sweep_config=None):
     # ==========================================
     config.load_meta_init = False
     config.meta_init_path = ""
-    config.warm_start_path = ""
 
     # ==========================================
-    # TRAINING — LBFGS only (10k Adam → 20k LBFGS)
+    # TRAINING — SA+LBFGS (20k Adam+SA → 10k LBFGS)
     # ==========================================
     config.training = ml_collections.ConfigDict()
     config.training.iterations = 30_000
@@ -196,10 +204,9 @@ def get_config(sweep_config=None):
     config.training.lr = 1e-4
     config.training.lr_decay_iter = 99_999
     config.training.lr_decay_factor = 0.5
-    config.training.disable_lr_decay = True
     config.training.use_LBFGS = True
     config.training.BFGS_lr = 1e-1
-    config.training.iterations_before_BFGS = 10_000   # 10k Adam → 20k LBFGS
+    config.training.iterations_before_BFGS = 20_000   # 20k Adam+SA → 10k LBFGS
     config.training.BFGS_max_iter = 3
     config.training.BFGS_history_size = 50
     config.training.BFGS_tolerance_grad = 1e-7
@@ -212,9 +219,9 @@ def get_config(sweep_config=None):
     config.training.alpha = 0.95
 
     # ==========================================
-    # SELF-ADAPTIVE PINN — disabled
+    # SELF-ADAPTIVE PINN — enabled
     # ==========================================
-    config.training.self_adaptive = False
+    config.training.self_adaptive = True
     config.training.adaptive_sampling = False
     config.training.tau = 0.02
     config.training.weight_clip = [6, 0.2]
