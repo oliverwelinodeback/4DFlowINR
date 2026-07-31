@@ -14,15 +14,15 @@ def get_sweep_config():
         },
         'parameters': {
             'data_file': {'values': [
-                            "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5", 
-                            "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                            "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5", 
-                            "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                            "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                            "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5", 
-                            "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5", 
-                            "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
-                            "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",    
+                            "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5", 
+                            "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10.h5", 
+                            "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10.h5", 
+                            "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10.h5", 
+                            "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10.h5", 
+                            "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10.h5", 
+                            "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10.h5", 
+                            "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5",
+                            "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10.h5",    
                         ]
             },
         },
@@ -131,7 +131,7 @@ def get_config(sweep_config=None):
     config.meta_learning = ml_collections.ConfigDict()
     config.meta_learning.enabled = False
     config.load_meta_init = False
-    config.meta_init_path = None
+    config.meta_init_path = "../models/paper_inr-meta/paper_inr-meta_20260731-1430/meta_best.pth"
 
     # Training parameters
     config.training = ml_collections.ConfigDict()

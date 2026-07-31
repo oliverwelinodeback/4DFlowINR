@@ -1,11 +1,10 @@
 /models
 /results
 /data
+/example_data
 /src/wandb
 /src/wandb_runs
-/src/prepare_data/geometries/
 /src/data/vti_files/
-/src/prepare_data/vti_files/
 /src/configs/development/
 __pycache__/
 *.pyc
@@ -19,8 +18,5 @@ src/wandb_runs/
 src/wandb/
 wandb/
 *.wandb
-src/figures/
-src/residuals/
-src/2D_plots/
 .DS_Store
 .vscode/

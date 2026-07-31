@@ -3,24 +3,20 @@ from datetime import datetime
 
 def get_sweep_config():
     
+    """Sweep configuration for wandb."""
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'INR_MAML_DataDriven_omega20_1000it_h5_{timestamp}',
+        'name': f'inr-meta-learning',
         'method': 'grid',
         'metric': {'name': 'Final/Relative error [Fluid]', 'goal': 'minimize'},
         'parameters': {
 
             'data_file': {'values': [
-
-                #"../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5", 
-                #"../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5", 
-                #"../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                #"../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5", 
-                #"../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5", 
-                #"../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
-                "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",    
+ 
+                "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10.h5", 
+                "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10.h5", 
+                "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10.h5",
+        
                 ]},
             
             'load_meta_init': {'values': [True, False]},
@@ -43,8 +39,8 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model
-    config.networks_folder = "../models/MetaLearning_BestHyperPArameters/"
-    config.network_name = "260202_MAML_DataDriven_REPRO"
+    config.networks_folder = "../models/paper_inr-meta/"
+    config.network_name = "paper_inr-meta"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -162,37 +158,39 @@ def get_config(sweep_config=None):
     config.meta_learning.div_weight = 1.0
 
     config.meta_learning.train_cases = [
-        "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
-        "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5",
+        "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5",
+        "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10.h5",
 
-        "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5",
-        "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5",
+        "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10.h5",
+        "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10.h5",
 
-        "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5",
-        "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
+        "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10.h5",
+        "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5",
     ]
 
     config.meta_learning.val_cases = [
-        "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5",
-        "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5",
-        "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5"
+        "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10.h5",
+        "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10.h5",
+        "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10.h5"
     ]
 
     config.meta_learning.case_venc = {
-        "HV01_05mm3_20ms_LR_sv17_tSNR10_newMask": 1.7,
-        "HV03_05mm3_20ms_LR_sv13_tSNR10_newMask": 1.3,
-        "HV06_05mm3_20ms_LR_sv12_tSNR10_newMask": 1.2,
-        "ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask": 1.3,
-        "ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask": 1.3,
-        "ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask": 5.1,
-        "ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask": 4.1,
-        "ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask": 2.6,
-        "ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask": 1.7
+        "HV01_05mm3_20ms_LR_sv17_tSNR10": 1.7,
+        "HV03_05mm3_20ms_LR_sv13_tSNR10": 1.3,
+        "HV06_05mm3_20ms_LR_sv12_tSNR10": 1.2,
+
+        "ICAD28_05mm3_20ms_LR_sv13_tSNR10": 1.3,
+        "ICAD48_05mm3_20ms_LR_sv13_tSNR10": 1.3,
+        "ICAD98_05mm3_20ms_LR_sv51_tSNR10": 5.1,
+
+        "ICAD17_05mm3_20ms_LR_sv41_tSNR10": 4.1,
+        "ICAD21_05mm3_20ms_LR_sv26_tSNR10": 2.6,
+        "ICAD146_05mm3_20ms_LR_sv17_tSNR10": 1.7
     }
 
     # Fine-tuning
     config.load_meta_init = False
-    config.meta_init_path = "../models/MetaLearning_BestHyperPArameters/260202_MAML_DataDriven_20260203-1034/meta_best.pth"
+    config.meta_init_path = "..//models/paper_inr-meta/paper_inr-meta_20260731-1430/meta_best.pth"
     config.warm_start_path = ""
 
     # Training parameters (for fine-tuning after meta-learning)
@@ -256,7 +254,7 @@ def get_config(sweep_config=None):
     config.training.summary_iter = 5000
     config.training.log_iter = 250
     config.training.error_iter = 500
-    config.training.save_h5_iters = [10, 25, 50, 100, 250, 500, 1000]  # Iterations at which to save h5 predictions
+    config.training.save_h5_iters = [10, 25, 50, 100, 250, 500, 1000]
     config.training.denormalize = True
     
     # Visualization

@@ -1,7 +1,4 @@
 """
-generate_synthetic.py
----------------------
-
 Generate synthetic 4D Flow MRI data from high-resolution CFD reference data.
 
 Supported options
@@ -29,7 +26,7 @@ import h5_utils as h5utils
 BASE_PATH = Path("../../data/stenosis_70")
 CASE_NAME = "ICAD21_05mm3_20ms"
 INPUT_FILE = BASE_PATH / f"{CASE_NAME}.h5"
-OUTPUT_FILE = BASE_PATH / f"{CASE_NAME}_LR.h5"
+OUTPUT_FILE = BASE_PATH / f"{CASE_NAME}_LR_check.h5"
 
 # Magnitude template
 TEMPLATE_FILE = Path("../../data/mag_templates.h5")
@@ -61,8 +58,8 @@ RANDOM_SEED = 1234        # Set to None for non-deterministic noise/template sel
 OVERWRITE_OUTPUT = False
 
 # =============================================================================
-# Utility functions
 
+# Utility functions
 def validate_settings():
 
     if not isinstance(SPATIAL_DOWNSAMPLE, int) or SPATIAL_DOWNSAMPLE < 1:

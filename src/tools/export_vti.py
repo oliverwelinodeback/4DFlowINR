@@ -5,13 +5,13 @@ HDF5 files are the numerical output of 4DFlowINR
 This script provides optional VTI export for visualization
 
 --------
-Export one cardiac frame:
+Export one frame:
 
     python src/tools/export_vti.py \
         models/example/SR_it008000.h5 \
         --index 12
 
-Export all cardiac frames:
+Export all frames:
 
     python src/tools/export_vti.py \
         models/example/SR_it008000.h5 \

@@ -4,7 +4,7 @@ Prediction with a trained 4DFlowINR model.
 From the repository root:
     python src/predict.py \
         --config configs/paper/inr.py \
-        --checkpoint models/paper_inr/run/checkpoints/paper_inr_it008000.pth \
+        --checkpoint models/.../checkpoints/paper_inr_it008000.pth \
         --data-file data/healthy/example_lr.h5 \
         --output-dir predictions/example \
         --spatial-factor 2 \

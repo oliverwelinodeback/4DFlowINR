@@ -293,6 +293,12 @@ def evaluate_predictions(config, model, device, it, xyz_ref,
     grad_dir_err = np.zeros((T,3))
     grad_nrmse =   np.zeros((T,3))
 
+    reference_spacing = (
+        config.resolution.dx/ config.ref_spatial_factor, 
+        config.resolution.dy/config.ref_spatial_factor,
+        config.resolution.dz/config.ref_spatial_factor
+    )
+
     for t in range(T):
         rel_err[t,0] = (calculate_tanh_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
         rel_err[t,1] = (calculate_tanh_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
@@ -318,15 +324,15 @@ def evaluate_predictions(config, model, device, it, xyz_ref,
         d_error[t,2] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
         d_error[t,3] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
 
-        div_pred[t,0] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
-        div_pred[t,1] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
-        div_pred[t,2] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
-        div_pred[t,3] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
+        div_pred[t,0] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], reference_spacing, mask_ref))
+        div_pred[t,1] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], reference_spacing, boundary_mask))
+        div_pred[t,2] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], reference_spacing, core_mask))
+        div_pred[t,3] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], reference_spacing, nf_mask))
 
-        div_ref[t,0] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
-        div_ref[t,1] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
-        div_ref[t,2] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
-        div_ref[t,3] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
+        div_ref[t,0] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], reference_spacing, mask_ref))
+        div_ref[t,1] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], reference_spacing, boundary_mask))
+        div_ref[t,2] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], reference_spacing, core_mask))
+        div_ref[t,3] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], reference_spacing, nf_mask))
 
         Ks[t][0][0], Ms[t][0][0], Rs[t][0][0] = linreg(u_pred[t], u_ref[t], mask_ref)
         Ks[t][1][0], Ms[t][1][0], Rs[t][1][0] = linreg(v_pred[t], v_ref[t], mask_ref)
@@ -377,136 +383,135 @@ def evaluate_predictions(config, model, device, it, xyz_ref,
     rel_err_tot = np.mean(rel_err, axis=0)
     abs_err_tot = np.mean(abs_err, axis=0)
     rmse_tot = np.mean(rmse, axis=0)
+    vnrmse_tot = np.mean(vnrmse, axis=0)
+    d_error_tot = np.mean(d_error, axis=0)
+
+    div_pred_tot = np.nanmean(div_pred, axis=0)
+    div_ref_tot = np.nanmean(div_ref, axis=0)
+    
     Ks_tot = np.mean(Ks, axis=0)
     Rs_tot = np.mean(Rs, axis=0)
 
     if config.training.reference_gradients:
         grad_abs_err_tot = np.mean(grad_abs_err, axis=0)
         grad_rel_err_tot = np.mean(grad_rel_err, axis=0)
-        grad_nrmse_tot = np.mean(grad_nrmse, axis=0)
+        grad_nrmse_tot =   np.mean(grad_nrmse, axis=0)
         grad_dir_err_tot = np.mean(grad_dir_err, axis=0)
-        Ks_pgrad_tot = np.mean(Ks_pgrad, axis=0)
-        Rs_pgrad_tot = np.mean(Rs_pgrad, axis=0)
+        Ks_pgrad_tot =     np.mean(Ks_pgrad, axis=0)
+        Rs_pgrad_tot =     np.mean(Rs_pgrad, axis=0)
 
     # Save metrics to csv
     metrics = {
         'Relative error [Fluid]': rel_err_tot[0],
         'Relative error [Bound]': rel_err_tot[1],
-        'Relative error [Core]': rel_err_tot[2],
+        'Relative error [Core]':  rel_err_tot[2],
 
         'Absolute error [Fluid]': abs_err_tot[0],
         'Absolute error [Bound]': abs_err_tot[1],
-        'Absolute error [Core]': abs_err_tot[2],
-        'Absolute error [Non-F]': abs_err_tot[3],
+        'Absolute error [Core]':  abs_err_tot[2],
+        #'Absolute error [Non-F]': abs_err_tot[3],
 
         'R.M.S. error [Fluid]': rmse_tot[0],
         'R.M.S. error [Bound]': rmse_tot[1],
-        'R.M.S. error [Core]': rmse_tot[2],
-        'R.M.S. error [Non-F]': rmse_tot[3],
+        'R.M.S. error [Core]':  rmse_tot[2],
+        #'R.M.S. error [Non-F]': rmse_tot[3],
 
-        'VNRMSE [Fluid]': vnrmse[0,0],
-        'VNRMSE [Bound]': vnrmse[0,1],
-        'VNRMSE [Core]': vnrmse[0,2],
-        'VNRMSE [Non-F]': vnrmse[0,3],
+        'VNRMSE [Fluid]': vnrmse_tot[0],
+        'VNRMSE [Bound]': vnrmse_tot[1],
+        'VNRMSE [Core]':  vnrmse_tot[2],
+        #'VNRMSE [Non-F]': vnrmse_tot[3],
 
-        'Directional error [Fluid]': d_error[0,0],
-        'Directional error [Bound]': d_error[0,1],
-        'Directional error [Core]': d_error[0,2],
-        'Directional error [Non-F]': d_error[0,3],
+        'Directional error [Fluid]': d_error_tot[0],
+        'Directional error [Bound]': d_error_tot[1],
+        'Directional error [Core]':  d_error_tot[2],
 
-        'Divergence prediction [Fluid]': div_pred[0,0],
-        'Divergence prediction [Bound]': div_pred[0,1],
-        'Divergence prediction [Core]': div_pred[0,2],
-        'Divergence prediction [Non-F]': div_pred[0,3],
+        'Divergence prediction [Fluid]': div_pred_tot[0],
+        'Divergence prediction [Bound]': div_pred_tot[1],
+        'Divergence prediction [Core]':  div_pred_tot[2],
 
-        'Divergence reference [Fluid]': div_ref[0,0],
-        'Divergence reference [Bound]': div_ref[0,1],
-        'Divergence reference [Core]': div_ref[0,2],
-        'Divergence reference [Non-F]': div_ref[0,3],
+        'Divergence reference [Fluid]': div_ref_tot[0],
+        'Divergence reference [Bound]': div_ref_tot[1],
+        'Divergence reference [Core]':  div_ref_tot[2],
 
         'U R2 [Fluid]': Rs_tot[0][0],
         'U R2 [Bound]': Rs_tot[0][1],
-        'U R2 [Core]': Rs_tot[0][2],
+        'U R2 [Core]':  Rs_tot[0][2],
         'V R2 [Fluid]': Rs_tot[1][0],
         'V R2 [Bound]': Rs_tot[1][1],
-        'V R2 [Core]': Rs_tot[1][2],
+        'V R2 [Core]':  Rs_tot[1][2],
         'W R2 [Fluid]': Rs_tot[2][0],
         'W R2 [Bound]': Rs_tot[2][1],
-        'W R2 [Core]': Rs_tot[2][2],
+        'W R2 [Core]':  Rs_tot[2][2],
 
         'U K [Fluid]': Ks_tot[0][0],
         'U K [Bound]': Ks_tot[0][1],
-        'U K [Core]': Ks_tot[0][2],
+        'U K [Core]':  Ks_tot[0][2],
         'V K [Fluid]': Ks_tot[1][0],
         'V K [Bound]': Ks_tot[1][1],
-        'V K [Core]': Ks_tot[1][2],
+        'V K [Core]':  Ks_tot[1][2],
         'W K [Fluid]': Ks_tot[2][0],
         'W K [Bound]': Ks_tot[2][1],
-        'W K [Core]': Ks_tot[2][2],
+        'W K [Core]':  Ks_tot[2][2],
 
         'PEAK FLOW INDEX:': config.predictions.peak_flow_idx,
 
-        'U k [Core] Peak': Ks[config.predictions.peak_flow_idx][0][2],
-        'U m [Core] Peak': Ms[config.predictions.peak_flow_idx][0][2],
-        'U r^2 [Core] Peak': Rs[config.predictions.peak_flow_idx][0][2],
-        'V k [Core] Peak': Ks[config.predictions.peak_flow_idx][1][2],
-        'V m [Core] Peak': Ms[config.predictions.peak_flow_idx][1][2],
-        'V r^2 [Core] Peak': Rs[config.predictions.peak_flow_idx][1][2],
-        'W k [Core] Peak': Ks[config.predictions.peak_flow_idx][2][2],
-        'W m [Core] Peak': Ms[config.predictions.peak_flow_idx][2][2],
-        'W r^2 [Core] Peak': Rs[config.predictions.peak_flow_idx][2][2],
-
+        'U K [Core] Peak':  Ks[config.predictions.peak_flow_idx][0][2],
+        'U R2 [Core] Peak': Rs[config.predictions.peak_flow_idx][0][2],
+        'V K [Core] Peak':  Ks[config.predictions.peak_flow_idx][1][2],
+        'V R2 [Core] Peak': Rs[config.predictions.peak_flow_idx][1][2],
+        'W K [Core] Peak':  Ks[config.predictions.peak_flow_idx][2][2],
+        'W R2 [Core] Peak': Rs[config.predictions.peak_flow_idx][2][2],
     }
 
     if config.training.reference_gradients:
         metrics.update({
             'Absolute error Pressure Gradient [Fluid]': grad_abs_err_tot[0],
             'Absolute error Pressure Gradient [Bound]': grad_abs_err_tot[1],
-            'Absolute error Pressure Gradient [Core]': grad_abs_err_tot[2],
+            'Absolute error Pressure Gradient [Core]':  grad_abs_err_tot[2],
 
             'Relative error Pressure Gradient (%) [Fluid]': grad_rel_err_tot[0]*100,
             'Relative error Pressure Gradient (%) [Bound]': grad_rel_err_tot[1]*100,
-            'Relative error Pressure Gradient (%) [Core]': grad_rel_err_tot[2]*100,
+            'Relative error Pressure Gradient (%) [Core]':  grad_rel_err_tot[2]*100,
 
             'Pressure Gradient NRMSE (%) [Fluid]': grad_nrmse_tot[0]*100,
             'Pressure Gradient NRMSE (%) [Bound]': grad_nrmse_tot[1]*100,
-            'Pressure Gradient NRMSE (%) [Core]': grad_nrmse_tot[2]*100,
+            'Pressure Gradient NRMSE (%) [Core]':  grad_nrmse_tot[2]*100,
 
             'Pressure Gradient Directional Error [Fluid]': grad_dir_err_tot[0],
             'Pressure Gradient Directional Error [Bound]': grad_dir_err_tot[1],
-            'Pressure Gradient Directional Error [Core]': grad_dir_err_tot[2],
+            'Pressure Gradient Directional Error [Core]':  grad_dir_err_tot[2],
 
             'PX K    [Fluid]': Ks_pgrad_tot[0][0],
             'PX K    [Bound]': Ks_pgrad_tot[0][1],
-            'PX K [Core]': Ks_pgrad_tot[0][2],
+            'PX K    [Core]':  Ks_pgrad_tot[0][2],
             'PY K    [Fluid]': Ks_pgrad_tot[1][0],
             'PY K    [Bound]': Ks_pgrad_tot[1][1],
-            'PY K [Core]': Ks_pgrad_tot[1][2],
+            'PY K    [Core]':  Ks_pgrad_tot[1][2],
             'PZ K    [Fluid]': Ks_pgrad_tot[2][0],
             'PZ K    [Bound]': Ks_pgrad_tot[2][1],
-            'PZ K [Core]': Ks_pgrad_tot[2][2],
+            'PZ K    [Core]':  Ks_pgrad_tot[2][2],
 
             'PX R2    [Fluid]': Rs_pgrad_tot[0][0],
             'PX R2    [Bound]': Rs_pgrad_tot[0][1],
-            'PX R2 [Core]': Rs_pgrad_tot[0][2],
+            'PX R2    [Core]':  Rs_pgrad_tot[0][2],
             'PY R2    [Fluid]': Rs_pgrad_tot[1][0],
             'PY R2    [Bound]': Rs_pgrad_tot[1][1],
-            'PY R2 [Core]': Rs_pgrad_tot[1][2],
+            'PY R2    [Core]':  Rs_pgrad_tot[1][2],
             'PZ R2    [Fluid]': Rs_pgrad_tot[2][0],
             'PZ R2    [Bound]': Rs_pgrad_tot[2][1],
-            'PZ R2 [Core]': Rs_pgrad_tot[2][2],
+            'PZ R2    [Core]':  Rs_pgrad_tot[2][2],
 
             'PEAK FLOW INDEX:': config.predictions.peak_flow_idx,
 
-            'PX k [Core] Peak': Ks_pgrad[config.predictions.peak_flow_idx][0][2],
-            'PX m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][0][2],
-            'PX r^2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][0][2],
-            'PY k [Core] Peak': Ks_pgrad[config.predictions.peak_flow_idx][1][2],
-            'PY m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][1][2],
-            'PY r^2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][1][2],
-            'PZ k [Core] Peak': Ks_pgrad[config.predictions.peak_flow_idx][2][2],
-            'PZ m [Core]': Ms_pgrad[config.predictions.peak_flow_idx][2][2],
-            'PZ r^2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][2][2],
+            'PX K [Core] Peak':  Ks_pgrad[config.predictions.peak_flow_idx][0][2],
+            'PX M [Core]':       Ms_pgrad[config.predictions.peak_flow_idx][0][2],
+            'PX R2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][0][2],
+            'PY K [Core] Peak':  Ks_pgrad[config.predictions.peak_flow_idx][1][2],
+            'PY M [Core]':       Ms_pgrad[config.predictions.peak_flow_idx][1][2],
+            'PY R2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][1][2],
+            'PZ K [Core] Peak':  Ks_pgrad[config.predictions.peak_flow_idx][2][2],
+            'PZ M [Core]':       Ms_pgrad[config.predictions.peak_flow_idx][2][2],
+            'PZ R2 [Core] Peak': Rs_pgrad[config.predictions.peak_flow_idx][2][2],
 
         })
 

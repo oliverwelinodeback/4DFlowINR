@@ -177,7 +177,6 @@ def load_ref_data(config):
                     config.setup.include_pressure and config.training.reference_gradients) else None
 
             timesteps = len(u)
-            print("Length REF DATA: ", timesteps)
 
             if timesteps % 2 == 0:
                 print("Even number of timesteps detected — cropping the final frame.")

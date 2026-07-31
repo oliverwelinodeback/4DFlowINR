@@ -42,10 +42,8 @@ EVAL_METRIC_KEYS = (
     "Divergence reference [Fluid]",
     "W K [Core]",
     "W R2 [Core]",
-    "W k [Core] Peak",
-    "W r^2 [Core] Peak",
-    "W 2 k [Core]",
-    "W 2 r^2 [Core]",
+    "W K [Core] Peak",
+    "W R2 [Core] Peak",
 )
 
 PRESSURE_EVAL_METRIC_KEYS = (
@@ -56,8 +54,8 @@ PRESSURE_EVAL_METRIC_KEYS = (
     "PY R2 [Core]",
     "PZ K [Core]",
     "PZ R2 [Core]",
-    "PZ k [Core] Peak",
-    "PZ r^2 [Core] Peak",
+    "PZ K [Core] Peak",
+    "PZ R2 [Core] Peak",
 )
 
 def build_eval_log(metrics_eval, include_pressure=False, prefix="Eval"):
@@ -75,11 +73,7 @@ def build_eval_log(metrics_eval, include_pressure=False, prefix="Eval"):
             + ", ".join(missing_keys)
         )
 
-    return {
-        f"{prefix}/{key}": float(metrics_eval[key])
-        for key in keys
-    }
-
+    return {f"{prefix}/{key}": float(metrics_eval[key]) for key in keys}
 
 def init_wandb(config, run_name=None, use_sweep=False):
     """Initialize W&B with consistent experiment metadata."""
@@ -102,7 +96,6 @@ def init_wandb(config, run_name=None, use_sweep=False):
         init_kwargs["name"] = run_name
 
     # For non-sweep runs, store the complete configuration immediately
-    # Sweep parameters are populated by the W&B agent instead
     if not use_sweep:
         init_kwargs["config"] = config.to_dict()
 
@@ -119,62 +112,104 @@ def train(config=None, run_name=None, use_sweep=False):
             use_sweep=True,
         )
         sweep_config = wandb.config
-
+        
         data_file = sweep_config.get("data_file", config.data_file)
-        LR_ROUTING = {
-            "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5":        ("../data/healthy/HV01_05mm3_20ms.h5",        "HV01_sv17",    1.7, 12),
-            "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":        ("../data/healthy/HV03_05mm3_20ms.h5",        "HV03_sv13",    1.3,  4),
-            "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5":        ("../data/healthy/HV06_05mm3_20ms.h5",        "HV06_sv12",    1.2,  2),
-            "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":  ("../data/stenosis_50/ICAD28_05mm3_20ms.h5",  "ICAD28_sv13",  1.3,  2),
-            "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5":  ("../data/stenosis_50/ICAD48_05mm3_20ms.h5",  "ICAD48_sv13",  1.3, 14),
-            "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5":  ("../data/stenosis_50/ICAD98_05mm3_20ms.h5",  "ICAD98_sv51",  5.1, 12),
-            "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5":  ("../data/stenosis_70/ICAD17_05mm3_20ms.h5",  "ICAD17_sv41",  4.1,  8),
-            "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5":  ("../data/stenosis_70/ICAD21_05mm3_20ms.h5",  "ICAD21_sv26",  2.6, 12),
-            "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5": ("../data/stenosis_70/ICAD146_05mm3_20ms.h5", "ICAD146_sv17", 1.7,  8),
 
-            # SA-PINN test cases - continue here...
-            "../data/healthy/HV01_05mm3_20ms_HRLR_sv17_tSNR10.h5": ("../data/healthy/HV01_05mm3_20ms.h5", "HV01_sv17", 1.7, 12),
+        case_name = None
 
-            "../data/healthy/HV01_05mm3_20ms_HRLR_sv17_tSNR2.h5": ("../data/healthy/HV01_05mm3_20ms.h5", "HV01_sv17", 1.7, 12),
+        LR_ROUTING = { # LR file : (HR file, case_name, venc, peak_idx)
+            "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5":        ("../data/healthy/HV01_05mm3_20ms.h5",        "H1", 1.7, 12),
+            "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10.h5":        ("../data/healthy/HV03_05mm3_20ms.h5",        "H2", 1.3,  4),
+            "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10.h5":        ("../data/healthy/HV06_05mm3_20ms.h5",        "H3", 1.2,  2),
+
+            "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10.h5":  ("../data/stenosis_50/ICAD48_05mm3_20ms.h5",  "M1", 1.3, 14),
+            "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10.h5":  ("../data/stenosis_50/ICAD28_05mm3_20ms.h5",  "M2", 1.3,  2),
+            "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10.h5":  ("../data/stenosis_50/ICAD98_05mm3_20ms.h5",  "M3", 5.1, 12),
+
+            "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5":  ("../data/stenosis_70/ICAD21_05mm3_20ms.h5",  "S1", 2.6, 12),
+            "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10.h5":  ("../data/stenosis_70/ICAD17_05mm3_20ms.h5",  "S2", 4.1,  8),
+            "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10.h5": ("../data/stenosis_70/ICAD146_05mm3_20ms.h5", "S3", 1.7,  8),
         }
 
+        INVIVO_ROUTING = { # In-vivo file : (case_name, spatial res [m], temporal res [s])
+            "../data/invivo/HV01.h5":        ("H1_invivo", [0.0009821, 0.0009821, 0.001], 0.0826),
+            "../data/invivo/HV03.h5":        ("H2_invivo", [0.0009821, 0.0009821, 0.001], 0.0826),
+            "../data/invivo/HV06.h5":        ("H3_invivo", [0.0009821, 0.0009821, 0.001], 0.0826),
+
+            "../data/invivo/ICAD48.h5":      ("M1_invivo", [0.00098214, 0.00098214, 0.001], 0.0868),
+            "../data/invivo/ICAD28.h5":      ("M2_invivo", [0.00098214, 0.00098214, 0.001], 0.0868),
+            "../data/invivo/ICAD98.h5":      ("M3_invivo", [0.0010417, 0.0010417, 0.001],   0.042699),
+
+            "../data/invivo/ICAD21.h5":      ("S1_invivo", [0.0011458, 0.0011458, 0.0011],  0.042699),
+            "../data/invivo/ICAD17.h5":      ("S2_invivo", [0.00098214, 0.00098214, 0.001], 0.0868),
+            "../data/invivo/ICAD146.h5":     ("S3_invivo", [0.00098214, 0.00098214, 0.001], 0.0434),
+        }
+
+        SAPINN_ROUTING = { }# LR file : (HR file, case_name, spatial factor, temporal factor, spat res [m], temp res [s], venc, peak_idx)
+        #    "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5":   ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 2, 2, 0.0005*2, 0.02*2, 1.7, 12),
+        #    "../data/healthy/HV01_05mm3_20ms_sv17_tSNR10.h5":         ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 1, 1, 0.0005, 0.02, 1.7, 12),
+        #    "../data/healthy/HV01_05mm3_20ms_sv17_tSNR2.h5":          ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 1, 1, 0.0005, 0.02, 1.7, 12),
+        #    "../data/healthy/ICAD48_05mm3_20ms_LR_sv13_tSNR10.h5": ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 2, 2, 0.0005*2, 0.02*2, 1.3, 14),
+        #    "../data/healthy/ICAD48_05mm3_20ms_sv13_tSNR10.h5":       ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 1, 1, 0.0005, 0.02, 1.3, 14),
+        #    "../data/healthy/ICAD48_05mm3_20ms_sv13_tSNR2.h5":        ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 1, 1, 0.0005, 0.02, 1.3, 14),
+        #    "../data/healthy/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5": ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 2, 2, 0.0005*2, 0.02*2, 2.6, 12),
+        #    "../data/healthy/ICAD21_05mm3_20ms_sv26_tSNR10.h5":       ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 1, 1, 0.0005, 0.02, 2.6, 12),
+        #    "../data/healthy/ICAD21_05mm3_20ms_sv26_tSNR2.h5":        ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 1, 1, 0.0005, 0.02, 2.6, 12),
+        #}
+
         if data_file in LR_ROUTING:
-            ref_file, _, venc, peak_idx = LR_ROUTING[data_file]
+            ref_file, case_name, venc, peak_idx = LR_ROUTING[data_file]
             config.data_file = data_file
             config.data_file_ref = ref_file
             config.constants.venc = venc
             config.predictions.peak_flow_idx = peak_idx
 
-        config.network.omega_0 = sweep_config.get(
-            "network.omega_0",
-            config.network.omega_0,
-        )
+        if data_file in INVIVO_ROUTING:
+            case_name, spatial_res, temporal_res = INVIVO_ROUTING[data_file]
+            config.data_file = data_file
+            config.resolution.dx = spatial_res[0]
+            config.resolution.dy =  spatial_res[1]
+            config.resolution.dz =  spatial_res[2] 
+            config.resolution.dt = temporal_res
 
-        config.network.sigma_0 = sweep_config.get(
-            "network.sigma_0",
-            config.network.sigma_0,
-        )
+        if data_file in SAPINN_ROUTING:
+            ref_file, case_name, spat_factor, temp_factor, spatial_res, temporal_res, venc, peak_idx = SAPINN_ROUTING[data_file]
+            config.data_file = data_file
+            config.data_file_ref = ref_file
+            config.ref_spatial_factor = spat_factor
+            config.ref_temporal_factor = temp_factor
+            config.resolution.dx = spatial_res
+            config.resolution.dy =  spatial_res
+            config.resolution.dz =  spatial_res
+            config.resolution.dt = temporal_res
+            config.constants.venc = venc
+            config.predictions.peak_flow_idx = peak_idx
 
-        config.load_meta_init = sweep_config.get(
-            "load_meta_init",
-            config.load_meta_init,
-        )
+        config.network.omega_0 = sweep_config.get("network.omega_0", config.network.omega_0)
+        config.network.sigma_0 = sweep_config.get("network.sigma_0", config.network.sigma_0)
+
+        config.load_meta_init = sweep_config.get("load_meta_init", config.load_meta_init)
 
         # Store the complete resolved configuration used by this run
+        if case_name is None:
+            raise KeyError(f"No routing entry was found for sweep data file: {data_file}")
+
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M")
+
+        config.log_dir = f"{config.networks_folder.rstrip('/')}/{case_name}_{timestamp}"
         run.config.update(
-            {"resolved_config": config.to_dict()},
+            {"case_name": case_name, "resolved_config": config.to_dict()},
             allow_val_change=True,
         )
 
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M')
-        config.log_dir = f"{config.networks_folder}/{run.name}_{timestamp}"
-
     else:
-        run = init_wandb(
-            config,
-            run_name=run_name,
-            use_sweep=False,
-        )
+        run = init_wandb(config, run_name=run_name, use_sweep=False)
+
+    # Set random seed
+    set_seed(config.random_seed)
+
+    # Store source files
+    copy_source_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
 
     if config.meta_learning.enabled:
         # Meta-learning with TrainingStep integration
@@ -182,12 +217,6 @@ def train(config=None, run_name=None, use_sweep=False):
         print("Using META-LEARNING with TrainingStep Integration")
         print("="*60 + "\n")
         return train_meta_learning(config, run_name, use_sweep)
-
-    # Store source files
-    copy_source_code(config.log_dir, directory_to_backup= [".", "configs", "utils"])
-
-    # Set random seed
-    set_seed(config.random_seed)
 
     # Load data
     u, v, w, p, px, py, pz, mask, config = load_data(config)

@@ -61,6 +61,7 @@ def compute_template_parameters(config):
                 tf['global_std']  = tf['std_z']
 
     elif config.coords_normalization == "min_max":
+        
         # per-axis bounds
         _, tf['min_x'], tf['max_x'] = min_max_normalize(x)
         _, tf['min_y'], tf['max_y'] = min_max_normalize(y)
@@ -75,10 +76,7 @@ def compute_template_parameters(config):
 
     else:
         raise ValueError("Unknown coords_normalization in config.")
-    # Print the computed factors
-    print("Template factors:")
-    for key, value in tf.items():
-        print(f"{key}: {value}")
+
     return tf
 
 def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
@@ -446,9 +444,6 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
         velocities.append(px_flat)
         velocities.append(py_flat)
         velocities.append(pz_flat)
-
-    for i, arr in enumerate(velocities):
-        print(f"velocities[{i}]: shape={arr.shape}, size={arr.size}")
 
     uvw_data_ref = np.stack(velocities, axis=1) # (T*h*w*d, 4) = (29087100, 4)
     

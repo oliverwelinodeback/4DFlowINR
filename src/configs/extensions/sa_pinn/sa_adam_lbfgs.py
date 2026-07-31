@@ -3,15 +3,8 @@ from datetime import datetime
 
 
 def get_sweep_config():
-    """
-    SA-PINN replication — SA + L-BFGS optimizer.
-
-    Sweeps over 3 patients × 3 data types (LR, HRLR-tSNR10, HRLR-tSNR2).
-    Optimizer: 20k Adam+SA → 10k L-BFGS (30k total).
-
-    Corresponds to R2 runs from the original factorial experiment.
-    This is the best-performing setup in the factorial results.
-    """
+    
+    """Self-adaptive PINN with Adam+L-BFGS optimization. """
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
         'name': f'SAPINN_SA_LBFGS_{timestamp}',
@@ -20,28 +13,24 @@ def get_sweep_config():
         'parameters': {
             'data_file': {'values': [
                 # HV01 (healthy, venc=1.7, peak_idx=12)
-                "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
-                "../data/healthy/HV01_05mm3_20ms_HRLR_sv17_tSNR10.h5",
-                "../data/healthy/HV01_05mm3_20ms_HRLR_sv17_tSNR2.h5",
+                "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5",
+                "../data/healthy/HV01_05mm3_20ms_sv17_tSNR10.h5",
+                "../data/healthy/HV01_05mm3_20ms_sv17_tSNR2.h5",
                 # ICAD48 (50% stenosis, venc=1.3, peak_idx=14)
-                "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5",
-                "../data/stenosis_50/ICAD48_05mm3_20ms_HRLR_sv13_tSNR10.h5",
-                "../data/stenosis_50/ICAD48_05mm3_20ms_HRLR_sv13_tSNR2.h5",
+                "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10.h5",
+                "../data/stenosis_50/ICAD48_05mm3_20ms_sv13_tSNR10.h5",
+                "../data/stenosis_50/ICAD48_05mm3_20ms_sv13_tSNR2.h5",
                 # ICAD21 (70% stenosis, venc=2.6, peak_idx=12)
-                "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
-                "../data/stenosis_70/ICAD21_05mm3_20ms_HRLR_sv26_tSNR10.h5",
-                "../data/stenosis_70/ICAD21_05mm3_20ms_HRLR_sv26_tSNR2.h5",
+                "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5",
+                "../data/stenosis_70/ICAD21_05mm3_20ms_sv26_tSNR10.h5",
+                "../data/stenosis_70/ICAD21_05mm3_20ms_sv26_tSNR2.h5",
             ]},
         },
     }
 
 
 def get_config(sweep_config=None):
-    """
-    SA+LBFGS replication of the factorial experiment (R2 runs).
-    20k Adam with self-adaptive weights → 10k L-BFGS (30k total).
-    venc/ref/peak_idx resolved automatically by trainer.py LR_ROUTING.
-    """
+    """20k Adam with self-adaptive weights -> 10k L-BFGS (30k total)."""
     config = ml_collections.ConfigDict()
 
     config.sweep = True
@@ -49,18 +38,18 @@ def get_config(sweep_config=None):
     # ==========================================
     # DATA — overridden per run by sweep data_file
     # ==========================================
-    config.data_file = "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5"
+    config.data_file = "../data/XXX.h5"
     config.include_ref = True
     config.include_ref_loss = True
     config.load_pressure_from_data = True
-    config.data_file_ref = "../data/stenosis_50/ICAD48_05mm3_20ms.h5"
+    config.data_file_ref = "../data/XXX.h5"
     config.ref_spatial_factor = 2
     config.ref_temporal_factor = 2
 
     # ==========================================
     # MODEL
     # ==========================================
-    config.networks_folder = "../models/extensions/sa_pinn/"
+    config.networks_folder = "../models/extensions/sa_pinn_adam_lbfgs/"
     config.network_name = "sa_pinn_adam_lbfgs"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"

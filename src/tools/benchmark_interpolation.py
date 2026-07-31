@@ -1,323 +1,447 @@
-from pathlib import Path
+import os
 import sys
-SRC_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SRC_DIR))
+import time
 import h5py
 import numpy as np
 import pandas as pd
-from scipy.ndimage import zoom
+
+# Script will be located alongside your metrics script
+sys.path.append("../")
 from utils import evaluation_utils as e_utils
-from PIL import Image
 
-data_dir = '../../../data/icad_sim'
-lr_filename = '../../../data/icad_sim/ICAD48_05mm_dv_lowSNR_x2.h5'
-hr_filename = '../../../data/icad_sim/ICAD48_05mm.h5'   
-prediction_dir = "../../results/icad/benchmark_metrics/ICAD48"
+# -----------------------------
+# Fast-ish 3D cubic resize
+# -----------------------------
+def _cubic_resize_3d_to_shape(vol_3d: np.ndarray, out_shape_xyz):
+    """
+    Cubic 3D resize of a single 3D volume to out_shape_xyz = (X,Y,Z).
+    Uses scipy.ndimage.zoom if available; otherwise falls back to skimage.
+    Returns float32.
+    """
+    in_shape = vol_3d.shape
+    out_shape = tuple(int(x) for x in out_shape_xyz)
 
-if not os.path.isdir(prediction_dir):
-    os.makedirs(prediction_dir)
+    if in_shape == out_shape:
+        return vol_3d.astype(np.float32, copy=False)
 
-ground_truth_file = f"{hr_filename}"
-lr_file = f"{lr_filename}"
+    # Try scipy (fast)
+    try:
+        from scipy.ndimage import zoom
 
-peak_flow_idx = 0
+        zoom_factors = (
+            out_shape[0] / in_shape[0],
+            out_shape[1] / in_shape[1],
+            out_shape[2] / in_shape[2],
+        )
+        out = zoom(vol_3d, zoom=zoom_factors, order=3, mode="nearest", prefilter=True)
 
-t_start = 0
-t_end = 0
-x_start = 0
-x_end =   140
-y_start = 0
-y_end =   102
-z_start = 0
-z_end =   200
+        # Fix potential off-by-one due to rounding in zoom
+        out_fixed = out
+        for ax in range(3):
+            if out_fixed.shape[ax] > out_shape[ax]:
+                sl = [slice(None)] * 3
+                sl[ax] = slice(0, out_shape[ax])
+                out_fixed = out_fixed[tuple(sl)]
+            elif out_fixed.shape[ax] < out_shape[ax]:
+                pad_width = [(0, 0), (0, 0), (0, 0)]
+                pad_width[ax] = (0, out_shape[ax] - out_fixed.shape[ax])
+                out_fixed = np.pad(out_fixed, pad_width, mode="edge")
 
-resolution = 0.0005*2
-ref_spatial_factor = 2
+        return out_fixed.astype(np.float32, copy=False)
 
-# Open HR file
-with h5py.File(ground_truth_file, 'r') as hf:
+    except Exception:
+        # Fallback: skimage (exact shape)
+        from skimage.transform import resize
 
-    u_hr = np.asarray(hf['u'])
-    v_hr = np.asarray(hf['v'])
-    w_hr = np.asarray(hf['w'])
-    end = np.shape(u_hr)
-    x_end =end[1]
-    y_end = end[2]
-    z_end = end[3]
-    
-
-    u_hr = u_hr[t_start:t_end+1,x_start:x_end,y_start:y_end,z_start:z_end]
-    v_hr = v_hr[t_start:t_end+1,x_start:x_end,y_start:y_end,z_start:z_end]
-    w_hr = w_hr[t_start:t_end+1,x_start:x_end,y_start:y_end,z_start:z_end]
-
-    T = len(u_hr)
-
-    mask = np.asarray(hf['mask'])
-    if len(mask.shape) == 4: 
-        mask = mask[0]
-    mask = mask[x_start:x_end,y_start:y_end,z_start:z_end]
-
-    nf_mask = 1.0 - mask
-    boundary_mask, core_mask = e_utils.create_boundary_and_core_masks(mask, 0.1, 'voxels')
-
-    X,Y,Z = mask.shape
-    cov_a = np.sum(mask)/(X*Y*Z)
-    cov_b = np.sum(boundary_mask)/(X*Y*Z)
-    cov_c = np.sum(core_mask)/(X*Y*Z)
-    ratio_b = np.sum(boundary_mask)/np.sum(mask)
-    ratio_c = np.sum(core_mask)/np.sum(mask)
-
-    print(' ')
-    print(f'Coverage: {100*cov_a:.3f} %')
-    print(f'Boundary --- cov: {100*cov_b:.3f} %, ratio: {100*ratio_b:.3f} %')
-    print(f'Core --- cov: {100*cov_c:.3f} %, ratio: {100*ratio_c:.3f} %')
-
-# Open LR file
-with h5py.File(lr_file, mode = 'r') as pf:
-    u_lr = np.asarray(pf['u']) 
-    v_lr = np.asarray(pf['v'])
-    w_lr = np.asarray(pf['w'])
-
-u_lr = u_lr[t_start:t_end+1,int(x_start/ref_spatial_factor):int(x_end/ref_spatial_factor),int(y_start/ref_spatial_factor):int(y_end/ref_spatial_factor),int(z_start/ref_spatial_factor):int(z_end/ref_spatial_factor)]
-v_lr = v_lr[t_start:t_end+1,int(x_start/ref_spatial_factor):int(x_end/ref_spatial_factor),int(y_start/ref_spatial_factor):int(y_end/ref_spatial_factor),int(z_start/ref_spatial_factor):int(z_end/ref_spatial_factor)]
-w_lr = w_lr[t_start:t_end+1,int(x_start/ref_spatial_factor):int(x_end/ref_spatial_factor),int(y_start/ref_spatial_factor):int(y_end/ref_spatial_factor),int(z_start/ref_spatial_factor):int(z_end/ref_spatial_factor)]
-
-# Function for Lanczos (Sinc) Interpolation
-def lanczos_upsampling(volume):
-    upsampled_volume = np.zeros((volume.shape[0], volume.shape[1]*2, volume.shape[2]*2, volume.shape[3]*2))
-    for t in range(volume.shape[0]):
-        for z in range(volume.shape[3]):
-            img = Image.fromarray(volume[t,:,:,z])
-            img = img.resize((volume.shape[2]*2, volume.shape[1]*2), Image.LANCZOS)
-            upsampled_volume[t,:,:,z] = np.array(img)
-    return upsampled_volume
-
-# Function for Bicubic Interpolation
-def tricubic_upsampling(volume):
-    return zoom(volume, (1, 2, 2, 2), order=3)
-
-# Apply upsampling
-print(u_lr.shape)
-
-#u_lr = lanczos_upsampling(u_lr)
-#v_lr = lanczos_upsampling(v_lr)
-#w_lr = lanczos_upsampling(w_lr)
-
-u_lr = tricubic_upsampling(u_lr)
-v_lr = tricubic_upsampling(v_lr)
-w_lr = tricubic_upsampling(w_lr)
-
-rel_err = np.zeros((T,3))
-abs_err = np.zeros((T,4))
-rmse = np.zeros((T,4))
-
-vnrmse = np.zeros((T,4))
-d_error = np.zeros((T,4))
-div_err = np.zeros((T,4))
-
-Ks = np.zeros((T,3,3))
-Ms = np.zeros((T,3,3))
-Rs = np.zeros((T,3,3))
-
-for t in range(T):
-    print(np.shape(u_lr),np.shape(u_hr))
-    rel_err[t,0] = (e_utils.calculate_tanh_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
-    rel_err[t,1] = (e_utils.calculate_tanh_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
-    rel_err[t,2] = (e_utils.calculate_tanh_relative_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], core_mask))
-
-    abs_err[t,0] = (e_utils.calculate_absolute_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
-    abs_err[t,1] = (e_utils.calculate_absolute_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
-    abs_err[t,2] = (e_utils.calculate_absolute_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], core_mask))
-    abs_err[t,3] = (e_utils.calculate_absolute_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], nf_mask))
-
-    rmse[t,0] = (e_utils.calculate_rmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
-    rmse[t,1] = (e_utils.calculate_rmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
-    rmse[t,2] = (e_utils.calculate_rmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], core_mask))
-    rmse[t,3] = (e_utils.calculate_rmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], nf_mask))
-
-    vnrmse[t,0] = (e_utils.calculate_vnrmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
-    vnrmse[t,1] = (e_utils.calculate_vnrmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
-    vnrmse[t,2] = (e_utils.calculate_vnrmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], core_mask))
-    vnrmse[t,3] = (e_utils.calculate_vnrmse(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], nf_mask))
-
-    d_error[t,0] = (e_utils.calculate_directional_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], mask))
-    d_error[t,1] = (e_utils.calculate_directional_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], boundary_mask))
-    d_error[t,2] = (e_utils.calculate_directional_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], core_mask))
-    d_error[t,3] = (e_utils.calculate_directional_error(u_lr[t], v_lr[t], w_lr[t], u_hr[t], v_hr[t], w_hr[t], nf_mask))
-
-    div_err[t,0] = (e_utils.calculate_divergence([u_lr[t], v_lr[t], w_lr[t]], [resolution, resolution, resolution], mask))
-    div_err[t,1] = (e_utils.calculate_divergence([u_lr[t], v_lr[t], w_lr[t]], [resolution, resolution, resolution], boundary_mask))
-    div_err[t,2] = (e_utils.calculate_divergence([u_lr[t], v_lr[t], w_lr[t]], [resolution, resolution, resolution], core_mask))
-    div_err[t,3] = (e_utils.calculate_divergence([u_lr[t], v_lr[t], w_lr[t]], [resolution, resolution, resolution], nf_mask))
+        out = resize(
+            vol_3d,
+            out_shape,
+            order=3,
+            mode="edge",
+            preserve_range=True,
+            anti_aliasing=False,
+        )
+        return out.astype(np.float32, copy=False)
 
 
-    Ks[t][0][0], Ms[t][0][0], Rs[t][0][0] = e_utils.linreg(u_lr[t], u_hr[t], mask)
-    Ks[t][1][0], Ms[t][1][0], Rs[t][1][0] = e_utils.linreg(v_lr[t], v_hr[t], mask)
-    Ks[t][2][0], Ms[t][2][0], Rs[t][2][0] = e_utils.linreg(w_lr[t], w_hr[t], mask)
+def _temporal_interp_x2_insert_between(frames: np.ndarray):
+    """
+    Temporal x2 interpolation by inserting midpoints between consecutive frames.
 
-    Ks[t][0][1], Ms[t][0][1], Rs[t][0][1] = e_utils.linreg(u_lr[t], u_hr[t], boundary_mask)
-    Ks[t][1][1], Ms[t][1][1], Rs[t][1][1] = e_utils.linreg(v_lr[t], v_hr[t], boundary_mask)
-    Ks[t][2][1], Ms[t][2][1], Rs[t][2][1] = e_utils.linreg(w_lr[t], w_hr[t], boundary_mask)
+    Input:  frames shape (T, X, Y, Z)
+    Output: shape (2*(T-1)+1, X, Y, Z)
 
-    Ks[t][0][2], Ms[t][0][2], Rs[t][0][2] = e_utils.linreg(u_lr[t], u_hr[t], core_mask)
-    Ks[t][1][2], Ms[t][1][2], Rs[t][1][2] = e_utils.linreg(v_lr[t], v_hr[t], core_mask)
-    Ks[t][2][2], Ms[t][2][2], Rs[t][2][2] = e_utils.linreg(w_lr[t], w_hr[t], core_mask)
+    Example:
+      LR: 1,3,5  -> out: 1,2,3,4,5  (no extrapolated last frame)
+    """
+    T = frames.shape[0]
+    if T <= 1:
+        return frames
+
+    out_T = 2 * (T - 1) + 1
+    out = np.empty((out_T,) + frames.shape[1:], dtype=np.float32)
+
+    out[0::2] = frames
+    out[1::2] = 0.5 * (frames[:-1] + frames[1:])
+
+    return out
 
 
-print('Total avg')
-rel_err_tot = np.mean(rel_err, axis=0)
-print(f'Relative error [Fluid] {rel_err_tot[0]:.1f}')
-print(f'Relative error [Bound] {rel_err_tot[1]:.1f}')
-print(f'Relative error [Core] {rel_err_tot[2]:.1f}')
+def _hr_indices_for_lr(T_hr: int, T_lr: int):
+    """
+    LR frames correspond to HR frames at indices 0,2,4,... (temporal downsample x2).
+    Returns hr_idx_use of length min(T_lr, ceil(T_hr/2)).
+    """
+    hr_idx = np.arange(0, T_hr, 2, dtype=int)
+    T_compare = min(T_lr, len(hr_idx))
+    return hr_idx[:T_compare], T_compare
 
-abs_err_tot = np.mean(abs_err, axis=0)
-print(f'Absolute error [Fluid] {abs_err_tot[0]:.1f}')
-print(f'Absolute error [Bound] {abs_err_tot[1]:.1f}')
-print(f'Absolute error [Core] {abs_err_tot[2]:.1f}')
-print(f'Absolute error [Non-F] {abs_err_tot[3]:.1f}')
 
-rmse_tot = np.mean(rmse, axis=0)
-print(f'R.M.S.   error [Fluid] {rmse_tot[0]:.1f}')
-print(f'R.M.S.   error [Bound] {rmse_tot[1]:.1f}')
-print(f'R.M.S.   error [Core] {rmse_tot[2]:.1f}')
-print(f'R.M.S.   error [Non-F] {rmse_tot[3]:.1f}')
+def _ensure_mask_3d(mask):
+    if mask.ndim == 4:
+        return mask[0]
+    return mask
 
-print('-  '*9)
-print('Peak Flow')
 
-print(f'Relative error [Fluid] {rel_err[peak_flow_idx][0]:.1f}')
-print(f'Relative error [Bound] {rel_err[peak_flow_idx][1]:.1f}')
-print(f'Relative error [Core] {rel_err[peak_flow_idx][2]:.1f}')
+def compute_metrics_over_time(
+    u_pred, v_pred, w_pred,
+    u_ref, v_ref, w_ref,
+    mask, boundary_mask, core_mask, nf_mask,
+    peak_flow_idx_used: int,
+):
+    """
+    Computes the same set of metrics as your script over time dimension.
+    Returns: dict with aggregates + peak + optional bookkeeping.
+    """
+    T = u_pred.shape[0]
 
-print(f'Absolute error [Fluid] {abs_err[peak_flow_idx][0]:.1f}')
-print(f'Absolute error [Bound] {abs_err[peak_flow_idx][1]:.1f}')
-print(f'Absolute error [Core] {abs_err[peak_flow_idx][2]:.1f}')
-print(f'Absolute error [Non-F] {abs_err[peak_flow_idx][3]:.1f}')
+    tanh_rel_err = np.zeros((T, 3), dtype=np.float32)
+    rel_err = np.zeros((T, 3), dtype=np.float32)
+    abs_err = np.zeros((T, 4), dtype=np.float32)
+    rmse = np.zeros((T, 4), dtype=np.float32)
+    vnrmse = np.zeros((T, 4), dtype=np.float32)
+    d_error = np.zeros((T, 4), dtype=np.float32)
 
-print(f'R.M.S.   error [Fluid] {rmse[peak_flow_idx][0]:.1f}')
-print(f'R.M.S.   error [Bound] {rmse[peak_flow_idx][1]:.1f}')
-print(f'R.M.S.   error [Core] {rmse[peak_flow_idx][2]:.1f}')
-print(f'R.M.S.   error [Non-F] {rmse[peak_flow_idx][3]:.1f}')
+    Ks = np.zeros((T, 3, 3), dtype=np.float32)
+    Ms = np.zeros((T, 3, 3), dtype=np.float32)
+    Rs = np.zeros((T, 3, 3), dtype=np.float32)
 
-print(' ')
-print(f'U [Fluid] k: {Ks[peak_flow_idx][0][0]:.4f} \t m: {Ms[peak_flow_idx][0][0]:.4f} \t r^2: {Rs[peak_flow_idx][0][0]:.4f}')
-print(f'  [Bound] k: {Ks[peak_flow_idx][0][1]:.4f} \t m: {Ms[peak_flow_idx][0][1]:.4f} \t r^2: {Rs[peak_flow_idx][0][1]:.4f}')
-print(f'  [Core] k: {Ks[peak_flow_idx][0][2]:.4f} \t m: {Ms[peak_flow_idx][0][2]:.4f} \t r^2: {Rs[peak_flow_idx][0][2]:.4f}')
+    for t in range(T):
+        rel_err[t, 0] = e_utils.calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask)
+        rel_err[t, 1] = e_utils.calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask)
+        rel_err[t, 2] = e_utils.calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask)
 
-print(' ')
-print(f'V [Fluid] k: {Ks[peak_flow_idx][1][0]:.4f} \t m: {Ms[peak_flow_idx][1][0]:.4f} \t r^2: {Rs[peak_flow_idx][1][0]:.4f}')
-print(f'  [Bound] k: {Ks[peak_flow_idx][1][1]:.4f} \t m: {Ms[peak_flow_idx][1][1]:.4f} \t r^2: {Rs[peak_flow_idx][1][1]:.4f}')
-print(f'  [Core] k: {Ks[peak_flow_idx][1][2]:.4f} \t m: {Ms[peak_flow_idx][1][2]:.4f} \t r^2: {Rs[peak_flow_idx][1][2]:.4f}')
+        tanh_rel_err[t, 0] = e_utils.calculate_tanh_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask)
+        tanh_rel_err[t, 1] = e_utils.calculate_tanh_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask)
+        tanh_rel_err[t, 2] = e_utils.calculate_tanh_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask)
 
-print(' ')
-print(f'W [Fluid] k: {Ks[peak_flow_idx][2][0]:.4f} \t m: {Ms[peak_flow_idx][2][0]:.4f} \t r^2: {Rs[peak_flow_idx][2][0]:.4f}')
-print(f'  [Bound] k: {Ks[peak_flow_idx][2][1]:.4f} \t m: {Ms[peak_flow_idx][2][1]:.4f} \t r^2: {Rs[peak_flow_idx][2][1]:.4f}')
-print(f'  [Core] k: {Ks[peak_flow_idx][2][2]:.4f} \t m: {Ms[peak_flow_idx][2][2]:.4f} \t r^2: {Rs[peak_flow_idx][2][2]:.4f}')
+        abs_err[t, 0] = e_utils.calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask)
+        abs_err[t, 1] = e_utils.calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask)
+        abs_err[t, 2] = e_utils.calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask)
+        abs_err[t, 3] = e_utils.calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask)
 
-# Save metrics to csv
-metrics = {
-    'lr_filename': lr_filename,
-    'hr_filename': hr_filename,
+        rmse[t, 0] = e_utils.calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask)
+        rmse[t, 1] = e_utils.calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask)
+        rmse[t, 2] = e_utils.calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask)
+        rmse[t, 3] = e_utils.calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask)
 
-    'Coverage [%]': 100*cov_a,
-    'Fluid Coverage [%]': 100*cov_b,
-    'Core Coverage [%]': 100*cov_c,
-    'Ratio Boundary/Core [%]': 100*ratio_c,
+        vnrmse[t, 0] = e_utils.calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask)
+        vnrmse[t, 1] = e_utils.calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask)
+        vnrmse[t, 2] = e_utils.calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask)
+        vnrmse[t, 3] = e_utils.calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask)
 
-    'Relative error [Fluid]': rel_err_tot[0],
-    'Relative error [Bound]': rel_err_tot[1],
-    'Relative error [Core]': rel_err_tot[2],
-    'Absolute error [Fluid]': abs_err_tot[0],
-    'Absolute error [Bound]': abs_err_tot[1],
-    'Absolute error [Core]': abs_err_tot[2],
-    'Absolute error [Non-F]': abs_err_tot[3],
-    'R.M.S. error [Fluid]': rmse_tot[0],
-    'R.M.S. error [Bound]': rmse_tot[1],
-    'R.M.S. error [Core]': rmse_tot[2],
-    'R.M.S. error [Non-F]': rmse_tot[3],
+        d_error[t, 0] = e_utils.calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask)
+        d_error[t, 1] = e_utils.calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask)
+        d_error[t, 2] = e_utils.calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask)
+        d_error[t, 3] = e_utils.calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask)
 
-    'PEAK FLOW INDEX:': peak_flow_idx,
-    'Relative error [Fluid] Peak': rel_err[peak_flow_idx][0],
-    'Relative error [Bound] Peak': rel_err[peak_flow_idx][1],
-    'Relative error [Core] Peak': rel_err[peak_flow_idx][2],
-    'Absolute error [Fluid] Peak': abs_err[peak_flow_idx][0],
-    'Absolute error [Bound] Peak': abs_err[peak_flow_idx][1],
-    'Absolute error [Core] Peak': abs_err[peak_flow_idx][2],
-    'Absolute error [Non-F] Peak': abs_err[peak_flow_idx][3],
-    'R.M.S. error [Fluid] Peak': rmse[peak_flow_idx][0],
-    'R.M.S. error [Bound] Peak': rmse[peak_flow_idx][1],
-    'R.M.S. error [Core] Peak': rmse[peak_flow_idx][2],
-    'R.M.S. error [Non-F] Peak': rmse[peak_flow_idx][3],
+        Ks[t][0][0], Ms[t][0][0], Rs[t][0][0] = e_utils.linreg(u_pred[t], u_ref[t], mask)
+        Ks[t][1][0], Ms[t][1][0], Rs[t][1][0] = e_utils.linreg(v_pred[t], v_ref[t], mask)
+        Ks[t][2][0], Ms[t][2][0], Rs[t][2][0] = e_utils.linreg(w_pred[t], w_ref[t], mask)
 
-    'VNRMSE [Fluid]': vnrmse[0,0],
-    'VNRMSE [Bound]': vnrmse[0,1],
-    'VNRMSE [Core]': vnrmse[0,2],
-    'VNRMSE [Non-F]': vnrmse[0,3],
+        Ks[t][0][1], Ms[t][0][1], Rs[t][0][1] = e_utils.linreg(u_pred[t], u_ref[t], boundary_mask)
+        Ks[t][1][1], Ms[t][1][1], Rs[t][1][1] = e_utils.linreg(v_pred[t], v_ref[t], boundary_mask)
+        Ks[t][2][1], Ms[t][2][1], Rs[t][2][1] = e_utils.linreg(w_pred[t], w_ref[t], boundary_mask)
 
-    'Directional error [Fluid]': d_error[0,0],
-    'Directional error [Bound]': d_error[0,1],
-    'Directional error [Core]': d_error[0,2],
-    'Directional error [Non-F]': d_error[0,3],
+        Ks[t][0][2], Ms[t][0][2], Rs[t][0][2] = e_utils.linreg(u_pred[t], u_ref[t], core_mask)
+        Ks[t][1][2], Ms[t][1][2], Rs[t][1][2] = e_utils.linreg(v_pred[t], v_ref[t], core_mask)
+        Ks[t][2][2], Ms[t][2][2], Rs[t][2][2] = e_utils.linreg(w_pred[t], w_ref[t], core_mask)
 
-    'Divergence prediction [Fluid]': div_err[0,0],
-    'Divergence prediction [Bound]': div_err[0,1],
-    'Divergence prediction [Core]': div_err[0,2],
-    'Divergence prediction [Non-F]': div_err[0,3],
+    # Aggregates
+    rel_err_tot = np.mean(rel_err, axis=0)
+    tanh_rel_err_tot = np.mean(tanh_rel_err, axis=0)
+    abs_err_tot = np.mean(abs_err, axis=0)
+    rmse_tot = np.mean(rmse, axis=0)
+    vnrmse_tot = np.mean(vnrmse, axis=0)
+    d_error_tot = np.mean(d_error, axis=0)
+    Rs_tot = np.mean(Rs, axis=0)
+    Ks_tot = np.mean(Ks, axis=0)
 
-    'U [Fluid] k': Ks[peak_flow_idx][0][0],
-    'U [Bound] k': Ks[peak_flow_idx][0][1],
-    'U [Core] k': Ks[peak_flow_idx][0][2],
-    'U [Fluid] m': Ms[peak_flow_idx][0][0],
-    'U [Bound] m': Ms[peak_flow_idx][0][1],
-    'U [Core] m': Ms[peak_flow_idx][0][2],
-    'U [Fluid] r^2': Rs[peak_flow_idx][0][0],
-    'U [Bound] r^2': Rs[peak_flow_idx][0][1],
-    'U [Core] r^2': Rs[peak_flow_idx][0][2],
+    # Peak (safe)
+    peak_flow_idx_used = int(np.clip(peak_flow_idx_used, 0, T - 1))
 
-    'V [Fluid] k': Ks[peak_flow_idx][1][0],
-    'V [Bound] k': Ks[peak_flow_idx][1][1],
-    'V [Core] k': Ks[peak_flow_idx][1][2],
-    'V [Fluid] m': Ms[peak_flow_idx][1][0],
-    'V [Bound] m': Ms[peak_flow_idx][1][1],
-    'V [Core] m': Ms[peak_flow_idx][1][2],
-    'V [Fluid] r^2': Rs[peak_flow_idx][1][0],
-    'V [Bound] r^2': Rs[peak_flow_idx][1][1],
-    'V [Core] r^2': Rs[peak_flow_idx][1][2],
+    out = {
+        # totals
+        "Relative error [Fluid]": rel_err_tot[0],
+        "Relative error [Bound]": rel_err_tot[1],
+        "Relative error [Core]": rel_err_tot[2],
+        "tanh Relative error [Fluid]": tanh_rel_err_tot[0],
+        "tanh Relative error [Bound]": tanh_rel_err_tot[1],
+        "tanh Relative error [Core]": tanh_rel_err_tot[2],
+        "Absolute error [Fluid]": abs_err_tot[0],
+        "Absolute error [Bound]": abs_err_tot[1],
+        "Absolute error [Core]": abs_err_tot[2],
+        "Absolute error [Non-F]": abs_err_tot[3],
+        "R.M.S. error [Fluid]": rmse_tot[0],
+        "R.M.S. error [Bound]": rmse_tot[1],
+        "R.M.S. error [Core]": rmse_tot[2],
+        "R.M.S. error [Non-F]": rmse_tot[3],
+        "vNRMSE error [Fluid]": vnrmse_tot[0],
+        "vNRMSE error [Bound]": vnrmse_tot[1],
+        "vNRMSE error [Core]": vnrmse_tot[2],
+        "vNRMSE error [Non-F]": vnrmse_tot[3],
+        "Directional error [Fluid]": d_error_tot[0],
+        "Directional error [Bound]": d_error_tot[1],
+        "Directional error [Core]": d_error_tot[2],
+        "Directional error [Non-F]": d_error_tot[3],
+        "U R2 [Fluid]": Rs_tot[0][0],
+        "U R2 [Bound]": Rs_tot[0][1],
+        "U R2 [Core]": Rs_tot[0][2],
+        "V R2 [Fluid]": Rs_tot[1][0],
+        "V R2 [Bound]": Rs_tot[1][1],
+        "V R2 [Core]": Rs_tot[1][2],
+        "W R2 [Fluid]": Rs_tot[2][0],
+        "W R2 [Bound]": Rs_tot[2][1],
+        "W R2 [Core]": Rs_tot[2][2],
+        "U K [Fluid]": Ks_tot[0][0],
+        "U K [Bound]": Ks_tot[0][1],
+        "U K [Core]": Ks_tot[0][2],
+        "V K [Fluid]": Ks_tot[1][0],
+        "V K [Bound]": Ks_tot[1][1],
+        "V K [Core]": Ks_tot[1][2],
+        "W K [Fluid]": Ks_tot[2][0],
+        "W K [Bound]": Ks_tot[2][1],
+        "W K [Core]": Ks_tot[2][2],
+        # peak
+        "PEAK INDEX USED": peak_flow_idx_used,
+        "Relative error [Fluid] Peak": rel_err[peak_flow_idx_used][0],
+        "Relative error [Bound] Peak": rel_err[peak_flow_idx_used][1],
+        "Relative error [Core] Peak": rel_err[peak_flow_idx_used][2],
+        "tanh Relative error [Fluid] Peak": tanh_rel_err[peak_flow_idx_used][0],
+        "tanh Relative error [Bound] Peak": tanh_rel_err[peak_flow_idx_used][1],
+        "tanh Relative error [Core] Peak": tanh_rel_err[peak_flow_idx_used][2],
+        "Absolute error [Fluid] Peak": abs_err[peak_flow_idx_used][0],
+        "Absolute error [Bound] Peak": abs_err[peak_flow_idx_used][1],
+        "Absolute error [Core] Peak": abs_err[peak_flow_idx_used][2],
+        "Absolute error [Non-F] Peak": abs_err[peak_flow_idx_used][3],
+        "R.M.S. error [Fluid] Peak": rmse[peak_flow_idx_used][0],
+        "R.M.S. error [Bound] Peak": rmse[peak_flow_idx_used][1],
+        "R.M.S. error [Core] Peak": rmse[peak_flow_idx_used][2],
+        "R.M.S. error [Non-F] Peak": rmse[peak_flow_idx_used][3],
+        "vNRMSE error [Fluid] Peak": vnrmse[peak_flow_idx_used][0],
+        "vNRMSE error [Bound] Peak": vnrmse[peak_flow_idx_used][1],
+        "vNRMSE error [Core] Peak": vnrmse[peak_flow_idx_used][2],
+        "vNRMSE error [Non-F] Peak": vnrmse[peak_flow_idx_used][3],
+        "Directional error [Fluid] Peak": d_error[peak_flow_idx_used][0],
+        "Directional error [Bound] Peak": d_error[peak_flow_idx_used][1],
+        "Directional error [Core] Peak": d_error[peak_flow_idx_used][2],
+        "Directional error [Non-F] Peak": d_error[peak_flow_idx_used][3],
+    }
 
-    'W [Fluid] k': Ks[peak_flow_idx][2][0],
-    'W [Bound] k': Ks[peak_flow_idx][2][1],
-    'W [Core] k': Ks[peak_flow_idx][2][2],
-    'W [Fluid] m': Ms[peak_flow_idx][2][0],
-    'W [Bound] m': Ms[peak_flow_idx][2][1],
-    'W [Core] m': Ms[peak_flow_idx][2][2],
-    'W [Fluid] r^2': Rs[peak_flow_idx][2][0],
-    'W [Bound] r^2': Rs[peak_flow_idx][2][1],
-    'W [Core] r^2': Rs[peak_flow_idx][2][2],
+    return out
 
-}
 
-metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
-metrics_filename = f'{prediction_dir}/benchmark_metrics.csv'
-metrics_df.to_csv(metrics_filename, index=False)
+if __name__ == "__main__":
 
-def save_to_h5(output_filepath, col_name, dataset, expand=False):
-    if expand:
-        dataset = np.expand_dims(dataset, axis=0)
+    # ---------------- SETTINGS ----------------
+    # HR reference
+    data_dir = "../../data/healthy"
+    hr_filename = "HV01_05mm3_20ms.h5"
 
-    # convert float64 to float32 to save space
-    if dataset.dtype == 'float64':
-        dataset = np.array(dataset, dtype='float32')
-    
-    with h5py.File(output_filepath, 'a') as hf:    
-        if col_name not in hf:
-            datashape = (None, )
-            if (dataset.ndim > 1):
-                datashape = (None, ) + dataset.shape[1:]
-            hf.create_dataset(col_name, data=dataset, maxshape=datashape)
+    # Typically these are your LR simulation/acquisition files.
+
+    peak_flow_idx_hr = 12  # defined in HR time
+
+    lr_data_dir = data_dir  # adjust if needed
+    lr_filename_stems = [
+        # HV01 - H1
+        'HV01_05mm3_20ms_LR_sv17_tSNR10_newMask',
+        # ...
+    ]
+
+    # Where to save metrics
+    prediction_dir = "interpolation_results"
+    method_folder = "/Interp_Cubic_x2" 
+    results_subdir = "results"
+
+    # Metrics behavior
+    do_temporal_interp = True   # True: tempospatial; False: spatial-only (time maps LR k -> HR 2*k)
+
+    # ------------------------------------------
+
+    ground_truth_file = f"{data_dir}/{hr_filename}"
+
+    # Create output results dir
+    method_dir = f"{prediction_dir}{method_folder}"
+    results_dir = os.path.join(method_dir, results_subdir)
+    os.makedirs(results_dir, exist_ok=True)
+
+    print("Start time:", time.ctime())
+    print(f"HR file: {ground_truth_file}")
+    print(f"LR dir:  {lr_data_dir}")
+    print(f"Method:  {method_folder}  (temporal_interp={do_temporal_interp})")
+    print(f"Results: {results_dir}")
+
+    # -------------------------------
+    # Load HR (reference) + masks
+    # -------------------------------
+    with h5py.File(ground_truth_file, "r") as hf:
+        u_hr_all = np.asarray(hf["u"], dtype=np.float32)
+        v_hr_all = np.asarray(hf["v"], dtype=np.float32)
+        w_hr_all = np.asarray(hf["w"], dtype=np.float32)
+        T_hr = u_hr_all.shape[0]
+
+        mask = _ensure_mask_3d(np.asarray(hf["mask"]))
+        mask = mask.astype(np.float32)
+
+        nf_mask = 1.0 - mask
+        boundary_mask, core_mask = e_utils.create_boundary_and_core_masks(mask, 0.1, "voxels")
+        boundary_mask = boundary_mask.astype(np.float32)
+        core_mask = core_mask.astype(np.float32)
+
+        X, Y, Z = mask.shape
+        cov_a = np.sum(mask) / (X * Y * Z)
+        cov_b = np.sum(boundary_mask) / (X * Y * Z)
+        cov_c = np.sum(core_mask) / (X * Y * Z)
+        ratio_b = np.sum(boundary_mask) / np.sum(mask)
+        ratio_c = np.sum(core_mask) / np.sum(mask)
+
+        print(" ")
+        print(f"Coverage: {100*cov_a:.3f} %")
+        print(f"Boundary --- cov: {100*cov_b:.3f} %, ratio: {100*ratio_b:.3f} %")
+        print(f"Core --- cov: {100*cov_c:.3f} %, ratio: {100*ratio_c:.3f} %")
+
+        hr_shape_xyz = mask.shape
+
+    # -------------------------------
+    # Loop over LR inputs
+    # -------------------------------
+    for lr_stem in lr_filename_stems:
+        lr_file = f"{lr_data_dir}/{lr_stem}.h5"
+        print("\n" + "=" * 60)
+        print(f"LR FILE: {lr_file}")
+        print("Start:", time.ctime())
+        t0 = time.time()
+
+        with h5py.File(lr_file, "r") as lf:
+            u_lr = np.asarray(lf["u"], dtype=np.float32)
+            v_lr = np.asarray(lf["v"], dtype=np.float32)
+            w_lr = np.asarray(lf["w"], dtype=np.float32)
+
+        T_lr = u_lr.shape[0]
+        print(f"T_lr={T_lr}, LR shape={u_lr.shape[1:]}, HR shape={hr_shape_xyz}")
+
+        # -------------------------------
+        # Spatial x2 (cubic) to HR shape
+        # -------------------------------
+        u_sp = np.empty((T_lr,) + hr_shape_xyz, dtype=np.float32)
+        v_sp = np.empty((T_lr,) + hr_shape_xyz, dtype=np.float32)
+        w_sp = np.empty((T_lr,) + hr_shape_xyz, dtype=np.float32)
+
+        for t in range(T_lr):
+            u_sp[t] = _cubic_resize_3d_to_shape(u_lr[t], hr_shape_xyz)
+            v_sp[t] = _cubic_resize_3d_to_shape(v_lr[t], hr_shape_xyz)
+            w_sp[t] = _cubic_resize_3d_to_shape(w_lr[t], hr_shape_xyz)
+
+        # -------------------------------
+        # Temporal handling + reference alignment
+        # -------------------------------
+        if do_temporal_interp:
+            # tempospatial: build 1,2,3,4,5... by inserting between frames
+            u_pred = _temporal_interp_x2_insert_between(u_sp)
+            v_pred = _temporal_interp_x2_insert_between(v_sp)
+            w_pred = _temporal_interp_x2_insert_between(w_sp)
+
+            T_pred = u_pred.shape[0]
+
+            # Compare to first T_pred of HR (truncate if HR shorter)
+            T_compare = min(T_pred, T_hr)
+            u_pred = u_pred[:T_compare]
+            v_pred = v_pred[:T_compare]
+            w_pred = w_pred[:T_compare]
+
+            u_ref = u_hr_all[:T_compare]
+            v_ref = v_hr_all[:T_compare]
+            w_ref = w_hr_all[:T_compare]
+
+            # Peak index: HR-defined index corresponds to same index in this compare (if within range)
+            peak_used = int(np.clip(peak_flow_idx_hr, 0, T_compare - 1))
+
+            temporal_note = "tempospatial_x2_insert_between; compare vs HR[0:T_compare]"
+
         else:
-            hf[col_name].resize((hf[col_name].shape[0]) + dataset.shape[0], axis = 0)
-            hf[col_name][-dataset.shape[0]:] = dataset
+            # spatial-only: LR frames correspond to HR at 0,2,4,...
+            hr_idx_use, T_compare = _hr_indices_for_lr(T_hr=T_hr, T_lr=T_lr)
 
-save_to_h5(f"{prediction_dir}/healthy-05mm3_dv_lowSNR_x2_interpolated.h5", "u", u_lr[peak_flow_idx]*mask)
-save_to_h5(f"{prediction_dir}/healthy-05mm3_dv_lowSNR_x2_interpolated.h5", "v", v_lr[peak_flow_idx]*mask)
-save_to_h5(f"{prediction_dir}/healthy-05mm3_dv_lowSNR_x2_interpolated.h5", "w", w_lr[peak_flow_idx]*mask)
+            u_pred = u_sp[:T_compare]
+            v_pred = v_sp[:T_compare]
+            w_pred = w_sp[:T_compare]
+
+            u_ref = u_hr_all[hr_idx_use]
+            v_ref = v_hr_all[hr_idx_use]
+            w_ref = w_hr_all[hr_idx_use]
+
+            # Peak index: HR-defined peak maps to approx floor(peak/2) in this sequence
+            peak_used = int(np.clip(peak_flow_idx_hr // 2, 0, T_compare - 1))
+
+            temporal_note = "spatial_only; compare vs HR[0,2,4,...]"
+
+        print(f"Comparison timesteps: {T_compare}")
+        print(f"Temporal mode: {temporal_note}")
+        print(f"Peak used index: {peak_used}")
+
+        # -------------------------------
+        # Metrics
+        # -------------------------------
+        metrics_core = compute_metrics_over_time(
+            u_pred=u_pred, v_pred=v_pred, w_pred=w_pred,
+            u_ref=u_ref, v_ref=v_ref, w_ref=w_ref,
+            mask=mask, boundary_mask=boundary_mask, core_mask=core_mask, nf_mask=nf_mask,
+            peak_flow_idx_used=peak_used,
+        )
+
+        # Add bookkeeping + rename keys to avoid collision
+        mode_tag = "tempospatial" if do_temporal_interp else "spatial"
+        metrics_name = f"metrics_interp_cubic_x2_{mode_tag}_{lr_stem}"
+
+        metrics = {
+            "method": "cubic_interp_x2",
+            "mode": mode_tag,
+            "lr_filename": f"{lr_stem}.h5",
+            "hr_filename": hr_filename,
+            "note": temporal_note,
+            "T_hr": T_hr,
+            "T_lr": T_lr,
+            "T_compare": T_compare,
+            "PEAK FLOW INDEX (HR)": peak_flow_idx_hr,
+            "Coverage [%]": 100 * cov_a,
+            "Boundary Coverage [%]": 100 * cov_b,
+            "Core Coverage [%]": 100 * cov_c,
+            "Ratio Boundary/Core [%]": 100 * ratio_c,
+        }
+
+        # Prefix metric names so you can distinguish easily
+        for k, v in metrics_core.items():
+            metrics[f"Interp2x {k}"] = v
+
+        # Save CSV
+        metrics_df = pd.DataFrame(list(metrics.items()), columns=["Metric", "Value"])
+        metrics_filename = os.path.join(results_dir, f"{metrics_name}.csv")
+        metrics_df.to_csv(metrics_filename, index=False)
+
+        dt = time.time() - t0
+        print(f"Saved: {metrics_filename}")
+        print(f"Done in {dt:.2f} s")
+
+    print("\nAll done.")
+    print("End time:", time.ctime())

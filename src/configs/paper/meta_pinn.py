@@ -2,21 +2,21 @@ import ml_collections
 from datetime import datetime
 
 def get_sweep_config():
-    
+
+    """Sweep configuration for wandb."""
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     return {
-        'name': f'PINN_MAML_PhysicsOuterOnly_omega60_1000it_h5_{timestamp}',
+        'name': f'pinn-meta-learning',
         'method': 'grid',
         'metric': {'name': 'Final/Relative error [Fluid]', 'goal': 'minimize'},
         'parameters': {
 
             'data_file': {'values': [
 
-                #"../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5", 
-                #"../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5", 
-                "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5",
-                "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5",
-                "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
+                "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10.h5",
+                "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10.h5",
+                "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10.h5", 
+
                 ]},
             
             'load_meta_init': {'values': [True, False]},
@@ -24,24 +24,8 @@ def get_sweep_config():
     }
 
 def get_config(sweep_config=None):
-    """
-    MAML (Second-Order) with Physics in OUTER LOOP ONLY
 
-    This is the memory-efficient physics-informed MAML configuration:
-    - Inner loop: Optimizes DATA LOSS only (velocities u, v, w)
-    - Outer loop: Optimizes DATA + PHYSICS loss (Navier-Stokes)
-
-    The model outputs 4 components (u, v, w, p):
-    - Data loss: Uses (u, v, w) - ground truth velocities
-    - Physics loss: Uses all 4 - Navier-Stokes needs pressure gradients
-
-    Pressure (p) is a LATENT VARIABLE learned through physics constraints.
-
-    Key settings:
-    - meta_method: 'MAML' (full second-order)
-    - use_physics_loss: True
-    - use_physics_outer_only: True (MEMORY-EFFICIENT MODE)
-    """
+    """ MAML (Second-Order) with Physics in outer loop only."""
     config = ml_collections.ConfigDict()
 
     config.sweep = False
@@ -55,10 +39,8 @@ def get_config(sweep_config=None):
     config.ref_temporal_factor = 2
 
     # Model
-    config.networks_folder = "../models/MetaLearning_BestHyperPArameters/"
-    config.network_name = "260202_MAML_PhysicsOuter_REPRO"
-    #config.networks_folder = "../models/260606_PINN_PhysicsOuterOnly_omega60_1000it_h5/"
-    #config.network_name = "260606_PINN_PhysicsOuterOnly_omega60"
+    config.networks_folder = "../models/paper_pinn-meta/"
+    config.network_name = "paper_pinn-meta"
     timestamp = datetime.now().strftime('%Y%m%d-%H%M')
     config.log_dir = f"{config.networks_folder}/{config.network_name}_{timestamp}"
     config.random_seed = 1234
@@ -169,7 +151,7 @@ def get_config(sweep_config=None):
     # PHYSICS OUTER ONLY MODE (KEY SETTINGS)
     # ==========================================
     config.meta_learning.use_physics_loss = True        # Enable physics
-    config.meta_learning.use_physics_outer_only = True  # OUTER LOOP ONLY!
+    config.meta_learning.use_physics_outer_only = True  # outer loop only
 
     # Physics settings (applied ONLY in outer loop)
     config.meta_learning.physics_weight = 1.0       
@@ -197,37 +179,39 @@ def get_config(sweep_config=None):
     config.meta_learning.scheduler_gamma = 0.9995
 
     config.meta_learning.train_cases = [
-        "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10_newMask.h5",
-        "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10_newMask.h5",
+        "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5",
+        "../data/healthy/HV03_05mm3_20ms_LR_sv13_tSNR10.h5",
 
-        "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask.h5",
-        "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask.h5",
+        "../data/stenosis_50/ICAD28_05mm3_20ms_LR_sv13_tSNR10.h5",
+        "../data/stenosis_50/ICAD48_05mm3_20ms_LR_sv13_tSNR10.h5",
 
-        "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask.h5",
-        "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask.h5",
+        "../data/stenosis_70/ICAD17_05mm3_20ms_LR_sv41_tSNR10.h5",
+        "../data/stenosis_70/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5",
     ]
 
     config.meta_learning.val_cases = [
-        "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10_newMask.h5",
-        "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask.h5",
-        "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask.h5"
+        "../data/healthy/HV06_05mm3_20ms_LR_sv12_tSNR10.h5",
+        "../data/stenosis_50/ICAD98_05mm3_20ms_LR_sv51_tSNR10.h5",
+        "../data/stenosis_70/ICAD146_05mm3_20ms_LR_sv17_tSNR10.h5"
     ]
 
     config.meta_learning.case_venc = {
-        "HV01_05mm3_20ms_LR_sv17_tSNR10_newMask": 1.7,
-        "HV03_05mm3_20ms_LR_sv13_tSNR10_newMask": 1.3,
-        "HV06_05mm3_20ms_LR_sv12_tSNR10_newMask": 1.2,
-        "ICAD28_05mm3_20ms_LR_sv13_tSNR10_newMask": 1.3,
-        "ICAD48_05mm3_20ms_LR_sv13_tSNR10_newMask": 1.3,
-        "ICAD98_05mm3_20ms_LR_sv51_tSNR10_newMask": 5.1,
-        "ICAD17_05mm3_20ms_LR_sv41_tSNR10_newMask": 4.1,
-        "ICAD21_05mm3_20ms_LR_sv26_tSNR10_newMask": 2.6,
-        "ICAD146_05mm3_20ms_LR_sv17_tSNR10_newMask": 1.7
+        "HV01_05mm3_20ms_LR_sv17_tSNR10": 1.7,
+        "HV03_05mm3_20ms_LR_sv13_tSNR10": 1.3,
+        "HV06_05mm3_20ms_LR_sv12_tSNR10": 1.2,
+
+        "ICAD28_05mm3_20ms_LR_sv13_tSNR10": 1.3,
+        "ICAD48_05mm3_20ms_LR_sv13_tSNR10": 1.3,
+        "ICAD98_05mm3_20ms_LR_sv51_tSNR10": 5.1,
+
+        "ICAD17_05mm3_20ms_LR_sv41_tSNR10": 4.1,
+        "ICAD21_05mm3_20ms_LR_sv26_tSNR10": 2.6,
+        "ICAD146_05mm3_20ms_LR_sv17_tSNR10": 1.7
     }
 
     # Fine-tuning (disabled for meta-learning sweep)
     config.load_meta_init = False
-    config.meta_init_path = "../models/MetaLearning_MAML_PhysicsOuterOnly/260203_MAML_PhysicsOuterOnly_20260205-0755/meta_best.pth"
+    config.meta_init_path = "../models/paper_pinn-meta/paper_pinn-meta_20260731-1425/meta_best.pth"
     config.warm_start_path = ""
 
     # Training parameters (for fine-tuning after meta-learning)
@@ -291,7 +275,7 @@ def get_config(sweep_config=None):
     config.training.summary_iter = 5000
     config.training.log_iter = 250
     config.training.error_iter = 500
-    config.training.save_h5_iters = [10, 25, 50, 100, 250, 500, 1000]  # Iterations at which to save h5 predictions
+    config.training.save_h5_iters = [10, 25, 50, 100, 250, 500, 1000]
     config.training.denormalize = True
     
     # Visualization
