@@ -1,7 +1,6 @@
 /models
 /results
 /data
-/example_data
 /src/wandb
 /src/wandb_runs
 /src/data/vti_files/
@@ -20,3 +19,7 @@ wandb/
 *.wandb
 .DS_Store
 .vscode/
+
+# Example dataset, tracked separately with Git LFS
+*.h5
+!example_data/example_LR.h5
