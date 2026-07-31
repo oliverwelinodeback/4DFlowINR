@@ -10,15 +10,16 @@ import re
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Tuple
 
-# Import existing utils
+from utils.data_io import load_data, load_ref_data
 from utils.prepare_data import (
-    load_data, prepare_data, extract_fluid_region,
-    load_ref_data, prepare_ref_data, sample_collocation_points,
-    sample_boundary_points
+    prepare_data,
+    extract_fluid_region,
+    prepare_ref_data,
+    sample_collocation_points,
+    sample_boundary_points,
 )
 from utils.loss_utils import compute_data_loss, compute_physics_loss, navier_stokes_loss
 import networks
-
 
 # Loss function
 def compute_loss_from_pred(config, pred, velocities, venc, U_max=None):
