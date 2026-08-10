@@ -202,11 +202,12 @@ def calculate_vnrmse(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, mask=None):
 
 def calculate_directional_error(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, mask=None):
 
-    abs_dot = np.abs(u_pred*u_hi + v_pred*v_hi + w_pred*w_hi)
-    abs_norm = np.sqrt(u_pred**2 + v_pred**2 + w_pred**2) * np.sqrt(u_hi**2 + v_hi**2 + w_hi**2)
-    cos_theta = abs_dot / (abs_norm + 1e-16)
+    dot = u_pred*u_hi + v_pred*v_hi + w_pred*w_hi
+    norm = np.sqrt(u_pred**2 + v_pred**2 + w_pred**2) * np.sqrt(u_hi**2 + v_hi**2 + w_hi**2)
+    cos_theta = np.clip(dot / (norm + 1e-16), -1.0, 1.0)
+    error = 1 - cos_theta
 
-    d_error = np.sum((1 - cos_theta)*mask) / (np.sum(mask) + 1) if mask is not None else np.mean(1 - cos_theta)
+    d_error = np.sum(error*mask) / np.sum(mask) if mask is not None else np.mean(error)
 
     return d_error
 
