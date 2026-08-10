@@ -594,9 +594,14 @@ def physics_loss_fn(model, xyz_collocation, standardization_factors, config):
     return config.training.physics_weight*physics_loss
 
 def boundary_loss_fn(model, xyz_boundary, config):
-    
+    if config.training.use_vector_potential:
+        xyz_boundary.requires_grad_(True)
+
     # Predict boundary points
     uvw_pred_boundary = model(xyz_boundary)
+
+    if config.training.use_vector_potential:
+        uvw_pred_boundary = vector_potential_fn(uvw_pred_boundary, xyz_boundary)
     
     # Calculate loss
     if config.training.use_boundary_mse:
@@ -798,8 +803,14 @@ def compute_boundary_loss(config, model, xyz_boundary):
     if not config.sample_boundary:
         return bound_loss  # all remain None
     
+    if config.training.use_vector_potential:
+        xyz_boundary.requires_grad_(True)
+
     # Predict boundary points
     uvw_pred = model(xyz_boundary)
+
+    if config.training.use_vector_potential:
+        uvw_pred = vector_potential_fn(uvw_pred, xyz_boundary)
     
     # Calculate loss
     if config.training.use_boundary_mse:
@@ -807,4 +818,3 @@ def compute_boundary_loss(config, model, xyz_boundary):
     else:
         # Implement alternative loss here
         raise ValueError("No boundary loss specified, check config.training")
-    
