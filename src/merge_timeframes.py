@@ -41,8 +41,9 @@ def merge_timeframes(results_path, out_path):
     
 
 if __name__ == '__main__':
-    results_path = "/proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/models/250213_00100833_HNCM_V150_all_timeframes_fs125"
-    out_path = "/proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/models/250213_00100833_HNCM_V150_all_timeframes_fs125/time_resolved_velocities.h5"
-    merge_timeframes(results_path, out_path)
+    results_path = "../models/Aomodel_ffn"
+    out_file = "../models/Aomodel_ffn/4dsim_n6_v400.h5"
+    merge_timeframes(results_path, out_file)
+    print(f"Time resolved velocities saved to {out_file}")
 
         

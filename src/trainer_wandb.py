@@ -6,42 +6,12 @@ from utils.loss_utils import compute_data_loss, compute_physics_loss, compute_bo
 from utils.prepare_data import prepare_data, load_data, extract_fluid_region, sample_collocation_points, sample_boundary_points, load_ref_data, prepare_ref_data, merge_timeframes
 from utils.utils import copy_cource_code, save_checkpoint, sample_to_device, sample_ref_to_device, plot_predictions, evaluate_predictions, plot_predictions_vs_reference, set_seed, plot_3D
 import networks
-# from configs.HOCM_00173032_V150 import get_config
-# from configs.HNCM_00100833_V50 import get_config
-# from configs.FF_1t_AoModel_4dsim_V250_n2 import get_config
+
 # from configs.FF_1t_AoModel_4dsim_V250_F import get_config
 # from configs.FF_1t_AoModel_4dsim_V250_FathiNS import get_config
 from configs.FF_1t_AoModel_4dsim_V250_VanillaPINN import get_config
 # from configs.FF_1t_AoModel_4dsim_V250_SIREN import get_config
 # from configs.FF_1t_AoModel_4dsim_V250_n6 import get_config
-
-# from configs.FF_1t_AoModel_4dsim_V70_n0 import get_config
-# from configs.FF_1t_AoModel_4dsim_V70_n14 import get_config
-# from configs.FF_1t_AoModel_4dsim_V100_n0 import get_config
-# from configs.FF_1t_AoModel_4dsim_V100_n10 import get_config
-# from configs.FF_1t_AoModel_4dsim_V100_n5 import get_config
-# from configs.FF_1t_AoModel_4dsim_V100_n15 import get_config
-# from configs.FF_1t_AoModel_4dsim_V150_n0 import get_config
-# from configs.FF_1t_AoModel_4dsim_V150_n6 import get_config
-
-# from configs.FF_1t_AoModel_4dsim_V100_n2 import get_config
-# from configs.FF_1t_AoModel_4dsim_V100_n4 import get_config
-# from configs.FF_1t_AoModel_4dsim_V100_n6 import get_config
-
-# from configs.FF_1t_AoModel_Coarc_4dsim import get_config
-
-# from configs.FF_1t_AoModel_4dsim_V100_n0 import get_config
-# from configs.FF_1t_AoModel_4dsim_V100_n10 import get_config
-
-
-# from configs.HNCM_00181348_V150 import get_config
-# from configs.HNCM_00182655_V150 import get_config
-# from configs.HNCM_00183103_V150 import get_config
-# from configs.HNCM_00904843_V150 import get_config
-# from configs.HOCM_00173039_V150 import get_config
-# from configs.HOCM_00181263_V150 import get_config
-# from configs.HOCM_00181323_V150 import get_config
-# from configs.HOCM_00181472_V150 import get_config
 
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -62,39 +32,8 @@ from scipy.ndimage import binary_erosion, generate_binary_structure, binary_dila
 def train(config=None, run_name=None,use_sweep=False):
 
     print("Starting script")
-
-    # # Load data
-    # u, v, w, p, mask, config = load_data(config)
-
-    # # Prepare data
-    # uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, mask)
-
-    # uvw_train, xyz_train = extract_fluid_region(uvw_data, xyz_data, mask_flat)
-
-    # x_max  = np.max(xyz_train[:,0])
-    # y_max  = np.max(xyz_train[:,1])
-    # z_max  = np.max(xyz_train[:,2])
-
-    # x_min = np.min(xyz_train[:,0])
-    # y_min = np.min(xyz_train[:,1])
-    # z_min = np.min(xyz_train[:,2])
-
-    # range_x = x_max - x_min
-    # range_y = y_max - y_min
-    # range_z = z_max - z_min
-    # print(f"Data ranges: x [{x_min:.3f}, {x_max:.3f}] (range {range_x:.3f}), y [{y_min:.3f}, {y_max:.3f}] (range {range_y:.3f}), z [{z_min:.3f}, {z_max:.3f}] (range {range_z:.3f})")
-    # exit()
-
     
     DEBUG = False
-    # SAVE_TR_H5 = False
-
-    # if SAVE_TR_H5:
-    #     results_path = "../models/260427_Aomodel_Coarc_res_1_0_4dsim_V400_n6_111ffn"
-    #     out_file = "../models/260427_Aomodel_Coarc_res_1_0_4dsim_V400_n6_111ffn/4dsim_n6_v400.h5"
-    #     merge_timeframes(results_path,out_file)
-    #     print(f"Saved time resolved predictions to {out_file}")
-    #     exit()
 
     if use_sweep:
         # Initialize wandb for this run
@@ -140,40 +79,10 @@ def train(config=None, run_name=None,use_sweep=False):
         # mask = binary_erosion(mask, structure=struct_3d, iterations=1)
         mask = binary_dilation(mask, structure=struct_3d, iterations=1)
 
-
     # Prepare data
     uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max  = prepare_data(config, u, v, w, p, mask)
 
-    
-
-    # plot_3D(xyz_data[:,0], xyz_data[:,1], xyz_data[:,2], uvw_data[:,0], uvw_data[:,1], uvw_data[:,2],SEG=mask,size_cones=3)
-    # exit()
-
-
-
-    
     config.U_max = U_max
-
-
-    # # Compute normalised voxel sizes for Gaussian quadrature.
-    # # standardization_factors for min_max: [min_t, max_t, min_x, max_x, min_y, max_y, min_z, max_z]
-    # # The normalised voxel size in each dim = physical_voxel_size / (max - min).
-    # if config.coords_normalization == "min_max":
-    #     sf = standardization_factors
-    #     dt_norm = config.resolution.dt  / (sf[1] - sf[0]) if config.setup.include_time else 0.0
-    #     dx_norm = config.resolution.dx  / (sf[3] - sf[2])
-    #     dy_norm = config.resolution.dy  / (sf[5] - sf[4])
-    #     dz_norm = config.resolution.dz  / (sf[7] - sf[6])
-    # else:
-    #     # Standardized coords: voxel size = physical / std
-    #     sf = standardization_factors
-    #     dt_norm = config.resolution.dt  / sf[1] if config.setup.include_time else 0.0
-    #     dx_norm = config.resolution.dx  / sf[3]
-    #     dy_norm = config.resolution.dy  / sf[5]
-    #     dz_norm = config.resolution.dz  / sf[7]
-    # config.voxel_size_norm = np.array([dt_norm, dx_norm, dy_norm, dz_norm], dtype=np.float32)
-
-
 
     # Load and prepare reference data
     if config.include_ref:
@@ -200,8 +109,6 @@ def train(config=None, run_name=None,use_sweep=False):
         if config.include_ref:
             uvw_ref, xyz_ref = uvw_data_ref, xyz_data_ref
 
-    # config.constants.L = np.max(xyz_train) - np.min(xyz_train, axis=0)
-
     # Sample collocation points
     xyz_collocation = None
     if config.sample_collocation:
@@ -213,23 +120,6 @@ def train(config=None, run_name=None,use_sweep=False):
     xyz_boundary = None
     if config.sample_boundary:
         xyz_boundary = sample_boundary_points(config, xyz_data, boundary_mask_flat)
-
-    # if config.network.adaptive_fourier_encoding:
-    #     af = np.cos
-    #     N = len(xyz_train)
-    #     d = 3
-    #     M = 50
-    #     delta = 1
-    #     lambda_reg = 10 ** -4
-    #     gamma = 3 * d - 2
-    #     K = 512
-    #     RESAMPLING = True
-    #     DO_METROPOLIS_TEST = False
-
-    #     # Sample frequencies and biases for the RFF layer
-    #     omega, c, te, ve, time_arr = am_resample_im_reg(x_pts, y_pts, x_valid, y_valid, M, K, N, delta, lambda_reg,
-    #                                                     gamma, af, resampling=RESAMPLING,
-    #                                                     DO_METROPOLIS_TEST=DO_METROPOLIS_TEST)
 
 
     # Initialize network
@@ -513,66 +403,27 @@ if __name__ == "__main__":
     train_all_timeframes = False
 
     if sweep:
-        # # Define sweep configuration
-        # sweep_configuration = {
-        #     'method': 'grid', #
-        #     'metric': {'name': 'Loss/Ref', 'goal': 'minimize'},
-        #     'parameters': { 
-        #         'network_arch': {
-        #             'values': ['FF_SIREN', 'FFN']
-        #         }            
-        #     }
-        # }
 
         # Def}]ine sweep configuration
         sweep_configuration = {
             'method': 'grid', #
             'metric': {'name': 'Loss/Ref', 'goal': 'minimize'},
             'parameters': {
-            #     'num_layers': {
-            #     'values': [3, 5, 8, 10, 15]
-            #     },
-            # 'hidden_dim': {
-            #     'values': [50, 100, 150, 200, 300, 400]
-            #     },
-            # 'embed_dim': {
-            #     'values': [64, 128, 256]
-            #     },
-            # 'learning_rate': {
-            #         # a flat distribution between 0 and 0.1
-            #         'distribution': 'uniform',
-            #         'min': 0.0001,
-            #         'max': 0.001
-            #     },
-            
-            # 'fourier_scale': {
-            #     # a flat distribution between 0 and 0.1
-            #     'distribution': 'uniform',
-            #     'min': 0.1,
-            #     'max': 10.0
-            # },    
-                'fourier_scale': {
-                    # 'values': [0.05,0.1,1.0,3.0]
-                    # 'values': [0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.25,2.5,2.75,3.0,3.25,3.5,3.75,4.0,4.25,4.5,4.75,5.0]
-                    'values': [0.025, 0.05,0.075,0.1,0.125,0.15,0.175,0.2,0.225,0.25,0.275,0.3,0.325,0.35,0.375,0.4,0.425,0.45,0.475,0.5,
-                               0.525,0.55,0.575,0.6,0.625,0.65,0.675,0.7,0.725,0.75,0.775,0.8,0.825,0.85,0.875,0.9,0.925,0.95,0.975,1.0,
-                               1.025,1.05,1.075,1.1,1.125,1.15,1.175,1.2,1.225,1.25,1.275,1.3,1.325,1.35,1.375,1.4,1.425,1.45,1.475,1.5,
-                               1.525,1.55,1.575,1.6,1.625,1.65,1.675,1.7,1.725,1.75,1.775,1.8,1.825,1.85,1.875,1.9,1.925,1.95,1.975,2.0,
-                               2.025,2.05,2.075,2.1,2.125,2.15,2.175,2.2,2.225,2.25,2.275,2.3,2.325,2.35,2.375,2.4,2.425,2.45,2.475,2.5,
-                               2.525,2.55,2.575,2.6,2.625,2.65,2.675,2.7,2.725,2.75,2.775,2.8,2.825,2.85,2.875,2.9,2.925,2.95,2.975,3.0,
-                               3.025,3.05,3.075,3.1,3.125,3.15,3.175,3.2,3.225,3.25,3.275,3.3,3.325,3.35,3.375,3.4,3.425,3.45,3.475,3.5,
-                               3.525,3.55,3.575,3.6,3.625,3.65,3.675,3.7,3.725,3.75,3.775,3.8,3.825,3.85,3.875,3.9,3.925,3.95,3.975,4.0,
-                               4.025,4.05,4.075,4.1,4.125,4.15,4.175,4.2,4.225,4.25,4.275,4.3,4.325,4.35,4.375,4.4,4.425,4.45,4.475,4.5,
-                               4.525,4.55,4.575,4.6,4.625,4.65,4.675,4.7,4.725,4.75,4.775,4.8,4.825,4.85,4.875,4.9,4.925,4.95,4.975,5.0]
-                #     # 'values': [6.5,6.6,6.7,6.8,6.9,7.0,7.1,7.2,7.3,7.4,7.5,7.6,7.7,7.8,7.9,8.0,8.1,8.2,8.3,8.4,8.5,8.6,8.7,8.8,8.9,9.0]
-                #     # 'values': [10.0,10.5,11.0,11.5,12.0,12.5,13.0,13.5,14.0,14.5,15.0,15.5,16.0,16.5,17.0,17.5,18.0,18.5,19.0,19.5,20.0]
+                'num_layers': {
+                'values': [3, 5, 8, 10, 15]
+                },
+            'hidden_dim': {
+                'values': [50, 100, 150, 200, 300, 400]
+                },
+            'embed_dim': {
+                'values': [64, 128, 256]
                 },
 
-                # 'physics_weight': {
-                #     'values': [1e-7,5e-7,1e-6,5e-6,1e-5,5e-5,1e-4,5e-4,1e-3,5e-3,0.01,0.05,0.1,0.5,1.0,3.0,5.0,10.0,25.0,50.0,75.0,100.0]             
-                #     }
-                }
+            'fourier_scale': {
+                'values': [0.05,0.1,1.0,3.0]
             }
+            }
+        }
         sweep_id = wandb.sweep(sweep=sweep_configuration, project="SRFlowNIR")
         wandb.agent(sweep_id, function=lambda: train(use_sweep=True))
     
