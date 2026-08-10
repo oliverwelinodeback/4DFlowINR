@@ -1,14 +1,14 @@
 #!/bin/bash
+#SBATCH --open-mode=truncate
 #SBATCH --gpus 1
 #SBATCH -N 1
 #SBATCH -t 48:00:00
 #SBATCH --mail-type ALL
 #SBATCH --mail-user jebisbal@uc.cl
-#SBATCH --output /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/outputfiles/output_train.out
-#SBATCH --error /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/outputfiles/output_train.err
+#SBATCH --output /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/outputfiles/all_output_train3.out
+#SBATCH --error /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/outputfiles/all_output_train3.err
 # export SSL_CERT_FILE="/proj/multipress/users/x_javbi/ICUNET/SebastianJofre/cacert.pem"
 # cd  /proj/multipress/users/x_javbi/SebastianJofre/
-
 
 export SSL_CERT_FILE="/proj/multipress/users/x_javbi/SebastianJofre/cacert.pem"
 cd /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/src

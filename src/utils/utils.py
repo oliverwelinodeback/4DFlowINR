@@ -19,7 +19,7 @@ from utils.evaluation_utils import (
     calculate_directional_error,
     calculate_vnrmse,
     )
-from utils.loss_utils import vector_potential_fn
+from utils.loss_utils import vector_potential_fn, compute_gradient
 
 #import vtk
 #from vtk.util import numpy_support as ns
@@ -175,10 +175,12 @@ def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref
         with torch.set_grad_enabled(True):
             uvw_pred = model(xyz_ref)
             uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
+
             uvw_pred = uvw_pred.detach().cpu().numpy()
     else:
         with torch.no_grad():
             uvw_pred = model(xyz_ref)
+            
             uvw_pred = uvw_pred.cpu().numpy()
 
     if config.plot.fluid_region:
@@ -349,6 +351,8 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
     if not os.path.exists(directory):
         os.makedirs(directory)
 
+    compute_divergence = False
+
     # Predict reference coordinates
     model.eval()
     xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
@@ -358,6 +362,21 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
         with torch.set_grad_enabled(True):
             uvw_pred = model(xyz_ref)
             uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
+
+            if compute_divergence:
+                du_dx = compute_gradient(uvw_pred[..., 0], xyz_ref, 0)
+                dv_dy = compute_gradient(uvw_pred[..., 1], xyz_ref, 1)
+                dw_dz = compute_gradient(uvw_pred[..., 2], xyz_ref, 2)
+                std_x, std_y, std_z = 1.0, 1.0, 1.0
+                
+                # Calculate divergence
+                div = (du_dx / std_x) + (dv_dy / std_y) + (dw_dz / std_z)
+
+                div_mean = torch.sqrt(torch.mean(div ** 2))
+
+                div = div.detach().cpu().numpy()
+                div_mean = div_mean.item()
+
             uvw_pred = uvw_pred.detach().cpu().numpy()
     else:
         with torch.no_grad():
@@ -369,6 +388,11 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
         uvw_pred_full = np.zeros(((len(mask_flat_ref), len(uvw_pred[0]))))
         uvw_pred_full[fluid_indices] = uvw_pred
         uvw_pred = uvw_pred_full
+
+        if compute_divergence:
+            div_full = np.zeros(len(mask_flat_ref))
+            div_full[fluid_indices] = div
+            div = div_full
 
     # Denormalize predictions
     if config.plot.denormalize:
@@ -396,7 +420,17 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
 
     uvw_pred = uvw_pred.reshape(T, X, Y, Z, D_pred)
 
+    if compute_divergence:
+        div = div.reshape(T, X, Y, Z)
+
     if config.setup.include_time:
+
+        with h5py.File(f"{config.log_dir}/pred.h5", 'w') as f:
+            f.create_dataset('u', data=uvw_pred[:, :, :, :, 0])
+            f.create_dataset('v', data=uvw_pred[:, :, :, :, 1])
+            f.create_dataset('w', data=uvw_pred[:, :, :, :, 2])
+            f.create_dataset('mask', data=mask_ref)
+            
         u_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 0]
         v_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 1]
         w_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 2]
@@ -421,53 +455,82 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
         w_ref = np.expand_dims(w_ref, axis=0)
         p_ref = np.expand_dims(p_ref, axis=0) if config.setup.include_pressure else None
 
+    u_error = u_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor] - u_pred[:, :, config.plot.z_slice*config.ref_spatial_factor]
+    v_error = v_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor] - v_pred[:, :, config.plot.z_slice*config.ref_spatial_factor]
+    w_error = w_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor] - w_pred[:, :, config.plot.z_slice*config.ref_spatial_factor]
+
+    u_error = u_error * mask_ref[:, :, config.plot.z_slice*config.ref_spatial_factor]
+    v_error = v_error * mask_ref[:, :, config.plot.z_slice*config.ref_spatial_factor]
+    w_error = w_error * mask_ref[:, :, config.plot.z_slice*config.ref_spatial_factor]
+
+    u_ref = u_ref * mask_ref
+    v_ref = v_ref * mask_ref
+    w_ref = w_ref * mask_ref
+
+    y_lims = [[u_ref.flatten().max(), v_ref.flatten().max(), w_ref.flatten().max()],
+                [u_ref.flatten().min(), v_ref.flatten().min(), w_ref.flatten().min()]]
+
+
     # Create LR vs HR vs SR plots
     plt.figure(figsize=(12, 6))
-    plt.subplot(1, 3, 1)
+    plt.subplot(1, 4, 1)
     plt.title('LR u')
-    plt.imshow(u_lr[t_step, :, :, config.plot.z_slice], cmap='viridis')
+    plt.imshow(u_lr[t_step, :, :, config.plot.z_slice], cmap='viridis',vmin=y_lims[1][0], vmax=y_lims[0][0])
     plt.colorbar()
-    plt.subplot(1, 3, 2)
+    plt.subplot(1, 4, 2)
     plt.title('Reference u')
-    plt.imshow(u_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis')
+    plt.imshow(u_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][0], vmax=y_lims[0][0])
     plt.colorbar()
-    plt.subplot(1, 3, 3)
+
+    plt.subplot(1, 4, 3)
     plt.title('Predicted u')
-    plt.imshow(u_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis')
+    plt.imshow(u_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][0], vmax=y_lims[0][0])
+    plt.colorbar()
+    plt.subplot(1, 4, 4)
+    plt.imshow(u_error, cmap='viridis')
+    plt.title('Error u')
     plt.colorbar()
 
     plt.savefig(os.path.join(directory, f"prediction_vs_reference_u.png"))
     plt.close()  
 
     plt.figure(figsize=(12, 6))
-    plt.subplot(1, 3, 1)
+    plt.subplot(1, 4, 1)
     plt.title('LR v')
-    plt.imshow(v_lr[t_step, :, :, config.plot.z_slice], cmap='viridis')
+    plt.imshow(v_lr[t_step, :, :, config.plot.z_slice], cmap='viridis',vmin=y_lims[1][1], vmax=y_lims[0][1])
     plt.colorbar()
-    plt.subplot(1, 3, 2)
+    plt.subplot(1, 4, 2)
     plt.title('Reference v')
-    plt.imshow(v_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis')
+    plt.imshow(v_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][1], vmax=y_lims[0][1])
     plt.colorbar()
-    plt.subplot(1, 3, 3)
+    plt.subplot(1, 4, 3)
     plt.title('Predicted v')
-    plt.imshow(v_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis')
+    plt.imshow(v_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][1], vmax=y_lims[0][1])
+    plt.colorbar()
+    plt.subplot(1, 4, 4)
+    plt.imshow(v_error, cmap='viridis')
+    plt.title('Error v')
     plt.colorbar()
 
     plt.savefig(os.path.join(directory, f"prediction_vs_reference_v.png"))
     plt.close() 
 
     plt.figure(figsize=(12, 6))
-    plt.subplot(1, 3, 1)
+    plt.subplot(1, 4, 1)
     plt.title('LR w')
-    plt.imshow(w_lr[t_step, :, :, config.plot.z_slice], cmap='viridis')
+    plt.imshow(w_lr[t_step, :, :, config.plot.z_slice], cmap='viridis',vmin=y_lims[1][2], vmax=y_lims[0][2])
     plt.colorbar()
-    plt.subplot(1, 3, 2)
+    plt.subplot(1, 4, 2)
     plt.title('Reference w')
-    plt.imshow(w_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis')
+    plt.imshow(w_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][2], vmax=y_lims[0][2])
     plt.colorbar()
-    plt.subplot(1, 3, 3)
+    plt.subplot(1, 4, 3)
     plt.title('Predicted w')
-    plt.imshow(w_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis')
+    plt.imshow(w_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][2], vmax=y_lims[0][2])
+    plt.colorbar()
+    plt.subplot(1, 4, 4)
+    plt.imshow(w_error, cmap='viridis')
+    plt.title('Error w')
     plt.colorbar()
 
     plt.savefig(os.path.join(directory, f"prediction_vs_reference_w.png"))
@@ -492,10 +555,15 @@ def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr
         plt.savefig(os.path.join(directory, f"prediction_vs_reference_p.png"))
         plt.close()
 
-    # with h5py.File(f"{config.log_dir}/pred.h5", 'w') as f:
-    #     f.create_dataset('u', data=u_pred)
-    #     f.create_dataset('v', data=v_pred)
-    #     f.create_dataset('w', data=w_pred)
+    if not config.setup.include_time:
+        with h5py.File(f"{config.log_dir}/pred.h5", 'w') as f:
+            f.create_dataset('u', data=u_pred)
+            f.create_dataset('v', data=v_pred)
+            f.create_dataset('w', data=w_pred)
+            f.create_dataset('mask', data=mask_ref)
+            if compute_divergence:
+                f.create_dataset('divergence', data=div)
+                f.create_dataset('divergence_mean', data=div_mean)
 
     return
 
@@ -665,7 +733,7 @@ def h5_to_paraview(u, v, w, p=None, spacing=(1.0, 1.0, 1.0), filename='output.vt
     print(f"VTK file saved as '{filename}'.")
 
 
-def plot_3D(x,y,z, u, v, w,spacing, SEG=None, save_path='velocities.html', show=True, size_cones=500,step=1,cmax=None,cmin=None):
+def plot_3D(x,y,z, u, v, w, SEG=None, save_path='velocities.html', show=False, size_cones=500,step=1,cmax=None,cmin=None):
   """
   Plots velocities in 3D using Plotly library.
 

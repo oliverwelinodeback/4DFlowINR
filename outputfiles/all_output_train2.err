@@ -1,0 +1,52 @@
+wandb: Currently logged in as: javierbz to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: - Waiting for wandb.init()...wandb: \ Waiting for wandb.init()...wandb: Tracking run with wandb version 0.19.5
+wandb: Run data is saved locally in /proj/multipress/users/x_javbi/SRFLOW2/SRFlowNIR/src/wandb/run-20260417_163012-94zvbaui
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run 260417_Aomodel_4dsim_V150_n6_FATHI-MRsignal_loss2_FFN_1t
+wandb: ⭐️ View project at https://wandb.ai/javierbz/SRFlowNIR
+wandb: 🚀 View run at https://wandb.ai/javierbz/SRFlowNIR/runs/94zvbaui
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:     Directional error [Fluid] ██▁▁▁▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:     Directional error [Noisy] ▁
+wandb:            Divergence [Noisy] ▁
+wandb: Divergence prediction [Fluid] ▇█▄▄▂▂▁▁▂▂▂▂▂▂▂▃▃▃▂▂▃▄▃▃▄▅▄▅▄▄▆▆▅▅▅▅▅▅▅▅
+wandb:  Divergence reference [Fluid] ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                 Loss/Boundary ▆▇█▇▇▇▇▆▇▅▅▆▆▅▅▆▄▃▅▄▃▄▄▄▄▃▃▃▂▃▃▂▃▃▃▁▄▁▂▂
+wandb:                     Loss/Data █▄▄▃▃▃▂▂▂▂▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:               Loss/Divergence ▁▃▄▅▃▄▄▄▄█▄▅▄▆▆▄▄▄▄▄▄▄▅▅▄▃▄▄▅▄▄▄▄▄▄▄▄▆▄▄
+wandb:          Loss/Divergence_data ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                 Loss/Momentum ▁▂▃▅▅▆▆▇▆▇█▇▇▇▇▇▆▇▇▇▇█▇▇█▇▇██▇▆▇▇▇█▇█▇▆▇
+wandb:            Loss/Momentum_data ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                  Loss/Physics ▁▂▄▅▅▅▆▇▆▇▇▇▆▇▇█▇▇▇▇█▆▇▇███▇█▇▇▇▇▇▇▇█▇▇▇
+wandb:             Loss/Physics_data ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                      Loss/Ref █▇▄▃▃▃▂▃▂▂▂▂▂▂▂▂▂▁▂▁▁▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                    Loss/Train █▅▅▄▄▃▃▃▃▃▂▂▂▂▂▂▂▂▂▂▂▁▁▁▂▁▁▁▁▁▁▂▁▁▁▁▁▁▁▁
+wandb:                VNRMSE [Fluid] ██▅▅▅▂▁▁▃▁▂▃▃▃▃▂▂▃▃▃▃▃▂▂▃▃▂▂▂▃▂▄▃▄▄▄▃▃▄▄
+wandb:                VNRMSE [Noisy] ▁
+wandb: 
+wandb: Run summary:
+wandb:     Directional error [Fluid] 0.06877
+wandb:     Directional error [Noisy] 6.04076
+wandb:            Divergence [Noisy] 3.03651
+wandb: Divergence prediction [Fluid] 0.00952
+wandb:  Divergence reference [Fluid] 0.01295
+wandb:                 Loss/Boundary 0.00414
+wandb:                     Loss/Data 0.08442
+wandb:               Loss/Divergence 0.00866
+wandb:          Loss/Divergence_data 0
+wandb:                 Loss/Momentum 0.17271
+wandb:            Loss/Momentum_data 0
+wandb:                  Loss/Physics 0.18137
+wandb:             Loss/Physics_data 0
+wandb:                      Loss/Ref 0.10064
+wandb:                    Loss/Train 0.10669
+wandb:                VNRMSE [Fluid] 0.23786
+wandb:                VNRMSE [Noisy] 0.67131
+wandb: 
+wandb: 🚀 View run 260417_Aomodel_4dsim_V150_n6_FATHI-MRsignal_loss2_FFN_1t at: https://wandb.ai/javierbz/SRFlowNIR/runs/94zvbaui
+wandb: ⭐️ View project at: https://wandb.ai/javierbz/SRFlowNIR
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260417_163012-94zvbaui/logs

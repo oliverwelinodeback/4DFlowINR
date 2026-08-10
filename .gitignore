@@ -1,6 +1,7 @@
 /models
 /data
-/src/__pychache__
-/src/utils/__pychache__
+/src/__pycache__
+/src/utils/__pycache__
 /results
 /src/wandb
+/src/configs/__pycache__

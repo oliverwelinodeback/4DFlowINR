@@ -31,6 +31,8 @@ def get_config(sweep_config=None):
     config.domain.y_end = -1
     config.domain.z_start = 0
     config.domain.z_end = -1
+    config.global_normalization = True
+    config.include_ref_loss = True
 
     # Resolution
     config.resolution = ml_collections.ConfigDict()
@@ -51,7 +53,7 @@ def get_config(sweep_config=None):
     config.sample_collocation = True
     config.collocation_in_fluid = True
     config.collocation_points = 500_000
-    config.sample_boundary = False
+    config.sample_boundary = True
     config.boundary_repetitions = 1000
 
     # Normalization and constants
@@ -64,7 +66,7 @@ def get_config(sweep_config=None):
     config.constants.T = 0.005
     config.constants.rho = 1060
     config.constants.mu = 0.004
-    config.constants.venc = 3.5
+    config.constants.venc = 2.5
 
     # Network architecture
     config.network = ml_collections.ConfigDict()
@@ -78,7 +80,8 @@ def get_config(sweep_config=None):
     config.network.hidden_omega_0 = 30
     # Fourier Feature Encoding parameters
     config.network.fourier_mapping_size = 128
-    config.network.fourier_scale = 1.0
+    config.network.fourier_scale = 0.5
+    config.network.adaptive_fourier_encoding = True
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
@@ -99,8 +102,8 @@ def get_config(sweep_config=None):
     config.training.grad_weight_scheme = False
     config.training.alpha = 0.9
     # Data loss options
-    config.training.use_mse = True
-    config.training.use_cosine = False
+    config.training.use_mse = False
+    config.training.use_cosine = True
     config.training.use_vector_potential = True
     config.training.pressure_in_data_loss = False
     config.training.u_weight = 1.0

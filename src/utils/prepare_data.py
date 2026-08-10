@@ -6,6 +6,7 @@ from utils.preprocessing_utils import (
     generate_boundary_points, min_max_normalize
 )
 import h5py
+import os
 
 def load_data(config):
     
@@ -66,9 +67,9 @@ def load_data(config):
         # h×w×d = (81, 57, 50)
 
         if config.resolution.from_file:
-            config.resolution.dx = hf.attrs['spacing'][0]
-            config.resolution.dy = hf.attrs['spacing'][1]
-            config.resolution.dz = hf.attrs['spacing'][2]
+            config.resolution.dx = hf.attrs['spacing'][0] # / 1000
+            config.resolution.dy = hf.attrs['spacing'][1] # / 1000
+            config.resolution.dz = hf.attrs['spacing'][2] # / 1000
             config.resolution.dt = hf.attrs['dt']
             print(f"Loaded resolution from file: {config.resolution.dx}, {config.resolution.dy}, {config.resolution.dz}, {config.resolution.dt}")	
 
@@ -499,3 +500,46 @@ def sample_boundary_points(config, xyz_data, boundary_mask):
         bound_points = np.column_stack((repeated_times, repeated_spatial)) 
 
     return bound_points
+
+
+def merge_timeframes(results_path, out_file):
+
+    # Get list of timeframe directories
+    timeframe_dirs = sorted([d for d in os.listdir(results_path) if ('timeframe' in d)])
+
+    # Load velocities from the first timeframe
+    with h5py.File(os.path.join(results_path, timeframe_dirs[0], 'pred.h5'), 'r') as f:
+        u = f['u'][:]
+        v = f['v'][:]
+        w = f['w'][:]
+        mask = f['mask'][:]
+
+    # Determine the shape of the time resolved velocities
+    num_timeframes = len(timeframe_dirs)
+    u_time_resolved = np.zeros((num_timeframes, *u.shape))
+    v_time_resolved = np.zeros((num_timeframes, *v.shape))
+    w_time_resolved = np.zeros((num_timeframes, *w.shape))
+    # print(f"Time resolved velocities shape: {u_time_resolved.shape}")
+    # print(f"num_timeframes {num_timeframes}")
+    # print(f"u {u.shape}")
+    # exit()
+
+    # Assign the first timeframe
+    u_time_resolved[0,...] = u
+    v_time_resolved[0,...] = v
+    w_time_resolved[0,...] = w
+
+    # Load and assign the rest of the timeframes
+    for i, timeframe_dir in enumerate(timeframe_dirs[1:], start=1):
+        with h5py.File(os.path.join(results_path, timeframe_dir, 'pred.h5'), 'r') as f:
+            u_time_resolved[i,...] = f['u'][:]
+            v_time_resolved[i,...] = f['v'][:]
+            w_time_resolved[i,...] = f['w'][:]
+
+    # Save the time resolved velocities
+    with h5py.File(out_file, 'w') as f:
+        f.create_dataset('u', data=u_time_resolved)
+        f.create_dataset('v', data=v_time_resolved)
+        f.create_dataset('w', data=w_time_resolved)
+        f.create_dataset('mask', data=mask)
+    

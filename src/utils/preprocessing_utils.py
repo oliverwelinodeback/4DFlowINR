@@ -13,6 +13,129 @@ def min_max_normalize(data):
     max_val = np.max(data)
     return (data - min_val) / (max_val - min_val), min_val, max_val
 
+
+def S(x, omega, af):
+    """
+    Compute the activation function results for a given input and weight matrix.
+
+    This function applies a specified activation function to the matrix product
+    of the input data and a weight matrix, along with a bias term. The
+    operation computes the linear combination of features in the input and
+    then passes it through the provided activation function.
+
+    :param x: A 2D array containing the input data of shape (N, d), where N is
+        the number of samples and d is the number of features.
+    :param omega: A 2D array of shape (d+1, M) representing the weight matrix (frequencies)
+        and bias, where d is the number of features and M is the number of
+        output nodes or activation outputs.
+    :param af: A callable activation function that is applied element-wise to
+        the linear transformation of the input data.
+    :return: The result of applying the activation function to the computed
+        weighted input as a 2D array of shape (N, M).
+    """
+    N = x.shape[0]
+    sv = af(np.matmul(np.c_[x, np.ones(N)], omega))
+    return sv
+
+def get_c(x, y, lambda_reg, omega, K, af):
+    """
+    Solves the linear least squares problem in the amplitudes 'c' for given frequencies 'omega'.
+
+    :param x: Input data matrix of shape (N, d), where N is the number of samples and d
+        is the number of features.
+    :param y: Target vector of shape (N,) which corresponds to the observed or target
+        values for each sample.
+    :param lambda_reg: Regularization parameter to penalize the model complexity and
+        prevent overfitting.
+    :param omega: Frequencies and biases matrix of shape (d + 1, K).
+    :param K: Number of frequencies to sample.
+    :param af: Activation function to use in the sampling. (Cosine)
+    :return: Amplitudes matrix 'c' of shape (K,).
+    """
+    N = x.shape[0]
+    St = S(x, omega, af)
+
+    # Normal equations
+    cm = np.matmul(np.transpose(St), St) + N * lambda_reg * np.identity(K)
+    return np.linalg.solve(cm, np.matmul(np.transpose(St), y))
+
+def am_resample_im_reg(x, y, xvalid, yvalid, M, K, N, delta, lambda_reg,
+                       gamma, af, resampling=True, DO_METROPOLIS_TEST=True):
+    """
+    Samples frequencies for the random Fourier features layer adaptively using random walk with
+    resampling and/or Metropolis sampling.
+
+    This function implements the RFF sampling algorithm from https://arxiv.org/abs/2410.06399.
+
+
+    :param x: Input training data.
+    :param y: Target values for the training data.
+    :param xvalid: Validation dataset.
+    :param yvalid: Target values for the validation dataset.
+    :param M: Number of iterations to perform.
+    :param K: Number of frequencies to sample.
+    :param N: Number of data points in the training dataset.
+    :param delta: Standard deviation used in the random walk.
+    :param lambda_reg: Regularization parameter for the linear least squares problem. (Tikhonov parameter)
+    :param gamma: Exponent parameter for the Metropolis test.
+    :param af: Activation function to use in for the sampling. (Cosine)
+    :param resampling: Boolean flag indicating whether resampling is to be performed.
+        Defaults to True.
+    :param DO_METROPOLIS_TEST: Boolean flag enabling or disabling the Metropolis
+        update mechanism. Defaults to True.
+    :return: A tuple containing the following:
+        (1) Sampled random Fourier features frequencies and biases matrix `omega` after `M` iterations.
+        (2) Amplitudes matrix `c` after `M` iterations.
+        (3) Array of training error values over all iterations.
+        (4) Array of validation error values over all iterations.
+        (5) Array of time taken to reach each iteration.
+    """
+    d = x.shape[1]
+    ve = np.zeros(M)
+    te = np.zeros(M)
+    start_time = time.time()
+    time_arr = np.zeros(shape=M)
+
+    omega = np.zeros(shape=(d + 1, K))
+    c = get_c(x, y, lambda_reg, omega, K, af)
+
+    for t in range(0, M):
+        if DO_METROPOLIS_TEST:
+            omega_prime = omega + delta * np.random.normal(0, 1, size=(d + 1, K))
+            c_prime = get_c(x, y, lambda_reg, K, af)
+
+            for k in range(0, K):
+                if (np.linalg.norm(c_prime[k,:]) / np.linalg.norm(c[k,:])) ** gamma >= np.random.random():
+                    omega[:, k] = omega_prime[:, k]
+        else:
+            omega = omega + delta * np.random.normal(0, 1, size=(d + 1, K))
+
+        c = get_c(x, y, lambda_reg, omega, K, af)
+
+        if resampling:
+            amp_pmf = np.linalg.norm(c, axis=1) / np.sum(np.linalg.norm(c, axis=1))
+            omega = omega[:, np.random.choice(c.shape[0], K, p=amp_pmf)]
+
+        c = get_c(x, y, lambda_reg, omega, K, af)
+
+        St = S(x, omega, af)
+        beta_train = np.matmul(St, c)
+        te[t] = np.sum(np.linalg.norm(beta_train - y)**2)/N
+        St = S(xvalid, omega, af)
+        beta_valid = np.matmul(St, c)
+        ve[t] = np.sum(np.linalg.norm(beta_valid - yvalid) ** 2) / len(xvalid)
+        time_arr[t] = time.time() - start_time
+
+
+        if np.mod(t, 100) == 0:
+            print('t = ', t)
+            print('K = ', K)
+            print('Training error = ', te[t])
+
+    c = get_c(x, y, lambda_reg, omega, K, af)
+
+    return omega, c, te, ve, time_arr
+
 def compute_boundary_mask(mask):
     t, x, y, z = mask.shape
     boundary_mask = np.zeros_like(mask, dtype=int)

@@ -95,9 +95,13 @@ class FourierFeatureEncoding(nn.Module):
     """
     Applies Fourier feature mapping to input data.
     """
-    def __init__(self, input_dim: int, mapping_size: int, scale: float = 1.0):
+    def __init__(self, input_dim: int, mapping_size: int, scale: float = 1.0, adaptive_fourier_encoding = None):
         super().__init__()
-        self.B = torch.randn((input_dim, mapping_size)) * scale
+
+        if adaptive_fourier_encoding is not None:
+            self.B = torch.from_numpy(adaptive_fourier_encoding).float()
+        else:
+            self.B = torch.randn((input_dim, mapping_size)) * scale
 
     def forward(self, x):
         x_proj = 2 * np.pi * x @ self.B.to(x.device)
@@ -109,13 +113,13 @@ class FFN(nn.Module):
     Fully connected network with Fourier Feature Encoding.
     """
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, 
-                 fourier_mapping_size: int, depth: int, scale: float = 1.0, bias: bool = True):
+                 fourier_mapping_size: int, depth: int, scale: float = 1.0, bias: bool = True, adaptive_fourier_encoding = None):
         # super().__init__()
 
         super(FFN, self).__init__()
 
         # Fourier Encoding
-        self.fourier_encoder = FourierFeatureEncoding(input_dim, fourier_mapping_size,scale=scale)
+        self.fourier_encoder = FourierFeatureEncoding(input_dim, fourier_mapping_size,scale=scale, adaptive_fourier_encoding=adaptive_fourier_encoding)
         encoded_dim = fourier_mapping_size * 2
 
         # Build the dynamic network layers
@@ -139,7 +143,61 @@ class FFN(nn.Module):
     def forward(self, x):
         x_encoded = self.fourier_encoder(x)
         return self.network(x_encoded)
-        
+
+class FathiMLP(nn.Module):
+    """
+    Fully-connected MLP replicating Fathi et al. (2020) Fig. 3 and Eq. (10).
+ 
+    Input:  normalized spatio-temporal coordinates (t, x, y, z)  — shape (N, 4)
+    Output: (u, v, w, p)        when use_magnitude_output=False  — shape (N, 4)
+            (u, v, w, p, m)     when use_magnitude_output=True   — shape (N, 5)
+ 
+    Architecture (exactly as in paper):
+      - depth hidden layers, each with hidden_features neurons
+      - tanh activation on every hidden layer
+      - single linear output layer with out_dim outputs (no activation)
+      - no Fourier encoding, no separate heads, no sigmoid on m
+ 
+    When use_magnitude_output=True, pass out_dim=5 in the config so the
+    output layer has 5 neurons. The last output column is m, treated
+    identically to u/v/w/p — a plain linear output, exactly as Fig. 3 shows.
+ 
+    Paper hyperparameters:
+      - 2-D steady case:   depth=10, hidden_features=25
+      - in-vitro 3-D case: depth=10, hidden_features=30
+    """
+    def __init__(self, in_dim: int = 4, out_dim: int = 4,
+                 depth: int = 10, hidden_features: int = 25,
+                 use_magnitude_output: bool = False,
+                 **kwargs):  # absorb unused kwargs (e.g. num_frequencies) silently
+        super(FathiMLP, self).__init__()
+ 
+        self.use_magnitude_output = use_magnitude_output
+ 
+        # When magnitude output is requested, force out_dim = 5
+        if use_magnitude_output:
+            out_dim = 5
+ 
+        layers = []
+        layers.append(nn.Linear(in_dim, hidden_features))
+        layers.append(nn.Tanh())
+        for _ in range(depth - 1):
+            layers.append(nn.Linear(hidden_features, hidden_features))
+            layers.append(nn.Tanh())
+        layers.append(nn.Linear(hidden_features, out_dim))  # single output layer
+ 
+        self.network = nn.Sequential(*layers)
+        self._init_weights()
+ 
+    def _init_weights(self):
+        gain = nn.init.calculate_gain('tanh')
+        for module in self.network:
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight, gain=gain)
+                nn.init.zeros_(module.bias)
+ 
+    def forward(self, x):
+        return self.network(x)      
 
 # class GaussianFourierFeatureTransform(torch.nn.Module):
 #     """
