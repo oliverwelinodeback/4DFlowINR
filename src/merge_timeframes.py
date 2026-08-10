@@ -1,5 +1,6 @@
 import h5py
 import os
+import numpy as np
 
 
 def merge_timeframes(results_path, out_path):
@@ -18,8 +19,6 @@ def merge_timeframes(results_path, out_path):
     u_time_resolved = np.zeros((num_timeframes, *u.shape))
     v_time_resolved = np.zeros((num_timeframes, *v.shape))
     w_time_resolved = np.zeros((num_timeframes, *w.shape))
-    print(f"Time resolved velocities shape: {u_time_resolved.shape}")
-    exit()
 
     # Assign the first timeframe
     u_time_resolved[0] = u
@@ -42,7 +41,7 @@ def merge_timeframes(results_path, out_path):
 
 if __name__ == '__main__':
     results_path = "../models/Aomodel_ffn"
-    out_file = "../models/Aomodel_ffn/4dsim_n6_v400.h5"
+    out_file = "../models/Aomodel/result.h5"
     merge_timeframes(results_path, out_file)
     print(f"Time resolved velocities saved to {out_file}")
 
