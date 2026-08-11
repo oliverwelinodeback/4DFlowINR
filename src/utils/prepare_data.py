@@ -353,15 +353,17 @@ def prepare_data(config, u, v, w, p, mask):
 ###  [ 1.71835849  1.71079785  1.70192589  1.62845348]
 ###  [ 1.71835849  1.71079785  1.70192589  1.69774938]]
 
-    # Extract boundaries
-    boundary_mask = compute_outer_boundary_mask(mask) # h×w×d = (81, 57, 50)
+    training_mask = mask.astype(bool)
+    if config.setup.expand_mask:
+        training_mask |= compute_outer_boundary_mask(training_mask).astype(bool)
+    boundary_mask = compute_outer_boundary_mask(training_mask)
 
     if config.setup.include_time:
         # Tile the masks
-        mask_flat = np.tile(mask.ravel(), t_len)
+        mask_flat = np.tile(training_mask.ravel(), t_len)
         boundary_mask_flat = np.tile(boundary_mask.ravel(), t_len)
     else:
-        mask_flat = mask.ravel()
+        mask_flat = training_mask.ravel()
         boundary_mask_flat = boundary_mask.ravel()
 
     return uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max

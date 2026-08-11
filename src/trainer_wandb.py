@@ -93,12 +93,6 @@ def train(config=None, run_name=None,use_sweep=False):
             mask_ref = binary_dilation(mask_ref, structure=struct_3d, iterations=1)
         uvw_data_ref, xyz_data_ref, mask_flat_ref, boundary_mask_flat_ref = prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, mask_ref, U_max)
 
-    # Expand mask
-    if config.setup.expand_mask:
-        mask_flat = mask_flat + boundary_mask_flat
-        if config.include_ref: # Don't expand reference mask
-            mask_flat_ref = mask_flat_ref.astype(np.uint8)
-
     # Include fluid region data
     if config.setup.fluid_region:
         uvw_train, xyz_train = extract_fluid_region(uvw_data, xyz_data, mask_flat)
@@ -447,4 +441,4 @@ if __name__ == "__main__":
     else:
         config = get_config()
         run_name = f"{config.network_name}"
-        train(config=config, run_name=run_name)    
+        train(config=config, run_name=run_name)
