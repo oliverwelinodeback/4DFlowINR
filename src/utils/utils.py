@@ -1,67 +1,14 @@
-import os
-import shutil
-import h5py
-import torch
+"""Runtime helpers shared by training and evaluation."""
+
 import random
+from pathlib import Path
+
 import numpy as np
-import pandas as pd
-from utils.prepare_data import create_and_normalize_coords, upsample_1d, extract_fluid_region, compute_outer_boundary_mask
-from scipy.ndimage import zoom
-import matplotlib.pyplot as plt
-from utils.evaluation_utils import (
-    create_boundary_and_core_masks, 
-    calculate_relative_error, 
-    calculate_absolute_error, 
-    calculate_rmse, 
-    calculate_absolute_error_pressure, 
-    calculate_rmse_pressure, 
-    calculate_divergence,
-    calculate_directional_error,
-    calculate_vnrmse,
-    )
-from utils.loss_utils import vector_potential_fn, compute_gradient
+import torch
 
-#import vtk
-#from vtk.util import numpy_support as ns
-import plotly.graph_objects as go
-import plotly.subplots as sp
-import plotly.express as px
+import networks
+from utils.loss_utils import vector_potential_fn
 
-def copy_cource_code(model_dir, directory_to_backup=["."], folder_name="backup_source"):
-
-    if not os.path.isdir(model_dir):
-        os.makedirs(model_dir)
-
-    print("Copying source code to model directory...")
-
-    # Copy all the source file to the model dir for backup
-    for directory in directory_to_backup:
-        files = os.listdir(directory)
-        for fname in files:
-            if fname.endswith(".py"):
-                dest_fpath = os.path.join(model_dir, folder_name, directory, fname)
-                os.makedirs(os.path.dirname(dest_fpath), exist_ok=True)
-                shutil.copy2(f"{directory}/{fname}", dest_fpath)
-
-    return 
-
-def save_to_h5(output_filepath, col_name, dataset, expand=False):
-    if expand:
-        dataset = np.expand_dims(dataset, axis=0)
-
-    # convert float64 to float32 to save space
-    if dataset.dtype == 'float64':
-        dataset = np.array(dataset, dtype='float32')
-    
-    with h5py.File(output_filepath, 'a') as hf:    
-        if col_name not in hf:
-            datashape = (None, )
-            if (dataset.ndim > 1):
-                datashape = (None, ) + dataset.shape[1:]
-            hf.create_dataset(col_name, data=dataset, maxshape=datashape)
-        else:
-            hf[col_name].resize((hf[col_name].shape[0]) + dataset.shape[0], axis = 0)
-            hf[col_name][-dataset.shape[0]:] = dataset
 
 def set_seed(seed):
     random.seed(seed)
@@ -69,728 +16,72 @@ def set_seed(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    
-def save_checkpoint(model, iter, config, final=False, extra_data=None):
 
+
+def resolve_device(requested):
+    if requested == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(requested)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested but is not available.")
+    return device
+
+
+def build_model(config, adaptive_fourier_encoding=None):
+    architecture = config.network.arch
+    if architecture == "FFN":
+        return networks.FFN(
+            input_dim=config.network.in_dim,
+            output_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_dim=config.network.hidden_features,
+            fourier_mapping_size=config.network.fourier_mapping_size,
+            scale=config.network.fourier_scale,
+            adaptive_fourier_encoding=adaptive_fourier_encoding,
+        )
+    if architecture == "SIREN":
+        return networks.SIREN(
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
+            first_omega_0=config.network.first_omega_0,
+            hidden_omega_0=config.network.hidden_omega_0,
+        )
+    raise ValueError(f"Unknown network architecture: {architecture}")
+
+
+def predict_velocity(model, coordinates, velocity_scale, device, batch_size, use_vector_potential):
+    """Predict a native coordinate grid in bounded batches."""
+    predictions = []
+    model.eval()
+    for start in range(0, len(coordinates), batch_size):
+        batch = torch.from_numpy(coordinates[start:start + batch_size]).to(device)
+        batch.requires_grad_(use_vector_potential)
+        with torch.set_grad_enabled(use_vector_potential):
+            velocity = model(batch)
+            if use_vector_potential:
+                velocity = vector_potential_fn(velocity, batch, create_graph=False)
+            else:
+                velocity = velocity[..., :3]
+        predictions.append(velocity.detach().cpu().numpy())
+    return np.concatenate(predictions, axis=0) * velocity_scale
+
+
+def save_checkpoint(path, model, optimizer, iteration, timeframe, training_data, config):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     checkpoint = {
-        'iteration': iter,
-        'model_state_dict': model.state_dict(),
+        "iteration": int(iteration),
+        "timeframe": int(timeframe),
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "velocity_scale": float(training_data.velocity_scale),
+        "spacing": tuple(training_data.spacing),
+        "dt": float(training_data.dt),
+        "shape": tuple(training_data.full_shape),
+        "config": config.to_dict(),
     }
-    
-    if config.network.arch == "FFN":
-        checkpoint['fourier_B'] = model.fourier_encoder.B
-
-    if extra_data is not None:
-        checkpoint.update(extra_data)
-
-    # Specify save path
-    if not final:
-        directory = f'{config.log_dir}/checkpoints'
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        save_path = os.path.join(directory, f"{config.network_name}_it{iter:03d}.pth")
-        torch.save(checkpoint, save_path)
-        print(f"Checkpoint saved to {save_path}")
-    else:
-        save_path = os.path.join(config.log_dir, f"{config.network_name}_final.pth")
-        torch.save(checkpoint, save_path)
-        print(f"Final model saved to {save_path}")
-
-def sample_to_device(config, xyz_train, xyz_collocation, xyz_boundary, uvw_train, mask_flat, device):
-    
-    # Data / Fluid Points
-    if config.training.data_points_per_batch is not None:
-        data_indices = np.random.choice(len(xyz_train), size=config.training.data_points_per_batch, replace=False)
-        xyz_data_batch = xyz_train[data_indices]
-        uvw_data_batch = uvw_train[data_indices]
-        mask_batch = mask_flat[data_indices]
-    else:
-        xyz_data_batch = xyz_train
-        uvw_data_batch = uvw_train
-        mask_batch = mask_flat
-
-    xyz_data_batch = torch.from_numpy(xyz_data_batch).float().to(device)
-    uvw_data_batch = torch.from_numpy(uvw_data_batch).float().to(device)
-    mask_batch = torch.from_numpy(mask_batch).float().to(device)
-    mask_batch = mask_batch.view(-1, 1)
-
-    # Collocation Points
-    xyz_collocation_batch = None
-    if config.sample_collocation:
-        if config.training.coll_points_per_batch is not None:
-            coll_indices = np.random.choice(len(xyz_collocation), size=config.training.coll_points_per_batch, replace=False)
-            xyz_collocation_batch = xyz_collocation[coll_indices]
-        else:
-            xyz_collocation_batch = xyz_collocation
-
-        xyz_collocation_batch = torch.from_numpy(xyz_collocation_batch).float().to(device)
-
-    # Boundary Points
-    xyz_boundary_batch = None
-    if config.sample_boundary:
-        if config.training.boundary_points_per_batch is not None:
-            boundary_indices = np.random.choice(len(xyz_boundary), size=config.training.boundary_points_per_batch, replace=False)
-            xyz_boundary_batch = xyz_boundary[boundary_indices]
-        else:
-            xyz_boundary_batch = xyz_boundary
-
-        xyz_boundary_batch = torch.from_numpy(xyz_boundary_batch).float().to(device)
-
-    return xyz_data_batch, uvw_data_batch, mask_batch, xyz_collocation_batch, xyz_boundary_batch
-
-def sample_ref_to_device(config, xyz_train, uvw_train, mask_flat, device):
-    
-    # Data / Fluid Points
-    if config.training.data_points_per_batch is not None:
-        data_indices = np.random.choice(len(xyz_train), size=config.training.data_points_per_batch, replace=False)
-        xyz_data_batch = xyz_train[data_indices]
-        uvw_data_batch = uvw_train[data_indices]
-        mask_batch = mask_flat[data_indices]
-    else:
-        xyz_data_batch = xyz_train
-        uvw_data_batch = uvw_train
-        mask_batch = mask_flat
-
-    xyz_data_batch = torch.from_numpy(xyz_data_batch).float().to(device)
-    uvw_data_batch = torch.from_numpy(uvw_data_batch).float().to(device)
-    mask_batch = torch.from_numpy(mask_batch).float().to(device)
-    mask_batch = mask_batch.view(-1, 1)
-
-    return xyz_data_batch, uvw_data_batch, mask_batch
-
-
-def evaluate_predictions(config, model, device, it, xyz_ref, u_ref, v_ref, w_ref, p_ref, mask_ref, mask_flat_ref, U_max):
-
-    # Create directory
-    directory = f'{config.log_dir}/errors/iter_{it}'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    # Predict reference coordinates
-    model.eval()
-    xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
-    xyz_ref.requires_grad = config.training.use_vector_potential
-
-    if config.training.use_vector_potential:
-        with torch.set_grad_enabled(True):
-            uvw_pred = model(xyz_ref)
-            uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
-
-            uvw_pred = uvw_pred.detach().cpu().numpy()
-    else:
-        with torch.no_grad():
-            uvw_pred = model(xyz_ref)
-            
-            uvw_pred = uvw_pred.cpu().numpy()
-
-    if config.plot.fluid_region:
-        fluid_indices = mask_flat_ref==1
-        uvw_pred_full = np.zeros(((len(mask_flat_ref), len(uvw_pred[0]))))
-        uvw_pred_full[fluid_indices] = uvw_pred
-        uvw_pred = uvw_pred_full
-
-    # Denormalize predictions
-    if config.plot.denormalize:
-        if config.vel_normalization == "characteristic":
-            uvw_pred[:, 0] *= config.constants.U  # u
-            uvw_pred[:, 1] *= config.constants.U  # v
-            uvw_pred[:, 2] *= config.constants.U  # w
-            if config.setup.include_pressure:
-                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
-        elif config.vel_normalization == "max_velocity":
-            uvw_pred[:, 0] *= U_max  # u
-            uvw_pred[:, 1] *= U_max  # v
-            uvw_pred[:, 2] *= U_max  # w
-            if config.setup.include_pressure:
-                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
-
-    # Define dimensions based on include_time
-    if config.setup.include_time:
-        T, X, Y, Z = u_ref.shape
-    else:
-        X, Y, Z = u_ref.shape
-        T = 1  # Single time step
-
-        u_ref = np.expand_dims(u_ref, axis=0)
-        v_ref = np.expand_dims(v_ref, axis=0)
-        w_ref = np.expand_dims(w_ref, axis=0)
-        p_ref = np.expand_dims(p_ref, axis=0) if config.setup.include_pressure else None
-
-
-    D_pred = uvw_pred.shape[1]
-
-    uvw_pred = uvw_pred.reshape(T, X, Y, Z, D_pred)
-
-    u_pred = uvw_pred[:, :, :, :, 0]
-    v_pred = uvw_pred[:, :, :, :, 1]
-
-    w_pred = uvw_pred[:, :, :, :, 2]
-    p_pred = uvw_pred[:, :, :, :, 3] if config.setup.include_pressure else None
-
-    # Get metrics
-    T = len(u_pred)
-    nf_mask = 1.0 - mask_ref
-    boundary_mask, core_mask = create_boundary_and_core_masks(mask_ref, 0.1, 'voxels')
-
-    rel_err = np.zeros((T,3))
-    abs_err = np.zeros((T,4))
-    rmse = np.zeros((T,4))
-
-    vnrmse = np.zeros((T,4))
-    d_error = np.zeros((T,4))
-    div_pred = np.zeros((T,4))
-    div_ref = np.zeros((T,4))
-
-    for t in range(T):
-        rel_err[t,0] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
-        rel_err[t,1] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
-        rel_err[t,2] = (calculate_relative_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
-
-        abs_err[t,0] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
-        abs_err[t,1] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
-        abs_err[t,2] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
-        abs_err[t,3] = (calculate_absolute_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
-        #abs_err[t,4] = (calculate_absolute_error_pressure(p_pred[t], p_ref[t], mask_ref))
-
-        rmse[t,0] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
-        rmse[t,1] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
-        rmse[t,2] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
-        rmse[t,3] = (calculate_rmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
-        #rmse[t,4] = (calculate_rmse_pressure(p_pred[t], p_ref[t], mask_ref))
-
-        vnrmse[t,0] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
-        vnrmse[t,1] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
-        vnrmse[t,2] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
-        vnrmse[t,3] = (calculate_vnrmse(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
-
-        d_error[t,0] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], mask_ref))
-        d_error[t,1] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], boundary_mask))
-        d_error[t,2] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], core_mask))
-        d_error[t,3] = (calculate_directional_error(u_pred[t], v_pred[t], w_pred[t], u_ref[t], v_ref[t], w_ref[t], nf_mask))
-
-        div_pred[t,0] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
-        div_pred[t,1] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
-        div_pred[t,2] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
-        div_pred[t,3] = (calculate_divergence([u_pred[t], v_pred[t], w_pred[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
-
-        div_ref[t,0] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], mask_ref))
-        div_ref[t,1] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], boundary_mask))
-        div_ref[t,2] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], core_mask))
-        div_ref[t,3] = (calculate_divergence([u_ref[t], v_ref[t], w_ref[t]], [config.resolution.dx, config.resolution.dy, config.resolution.dz], nf_mask))
-
-    print('Total avg')
-    rel_err_tot = np.mean(rel_err, axis=0)
-    print(f'Relative error [Fluid] {rel_err_tot[0]:.1f}')
-    print(f'Relative error [Bound] {rel_err_tot[1]:.1f}')
-    print(f'Relative error [Core] {rel_err_tot[2]:.1f}')
-
-    abs_err_tot = np.mean(abs_err, axis=0)
-    print(f'Absolute error [Fluid] {abs_err_tot[0]:.4f}')
-    print(f'Absolute error [Bound] {abs_err_tot[1]:.4f}')
-    print(f'Absolute error [Core] {abs_err_tot[2]:.4f}')
-    print(f'Absolute error [Non-F] {abs_err_tot[3]:.4f}')
-    #print(f'Absolute error Pressure [Fluid] {abs_err_tot[4]:.4f}')
-
-    rmse_tot = np.mean(rmse, axis=0)
-    print(f'R.M.S.   error [Fluid] {rmse_tot[0]:.4f}')
-    print(f'R.M.S.   error [Bound] {rmse_tot[1]:.4f}')
-    print(f'R.M.S.   error [Core] {rmse_tot[2]:.4f}')
-    print(f'R.M.S.   error [Non-F] {rmse_tot[3]:.4f}')
-    #print(f'R.M.S.   error Pressure [Fluid] {rmse_tot[4]:.4f}')
-
-    # Save metrics to csv
-    metrics = {
-        'Relative error [Fluid]': rel_err_tot[0],
-        'Relative error [Bound]': rel_err_tot[1],
-        'Relative error [Core]': rel_err_tot[2],
-
-        'Absolute error [Fluid]': abs_err_tot[0],
-        'Absolute error [Bound]': abs_err_tot[1],
-        'Absolute error [Core]': abs_err_tot[2],
-        'Absolute error [Non-F]': abs_err_tot[3],
-        #'Absolute error Pressure [Fluid]': abs_err_tot[4],
-
-        'R.M.S. error [Fluid]': rmse_tot[0],
-        'R.M.S. error [Bound]': rmse_tot[1],
-        'R.M.S. error [Core]': rmse_tot[2],
-        'R.M.S. error [Non-F]': rmse_tot[3],
-        #'R.M.S. error Pressure [Fluid]': rmse_tot[4],
-
-        'VNRMSE [Fluid]': vnrmse[0,0],
-        'VNRMSE [Bound]': vnrmse[0,1],
-        'VNRMSE [Core]': vnrmse[0,2],
-        'VNRMSE [Non-F]': vnrmse[0,3],
-
-        'Directional error [Fluid]': d_error[0,0],
-        'Directional error [Bound]': d_error[0,1],
-        'Directional error [Core]': d_error[0,2],
-        'Directional error [Non-F]': d_error[0,3],
-
-        'Divergence prediction [Fluid]': div_pred[0,0],
-        'Divergence prediction [Bound]': div_pred[0,1],
-        'Divergence prediction [Core]': div_pred[0,2],
-        'Divergence prediction [Non-F]': div_pred[0,3],
-
-        'Divergence reference [Fluid]': div_ref[0,0],
-        'Divergence reference [Bound]': div_ref[0,1],
-        'Divergence reference [Core]': div_ref[0,2],
-        'Divergence reference [Non-F]': div_ref[0,3],
-
-    }
-
-    metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
-    metrics_filename = f"{directory}/metrics.csv"
-    metrics_df.to_csv(metrics_filename, index=False)
-
-    return metrics
-
-def plot_predictions_vs_reference(config, model, device, it, xyz_ref, u_lr, v_lr, w_lr, p_lr, u_ref, v_ref, w_ref, p_ref, mask_ref, mask_flat_ref, U_max):
-
-    # Create directory
-    directory = f'{config.log_dir}/errors/iter_{it}'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    compute_divergence = False
-
-    # Predict reference coordinates
-    model.eval()
-    xyz_ref = torch.from_numpy(xyz_ref).float().to(device)
-    xyz_ref.requires_grad = config.training.use_vector_potential
-
-    if config.training.use_vector_potential:
-        with torch.set_grad_enabled(True):
-            uvw_pred = model(xyz_ref)
-            uvw_pred = vector_potential_fn(uvw_pred, xyz_ref)
-
-            if compute_divergence:
-                du_dx = compute_gradient(uvw_pred[..., 0], xyz_ref, 0)
-                dv_dy = compute_gradient(uvw_pred[..., 1], xyz_ref, 1)
-                dw_dz = compute_gradient(uvw_pred[..., 2], xyz_ref, 2)
-                std_x, std_y, std_z = 1.0, 1.0, 1.0
-                
-                # Calculate divergence
-                div = (du_dx / std_x) + (dv_dy / std_y) + (dw_dz / std_z)
-
-                div_mean = torch.sqrt(torch.mean(div ** 2))
-
-                div = div.detach().cpu().numpy()
-                div_mean = div_mean.item()
-
-            uvw_pred = uvw_pred.detach().cpu().numpy()
-    else:
-        with torch.no_grad():
-            uvw_pred = model(xyz_ref)
-            uvw_pred = uvw_pred.cpu().numpy()
-
-    if config.plot.fluid_region:
-        fluid_indices = mask_flat_ref==1
-        uvw_pred_full = np.zeros(((len(mask_flat_ref), len(uvw_pred[0]))))
-        uvw_pred_full[fluid_indices] = uvw_pred
-        uvw_pred = uvw_pred_full
-
-        if compute_divergence:
-            div_full = np.zeros(len(mask_flat_ref))
-            div_full[fluid_indices] = div
-            div = div_full
-
-    # Denormalize predictions
-    if config.plot.denormalize:
-        if config.vel_normalization == "characteristic":
-            uvw_pred[:, 0] *= config.constants.U  # u
-            uvw_pred[:, 1] *= config.constants.U  # v
-            uvw_pred[:, 2] *= config.constants.U  # w
-            if config.setup.include_pressure:
-                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
-        elif config.vel_normalization == "max_velocity":
-            uvw_pred[:, 0] *= U_max  # u
-            uvw_pred[:, 1] *= U_max  # v
-            uvw_pred[:, 2] *= U_max  # w
-            if config.setup.include_pressure:
-                uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
-
-    # Define dimensions based on include_time
-    if config.setup.include_time:
-        T, X, Y, Z = u_ref.shape
-    else:
-        X, Y, Z = u_ref.shape
-        T = 1  # Single time step
-
-    D_pred = uvw_pred.shape[1]
-
-    uvw_pred = uvw_pred.reshape(T, X, Y, Z, D_pred)
-
-    if compute_divergence:
-        div = div.reshape(T, X, Y, Z)
-
-    if config.setup.include_time:
-
-        with h5py.File(f"{config.log_dir}/pred.h5", 'w') as f:
-            f.create_dataset('u', data=uvw_pred[:, :, :, :, 0])
-            f.create_dataset('v', data=uvw_pred[:, :, :, :, 1])
-            f.create_dataset('w', data=uvw_pred[:, :, :, :, 2])
-            f.create_dataset('mask', data=mask_ref)
-            
-        u_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 0]
-        v_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 1]
-        w_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 2]
-        p_pred = uvw_pred[config.plot.t_step*config.ref_temporal_factor, :, :, :, 3] if config.setup.include_pressure else None
-    else:
-        u_pred = uvw_pred[0, :, :, :, 0]
-        v_pred = uvw_pred[0, :, :, :, 1]
-        w_pred = uvw_pred[0, :, :, :, 2]
-        p_pred = uvw_pred[0, :, :, :, 3] if config.setup.include_pressure else None
-
-    if config.setup.include_time:
-        t_step = config.plot.t_step
-    else:
-        t_step = 0
-        u_lr = np.expand_dims(u_lr, axis=0)
-        v_lr = np.expand_dims(v_lr, axis=0)
-        w_lr = np.expand_dims(w_lr, axis=0)
-        p_lr = np.expand_dims(p_lr, axis=0) if config.setup.include_pressure else None
-
-        u_ref = np.expand_dims(u_ref, axis=0)
-        v_ref = np.expand_dims(v_ref, axis=0)
-        w_ref = np.expand_dims(w_ref, axis=0)
-        p_ref = np.expand_dims(p_ref, axis=0) if config.setup.include_pressure else None
-
-    u_error = u_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor] - u_pred[:, :, config.plot.z_slice*config.ref_spatial_factor]
-    v_error = v_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor] - v_pred[:, :, config.plot.z_slice*config.ref_spatial_factor]
-    w_error = w_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor] - w_pred[:, :, config.plot.z_slice*config.ref_spatial_factor]
-
-    u_error = u_error * mask_ref[:, :, config.plot.z_slice*config.ref_spatial_factor]
-    v_error = v_error * mask_ref[:, :, config.plot.z_slice*config.ref_spatial_factor]
-    w_error = w_error * mask_ref[:, :, config.plot.z_slice*config.ref_spatial_factor]
-
-    u_ref = u_ref * mask_ref
-    v_ref = v_ref * mask_ref
-    w_ref = w_ref * mask_ref
-
-    y_lims = [[u_ref.flatten().max(), v_ref.flatten().max(), w_ref.flatten().max()],
-                [u_ref.flatten().min(), v_ref.flatten().min(), w_ref.flatten().min()]]
-
-
-    # Create LR vs HR vs SR plots
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 4, 1)
-    plt.title('LR u')
-    plt.imshow(u_lr[t_step, :, :, config.plot.z_slice], cmap='viridis',vmin=y_lims[1][0], vmax=y_lims[0][0])
-    plt.colorbar()
-    plt.subplot(1, 4, 2)
-    plt.title('Reference u')
-    plt.imshow(u_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][0], vmax=y_lims[0][0])
-    plt.colorbar()
-
-    plt.subplot(1, 4, 3)
-    plt.title('Predicted u')
-    plt.imshow(u_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][0], vmax=y_lims[0][0])
-    plt.colorbar()
-    plt.subplot(1, 4, 4)
-    plt.imshow(u_error, cmap='viridis')
-    plt.title('Error u')
-    plt.colorbar()
-
-    plt.savefig(os.path.join(directory, f"prediction_vs_reference_u.png"))
-    plt.close()  
-
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 4, 1)
-    plt.title('LR v')
-    plt.imshow(v_lr[t_step, :, :, config.plot.z_slice], cmap='viridis',vmin=y_lims[1][1], vmax=y_lims[0][1])
-    plt.colorbar()
-    plt.subplot(1, 4, 2)
-    plt.title('Reference v')
-    plt.imshow(v_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][1], vmax=y_lims[0][1])
-    plt.colorbar()
-    plt.subplot(1, 4, 3)
-    plt.title('Predicted v')
-    plt.imshow(v_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][1], vmax=y_lims[0][1])
-    plt.colorbar()
-    plt.subplot(1, 4, 4)
-    plt.imshow(v_error, cmap='viridis')
-    plt.title('Error v')
-    plt.colorbar()
-
-    plt.savefig(os.path.join(directory, f"prediction_vs_reference_v.png"))
-    plt.close() 
-
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 4, 1)
-    plt.title('LR w')
-    plt.imshow(w_lr[t_step, :, :, config.plot.z_slice], cmap='viridis',vmin=y_lims[1][2], vmax=y_lims[0][2])
-    plt.colorbar()
-    plt.subplot(1, 4, 2)
-    plt.title('Reference w')
-    plt.imshow(w_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][2], vmax=y_lims[0][2])
-    plt.colorbar()
-    plt.subplot(1, 4, 3)
-    plt.title('Predicted w')
-    plt.imshow(w_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis',vmin=y_lims[1][2], vmax=y_lims[0][2])
-    plt.colorbar()
-    plt.subplot(1, 4, 4)
-    plt.imshow(w_error, cmap='viridis')
-    plt.title('Error w')
-    plt.colorbar()
-
-    plt.savefig(os.path.join(directory, f"prediction_vs_reference_w.png"))
-    plt.close()
-
-    if config.setup.include_pressure:
-
-        plt.figure(figsize=(12, 6))
-        plt.subplot(1, 3, 1)
-        plt.title('LR p')
-        plt.imshow(p_lr[t_step, :, :, config.plot.z_slice], cmap='viridis')
-        plt.colorbar()
-        plt.subplot(1, 3, 2)
-        plt.title('Reference p')
-        plt.imshow(p_ref[t_step*config.ref_temporal_factor, :, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis')
-        plt.colorbar()
-        plt.subplot(1, 3, 3)
-        plt.title('Predicted p')
-        plt.imshow(p_pred[:, :, config.plot.z_slice*config.ref_spatial_factor], cmap='viridis')
-        plt.colorbar()
-
-        plt.savefig(os.path.join(directory, f"prediction_vs_reference_p.png"))
-        plt.close()
-
-    if not config.setup.include_time:
-        with h5py.File(f"{config.log_dir}/pred.h5", 'w') as f:
-            f.create_dataset('u', data=u_pred)
-            f.create_dataset('v', data=v_pred)
-            f.create_dataset('w', data=w_pred)
-            f.create_dataset('mask', data=mask_ref)
-            if compute_divergence:
-                f.create_dataset('divergence', data=div)
-                f.create_dataset('divergence_mean', data=div_mean)
-
-    return
-
-def plot_predictions(config, model, device, it, u, mask, U_max):
-    
-    # Create directory
-    directory = f'{config.log_dir}/plots/iter_{it}'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    # Extract boundaries
-    if config.plot.expand_mask:
-        boundary_mask = compute_outer_boundary_mask(mask)
-        mask = mask + boundary_mask
-
-    if config.setup.include_time:
-        t_len, x_len, y_len, z_len = u.shape
-    else:
-        x_len, y_len, z_len = u.shape
-        t_len = 1
-
-    t_normalized, x_normalized, y_normalized, z_normalized, standardization_factors = create_and_normalize_coords(config, t_len, x_len, y_len, z_len)
-
-    # Upsample each coordinate
-    t_ups = upsample_1d(t_normalized, config.plot.temporal_factor, config.plot.temp_upsampling_mode) if config.setup.include_time else []
-    x_ups = upsample_1d(x_normalized, config.plot.spatial_factor, mode=config.plot.spat_upsampling_mode)
-    y_ups = upsample_1d(y_normalized, config.plot.spatial_factor, mode=config.plot.spat_upsampling_mode)
-    z_ups = upsample_1d(z_normalized, config.plot.spatial_factor, mode=config.plot.spat_upsampling_mode)
-    
-    if config.setup.include_time:
-        grids = np.meshgrid(t_ups, x_ups, y_ups, z_ups, indexing='ij')
-    else:
-        grids = np.meshgrid(x_ups, y_ups, z_ups, indexing='ij')
-    
-    flat_coords = [grid.ravel() for grid in grids]
-    xyz_plot_full = np.stack(flat_coords, axis=-1) 
-
-    if config.plot.fluid_region:
-        # Upsample mask
-        mask_plot = zoom(mask, zoom=config.plot.spatial_factor, order=0, grid_mode=True, mode='nearest')
-        mask_plot_flat = np.tile(mask_plot.ravel(), len(t_ups)) if config.setup.include_time else mask_plot.ravel()
-        fluid_indices = mask_plot_flat == 1
-
-        xyz_plot = xyz_plot_full[fluid_indices]
-    else:
-        xyz_plot = xyz_plot_full  
-    
-    # Predict fluid data poinst grid
-    model.eval()
-    xyz_plot = torch.from_numpy(xyz_plot).float().to(device)
-    xyz_plot.requires_grad = config.training.use_vector_potential
-
-    if config.training.use_vector_potential:
-        with torch.set_grad_enabled(True):
-            uvw_pred_plot = model(xyz_plot)
-            uvw_pred_plot = vector_potential_fn(uvw_pred_plot, xyz_plot)
-            uvw_pred_plot = uvw_pred_plot.detach().cpu().numpy()
-    else:
-        with torch.no_grad():
-            uvw_pred_plot = model(xyz_plot)
-            uvw_pred_plot = uvw_pred_plot.cpu().numpy()
-
-    if config.plot.fluid_region:
-        uvw_pred_full = np.zeros(((len(xyz_plot_full), len(uvw_pred_plot[0])))) + config.plot.non_fluid_value
-        uvw_pred_full[fluid_indices] = uvw_pred_plot
-        uvw_pred_plot = uvw_pred_full
-
-    if config.setup.include_time:
-        uvw_pred_plot = uvw_pred_plot.reshape(len(t_ups), len(x_ups), len(y_ups), len(z_ups), len(uvw_pred_plot[0]))
-    else:
-        uvw_pred_plot = uvw_pred_plot.reshape(1, len(x_ups), len(y_ups), len(z_ups), len(uvw_pred_plot[0]))
-
-    if config.setup.include_time:
-        u_pred = uvw_pred_plot[config.plot.t_step*config.plot.temporal_factor, :, :, :, 0]
-        v_pred = uvw_pred_plot[config.plot.t_step*config.plot.temporal_factor, :, :, :, 1]
-        w_pred = uvw_pred_plot[config.plot.t_step*config.plot.temporal_factor, :, :, :, 2]
-        p_pred = uvw_pred_plot[config.plot.t_step*config.plot.temporal_factor, :, :, :, 3] if config.setup.include_pressure else None
-    else:
-        u_pred = uvw_pred_plot[0, :, :, :, 0]
-        v_pred = uvw_pred_plot[0, :, :, :, 1]
-        w_pred = uvw_pred_plot[0, :, :, :, 2]
-        p_pred = uvw_pred_plot[0, :, :, :, 3] if config.setup.include_pressure else None
-
-    # Denormalize predictions
-    if config.plot.denormalize:
-        if config.vel_normalization == "characteristic":
-            u_pred = u_pred*config.constants.U
-            v_pred = v_pred*config.constants.U
-            w_pred = w_pred*config.constants.U
-            p_pred = p_pred*(config.constants.rho*(config.constants.U**2)) if config.setup.include_pressure else None
-        elif config.vel_normalization == "max_velocity":
-            u_pred = u_pred*U_max
-            v_pred = v_pred*U_max
-            w_pred = w_pred*U_max
-            p_pred = p_pred*(config.constants.rho*(config.constants.U**2)) if config.setup.include_pressure else None
-    
-    z_slice = config.plot.z_slice*config.plot.spatial_factor
-    
-    # Plotting (example using matplotlib)
-    plt.figure(figsize=(8, 6))
-    plt.subplot(1, 2, 1)
-    plt.title('Predicted w')
-    plt.imshow(w_pred[:, :, z_slice], origin='lower')
-    # plt.imshow(w_pred[:, :, z_slice], origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
-    plt.colorbar()
-
-    if config.setup.include_pressure and p_pred is not None:
-        plt.subplot(1, 2, 2)
-        plt.title('Predicted p')
-        plt.imshow(p_pred[:, :, z_slice], origin='lower', extent=[x_ups.min(), x_ups.max(), y_ups.min(), y_ups.max()])
-        plt.colorbar()
-
-    plt.savefig(os.path.join(directory, f"predictions.png"))
-    plt.close()
-
-    return
-
-def h5_to_paraview(u, v, w, p=None, spacing=(1.0, 1.0, 1.0), filename='output.vti'):
-    
-    # Validate input shapes
-    if not (u.shape == v.shape == w.shape):
-        raise ValueError("Input arrays u, v, w must have the same shape.")
-    if p is not None and p.shape != u.shape:
-        raise ValueError("Scalar field p must have the same shape as u, v, w.")
-    
-    X, Y, Z = u.shape
-    
-    # Reshape to (Z, Y, X) for VTK
-    u = u.transpose(2, 1, 0)
-    v = v.transpose(2, 1, 0)
-    w = w.transpose(2, 1, 0)
-    if p is not None:
-        p = p.transpose(2, 1, 0)
-    
-    # Flatten the arrays in Fortran order (column-major)
-    u_flat = u.ravel(order='F')
-    v_flat = v.ravel(order='F')
-    w_flat = w.ravel(order='F')
-    if p is not None:
-        p_flat = p.ravel(order='F')
-    
-    # Create vtkImageData
-    imageData = vtk.vtkImageData()
-    imageData.SetOrigin(0.0, 0.0, 0.0)
-    imageData.SetSpacing(spacing)
-    imageData.SetDimensions(X, Y, Z)
-    
-    # Create velocity vectors
-    velocity = np.stack((u_flat, v_flat, w_flat), axis=1)  # Shape: (N, 3)
-    vtk_velocity = ns.numpy_to_vtk(num_array=velocity, deep=True, array_type=ns.get_vtk_array_type(velocity.dtype))
-    vtk_velocity.SetName("Velocity")
-    imageData.GetPointData().SetVectors(vtk_velocity)
-    
-    # Create scalar field if provided
-    if p is not None:
-        vtk_p = ns.numpy_to_vtk(num_array=p_flat, deep=True, array_type=ns.get_vtk_array_type(p_flat.dtype))
-        vtk_p.SetName("Pressure")
-        imageData.GetPointData().AddArray(vtk_p)
-        imageData.GetPointData().SetActiveScalars("Pressure")  # Optionally set as active scalar
-    
-    # Write to VTK file
-    writer = vtk.vtkXMLImageDataWriter()
-    writer.SetFileName(filename)
-    writer.SetInputData(imageData)
-    writer.Write()
-    
-    print(f"VTK file saved as '{filename}'.")
-
-
-def plot_3D(x,y,z, u, v, w, SEG=None, save_path='velocities.html', show=False, size_cones=500,step=1,cmax=None,cmin=None):
-  """
-  Plots velocities in 3D using Plotly library.
-
-  Parameters:
-  coords (np.ndarray): The coordinates of the velocity field.
-  u (np.ndarray): The x-component of the velocity field.
-  v (np.ndarray): The y-component of the velocity field.
-  w (np.ndarray): The z-component of the velocity field.
-  save_path (str, optional): The file path to save the plot. Default is 'velocities.html'.
-  show (bool, optional): Whether to show the plot. Default is True.
-  """  
-
-  if SEG is not None:
-    x = x[SEG.ravel().nonzero()]
-    y = y[SEG.ravel().nonzero()]
-    z = z[SEG.ravel().nonzero()]
-    u = u[SEG.ravel().nonzero()]
-    v = v[SEG.ravel().nonzero()]
-    w = w[SEG.ravel().nonzero()]
-
-  samples = np.arange(0,x.shape[0]-1,step)
-  
-  x = x[samples]
-  y = y[samples]
-  z = z[samples]
-  u = u[samples]
-  v = v[samples]
-  w = w[samples]
-
-  fig = go.Figure(data=go.Cone(
-    x=x,
-    y=y,
-    z=z,
-    u=u,
-    v=v,
-    w=w,
-    cmin=cmin,
-    cmax=cmax,
-    colorscale='Jet',
-    sizemode='absolute',
-    sizeref=size_cones,
-    # opacity=0.7,
-    # anchor='tail',
-    showscale=True
-  ))
-
-  fig.update_layout(
-    scene=dict(
-      # aspectmode='manual',
-      # aspectratio=dict(x=spacing[2] / np.max(spacing), y=spacing[0]/ np.max(spacing), z=spacing[1]/ np.max(spacing)),
-      aspectmode='data',
-      xaxis_title='X (cm)',
-      yaxis_title='Y (cm)',
-      zaxis_title='Z (cm)'
-    )
-  )
- 
-  fig.write_html(save_path)
-  if show:
-    fig.show()
+    if hasattr(model, "fourier_encoder"):
+        checkpoint["fourier_B"] = model.fourier_encoder.B.detach().cpu()
+    torch.save(checkpoint, path)

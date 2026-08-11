@@ -1,545 +1,152 @@
-# Imports
-import numpy as np
-from utils.preprocessing_utils import (
-    standardize, compute_outer_boundary_mask,
-    generate_collocation_points, generate_collocation_points_in_fluid_region,
-    generate_boundary_points, min_max_normalize
-)
+"""Native-resolution HDF5 loading and coordinate preparation."""
+
+from dataclasses import dataclass
+
 import h5py
-import os
+import numpy as np
 
-def load_data(config):
-    
-    # Load data
-    with h5py.File(config.data_file, mode='r') as hf:
-        
-        # Crop the data
-        if config.setup.include_time:
-            u = np.asarray(hf['u'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
-            v = np.asarray(hf['v'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
-            w = np.asarray(hf['w'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
-            
-            p = np.asarray(hf['p'][config.domain.t_start:config.domain.t_end, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                ) if config.setup.include_pressure else None
-        else:
-            t_index = config.domain.t_start
+from utils.preprocessing_utils import compute_outer_boundary_mask, min_max_normalize, standardize
 
-            u = np.asarray(hf['u'][t_index, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
-            v = np.asarray(hf['v'][t_index, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
-            w = np.asarray(hf['w'][t_index, 
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end])
-            
-            p = np.asarray(hf['p'][t_index,
-                                config.domain.x_start:config.domain.x_end, 
-                                config.domain.y_start:config.domain.y_end, 
-                                config.domain.z_start:config.domain.z_end]
-                                ) if config.setup.include_pressure else None
 
-        # T×h×w×d = (126, 81, 57, 50)
+@dataclass
+class FrameData:
+    velocity: np.ndarray
+    mask: np.ndarray
+    spacing: tuple[float, float, float]
+    dt: float
 
-        mask = np.asarray(hf['mask'])
-        if len(mask.shape) == 4: 
+
+@dataclass
+class TrainingData:
+    coordinates: np.ndarray
+    velocity: np.ndarray
+    mask: np.ndarray
+    boundary_coordinates: np.ndarray | None
+    full_coordinates: np.ndarray
+    full_shape: tuple[int, int, int]
+    spacing: tuple[float, float, float]
+    dt: float
+    velocity_scale: float
+    normalization_factors: tuple[float, ...]
+
+
+def _domain_slices(config):
+    return (
+        slice(config.domain.x_start, config.domain.x_end),
+        slice(config.domain.y_start, config.domain.y_end),
+        slice(config.domain.z_start, config.domain.z_end),
+    )
+
+
+def load_frame(path, timeframe, config):
+    """Load one velocity frame and its native mask without resampling."""
+    spatial = _domain_slices(config)
+    with h5py.File(path, "r") as handle:
+        velocity = np.stack(
+            [np.asarray(handle[name][(timeframe, *spatial)], dtype=np.float32) for name in ("u", "v", "w")],
+            axis=-1,
+        )
+        mask = np.asarray(handle["mask"])
+        if mask.ndim == 4:
             mask = mask[0]
+        mask = np.asarray(mask[spatial], dtype=np.uint8)
+        spacing = tuple(float(value) for value in handle.attrs.get(
+            "spacing", (config.resolution.dx, config.resolution.dy, config.resolution.dz)
+        ))
+        dt = float(handle.attrs.get("dt", config.resolution.dt))
+    return FrameData(velocity=velocity, mask=mask, spacing=spacing, dt=dt)
 
-        mask = mask[config.domain.x_start:config.domain.x_end, 
-                    config.domain.y_start:config.domain.y_end, 
-                    config.domain.z_start:config.domain.z_end]
-        # h×w×d = (81, 57, 50)
 
-        if config.resolution.from_file:
-            config.resolution.dx = hf.attrs['spacing'][0] # / 1000
-            config.resolution.dy = hf.attrs['spacing'][1] # / 1000
-            config.resolution.dz = hf.attrs['spacing'][2] # / 1000
-            config.resolution.dt = hf.attrs['dt']
-            print(f"Loaded resolution from file: {config.resolution.dx}, {config.resolution.dy}, {config.resolution.dz}, {config.resolution.dt}")	
+def count_timeframes(path):
+    with h5py.File(path, "r") as handle:
+        return int(handle["u"].shape[0])
 
-    return u, v, w, p, mask, config
 
-def load_ref_data(config):
-    
-    # Load data
-    with h5py.File(config.data_file_ref, mode='r') as hf:
-        
-        # Crop the data
-        if config.setup.include_time:
-            u = np.asarray(hf['u'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
-            v = np.asarray(hf['v'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
-            w = np.asarray(hf['w'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
-            
-            p = np.asarray(hf['p'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                                ) if config.setup.include_pressure else None
-        else:
-            t_index = config.domain.t_start
+def create_and_normalize_coords(config, shape, spacing):
+    """Reproduce the original native-grid coordinate normalization."""
+    axes = [np.linspace(step, length * step, length) for length, step in zip(shape, spacing)]
 
-            u = np.asarray(hf['u'][t_index, 
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
-            v = np.asarray(hf['v'][t_index, 
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
-            w = np.asarray(hf['w'][t_index, 
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor])
-            
-            p = np.asarray(hf['p'][t_index,
-                                config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                                config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                                config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                                ) if config.setup.include_pressure else None
-
-        mask = np.asarray(hf['mask'])
-        if len(mask.shape) == 4: 
-            mask = mask[0]
-
-        mask = mask[config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
-                    config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
-                    config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-
-    return u, v, w, p, mask
-
-def create_and_normalize_coords(config, t_len, x_len, y_len, z_len):
-    
-    # Extract resolutions
-    dx, dy, dz = config.resolution.dx, config.resolution.dy, config.resolution.dz
-    dt = config.resolution.dt
-
-    # Create linspaces
-    t = np.linspace(dt, t_len * dt, t_len)
-    x = np.linspace(dx, x_len * dx, x_len) # (h,) = (81, ) , [0.0005 0.001 ... 0.0405] (voxel centers)
-    y = np.linspace(dy, y_len * dy, y_len)
-    z = np.linspace(dz, z_len * dz, z_len)
-
-    # FOV starts at 0.00025 or dx/2
-    # FOV ends at 0.04075 = x_len * dx + dx/2
-
-    # Normalize coordinates
     if config.coords_characteristic:
-        L, T = config.constants.L, config.constants.T
-        t = t / T
-        x = x / L
-        y = y / L
-        z = z / L
+        axes = [axis / config.constants.L for axis in axes]
 
-    t_normalized = None
-
-    standardization_factors = None
     if config.coords_normalization == "standardize":
-
         if config.global_normalization:
-
-            ranges = [np.ptp(arr) for arr in (x, y, z)]
-            idx_largest = np.argmax(ranges)
-
-            if idx_largest == 0:
-                ref_data = x
-            elif idx_largest == 1:
-                ref_data = y
-            else:
-                ref_data = z
-
-            # Compute global mean and std from the largest array:
-            global_mean = np.mean(ref_data)
-            global_std = np.std(ref_data)
-
-            # Standardize all coordinate arrays using the global factors:
-            x_normalized, mean_x, std_x = standardize(x, global_mean, global_std)
-            y_normalized, mean_y, std_y = standardize(y, global_mean, global_std)
-            z_normalized, mean_z, std_z = standardize(z, global_mean, global_std)
-
+            reference = axes[int(np.argmax([np.ptp(axis) for axis in axes]))]
+            global_mean, global_std = float(np.mean(reference)), float(np.std(reference))
+            normalized = [standardize(axis, global_mean, global_std)[0] for axis in axes]
+            factors = tuple(value for _ in axes for value in (global_mean, global_std))
         else:
-            x_normalized, mean_x, std_x = standardize(x)
-            y_normalized, mean_y, std_y = standardize(y)
-            z_normalized, mean_z, std_z = standardize(z)
-
-        if config.setup.include_time:
-            t_normalized, mean_t, std_t = standardize(t)
-            standardization_factors = [
-                mean_t, std_t, mean_x, std_x, 
-                mean_y, std_y, mean_z, std_z, 
-            ]
-        else:
-            standardization_factors = [
-                mean_x, std_x,
-                mean_y, std_y,
-                mean_z, std_z
-            ]
-
+            results = [standardize(axis) for axis in axes]
+            normalized = [result[0] for result in results]
+            factors = tuple(value for result in results for value in result[1:])
     elif config.coords_normalization == "min_max":
-
         if config.global_normalization:
-            max_x, min_x = x.max(), x.min()
-            max_y, min_y = y.max(), y.min()
-            max_z, min_z = z.max(), z.min()
-            max_C = max(max_x, max_y, max_z)
-            min_C = min(min_x, min_y, min_z)
-
-            max_x, min_x = max_C, min_C
-            max_y, min_y = max_C, min_C
-            max_z, min_z = max_C, min_C
-
+            minimum = min(float(axis.min()) for axis in axes)
+            maximum = max(float(axis.max()) for axis in axes)
+            normalized = [(axis - minimum) / (maximum - minimum) for axis in axes]
+            factors = tuple(value for _ in axes for value in (minimum, maximum))
         else:
-            x_normalized, min_x, max_x = min_max_normalize(x)
-            y_normalized, min_y, max_y = min_max_normalize(y)
-            z_normalized, min_z, max_z = min_max_normalize(z)
-
-        x_normalized = (x - min_x) / (max_x - min_x)
-        y_normalized = (y - min_y) / (max_y - min_y)
-        z_normalized = (z - min_z) / (max_z - min_z)
-
-        if config.setup.include_time:
-            t_normalized, min_t, max_t = min_max_normalize(t)
-            standardization_factors = [
-                min_t, max_t, min_x, max_x, 
-                min_y, max_y, min_z, max_z, 
-            ]
-        else:
-            standardization_factors = [
-                min_x, max_x,
-                min_y, max_y,
-                min_z, max_z
-            ]
+            results = [min_max_normalize(axis) for axis in axes]
+            normalized = [result[0] for result in results]
+            factors = tuple(value for result in results for value in result[1:])
     else:
-        raise ValueError("Unknown coordinate normalization.")
-
-    ## print(x_normalized)
-    ## print(upsample_1d(x_normalized))
-    ## print(upsample_1d(x_normalized, mode='centered'))
-
-    return t_normalized, x_normalized, y_normalized, z_normalized, standardization_factors
-
-def upsample_1d(arr, factor=2, mode='extend'):
-    """
-    mode : str
-        'extend' or 'voxel_centered'.
-
-        - 'extend': Anchors at arr[0], extends the domain on the right 
-                    by + one new step.
-        - 'centered': Interprets arr as voxel centers, extends 
-                    domain edges on both sides by half an old voxel,
-                    then subdivides.
-    """
-    if factor <= 1 or len(arr) <= 1:
-        return arr
-
-    dx = arr[1] - arr[0]
-    if mode == 'extend':
-        step = dx / factor
-        # old approach A
-        N_new = len(arr) * factor
-        return np.linspace(arr[0], arr[-1] + step, N_new)
-
-    elif mode == 'centered':
-        # old approach B
-        dx_hr = dx / factor
-        start = arr[0] - dx/2 + dx_hr/2
-        end   = arr[-1] + dx/2 - dx_hr/2
-        N_new = len(arr) * factor
-        return np.linspace(start, end, N_new)
-
-    else:
-        raise ValueError("Unknown mode. Use 'extend' or 'centered'.")
-
-def prepare_data(config, u, v, w, p, mask):
-
-    U_max = max(u.max(), v.max(), w.max())
-
-    # Normalize velocity data
-    if config.vel_normalization == "characteristic":
-        U = config.constants.U
-        u_normalized = u / U
-        v_normalized = v / U
-        w_normalized = w / U
-
-    elif config.vel_normalization == "max_velocity":
-        u_normalized = u / U_max
-        v_normalized = v / U_max
-        w_normalized = w / U_max
-
-    # Flatten data into pointwise prediction
-    u_flat = u_normalized.ravel()   # T×h×w×d --> T*h*w*d = (29087100,)
-    v_flat = v_normalized.ravel()
-    w_flat = w_normalized.ravel()
-
-    velocities = [u_flat, v_flat, w_flat]
-
-    if config.setup.include_pressure:
-        rho, U = config.constants.rho, config.constants.U
-        p_normalized = p / (rho*(U**2))
-        p_flat = p_normalized.reshape(-1)
-        velocities.append(p_flat)
-
-    # Ground truth data
-    uvw_data = np.stack(velocities, axis=1) # (T*h*w*d, 4) = (29087100, 4)
-
-    # Prepare coordinates
-    if config.setup.include_time:
-        t_len, x_len, y_len, z_len = u.shape # (T, h, w, d)
-    else:
-        x_len, y_len, z_len = u.shape # (h, w, d)
-        t_len = 1
-
-    t_normalized, x_normalized, y_normalized, z_normalized, standardization_factors = create_and_normalize_coords(config, t_len, x_len, y_len, z_len)
-
-    # Create coordinate grid
-    if config.setup.include_time:
-        grids = np.meshgrid(t_normalized, x_normalized, y_normalized, z_normalized, indexing='ij')
-    else:
-        grids = np.meshgrid(x_normalized, y_normalized, z_normalized, indexing='ij')
-
-# print(grids[0], last)
-###  [[ 1.71835849  1.71835849  1.71835849 ...  1.71835849  1.71835849
-###     1.71835849]
-###   [ 1.71835849  1.71835849  1.71835849 ...  1.71835849  1.71835849
-###     1.71835849]
-###   ...
-###   [ 1.71835849  1.71835849  1.71835849 ...  1.71835849  1.71835849
-###     1.71835849]
-###   [ 1.71835849  1.71835849  1.71835849 ...  1.71835849  1.71835849
-###     1.71835849]]]]
-
-# print(grids[3], last)
-###  [[-1.69774938 -1.62845348 -1.55915759 ...  1.55915759  1.62845348
-###     1.69774938]
-###   [-1.69774938 -1.62845348 -1.55915759 ...  1.55915759  1.62845348
-###     1.69774938]
-###   ...
-###   [-1.69774938 -1.62845348 -1.55915759 ...  1.55915759  1.62845348
-###     1.69774938]
-###   [-1.69774938 -1.62845348 -1.55915759 ...  1.55915759  1.62845348
-###     1.69774938]]]]
-
-    flat_coordinates = [grid.ravel() for grid in grids] # T×h×w×d --> T*h*w*d = (29087100,)
-    xyz_data = np.stack(flat_coordinates, axis=1) # (T*h*w*d, 4) = (29087100, 4)
-
-    # xyz_data:
-### [[-1.71835849 -1.71079785 -1.70192589 -1.69774938]
-###  [-1.71835849 -1.71079785 -1.70192589 -1.62845348]
-###  ...
-###  [ 1.71835849  1.71079785  1.70192589  1.62845348]
-###  [ 1.71835849  1.71079785  1.70192589  1.69774938]]
-
-    # Extract boundaries
-    boundary_mask = compute_outer_boundary_mask(mask) # h×w×d = (81, 57, 50)
-
-    if config.setup.include_time:
-        # Tile the masks
-        mask_flat = np.tile(mask.ravel(), t_len)
-        boundary_mask_flat = np.tile(boundary_mask.ravel(), t_len)
-    else:
-        mask_flat = mask.ravel()
-        boundary_mask_flat = boundary_mask.ravel()
-
-    return uvw_data, xyz_data, mask_flat, boundary_mask_flat, standardization_factors, U_max
-
-def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, mask, U_max):
-
-    # Prepare coordinates
-    if config.setup.include_time:
-        t_len, x_len, y_len, z_len = u.shape # (T, h, w, d)
-    else:
-        x_len, y_len, z_len = u.shape # (h, w, d)
-        t_len = 1
-
-    t_normalized, x_normalized, y_normalized, z_normalized, _ = create_and_normalize_coords(config, t_len, x_len, y_len, z_len)
-
-    # Upsample coordinates
-    t_ups = upsample_1d(t_normalized, config.ref_temporal_factor, 'extend') if config.setup.include_time else []
-    x_ups = upsample_1d(x_normalized, config.ref_spatial_factor, mode='centered')
-    y_ups = upsample_1d(y_normalized, config.ref_spatial_factor, mode='centered')
-    z_ups = upsample_1d(z_normalized, config.ref_spatial_factor, mode='centered')
-
-    # Create coordinate grid
-    if config.setup.include_time:
-        grids = np.meshgrid(t_ups, x_ups, y_ups, z_ups, indexing='ij')
-    else:
-        grids = np.meshgrid(x_ups, y_ups, z_ups, indexing='ij')
-
-    flat_coordinates = [grid.ravel() for grid in grids] # T×h×w×d --> T*h*w*d = (29087100,)
-    xyz_data = np.stack(flat_coordinates, axis=1) # (T*h*w*d, 4) = (29087100, 4)
-
-    # Extract boundaries
-    boundary_mask = compute_outer_boundary_mask(mask) # h×w×d = (81, 57, 50)
-
-    if config.setup.include_time:
-        # Tile the masks
-        mask_flat = np.tile(mask.ravel(), t_len)
-        boundary_mask_flat = np.tile(boundary_mask.ravel(), t_len)
-    else:
-        mask_flat = mask.ravel()
-        boundary_mask_flat = boundary_mask.ravel()
-
-    # Normalize velocity data
-    if config.vel_normalization == "characteristic":
-        U = config.constants.U
-        u_normalized = u_ref / U
-        v_normalized = v_ref / U
-        w_normalized = w_ref / U
-
-    elif config.vel_normalization == "max_velocity":
-        u_normalized = u_ref / U_max
-        v_normalized = v_ref / U_max
-        w_normalized = w_ref / U_max
-
-    # Flatten data into pointwise prediction
-    u_flat = u_normalized.ravel()   # T×h×w×d --> T*h*w*d = (29087100,)
-    v_flat = v_normalized.ravel()
-    w_flat = w_normalized.ravel()
-
-    velocities = [u_flat, v_flat, w_flat]
-
-    if config.setup.include_pressure:
-        rho, U = config.constants.rho, config.constants.U
-        p_normalized = p_ref / (rho*(U**2))
-        p_flat = p_normalized.reshape(-1)
-        velocities.append(p_flat)
-
-    # Ground truth data
-    uvw_data_ref = np.stack(velocities, axis=1) # (T*h*w*d, 4) = (29087100, 4)
-    
-    return uvw_data_ref, xyz_data, mask_flat, boundary_mask_flat
-
-def extract_fluid_region(uvw_data, xyz_data, mask_flat):
-
-    fluid_indices = mask_flat == 1
-
-    uvw_fluid = uvw_data[fluid_indices]
-    xyz_fluid = xyz_data[fluid_indices]
-
-    return uvw_fluid, xyz_fluid
-
-def sample_collocation_points(config, xyz_data, mask):
-
-    # np.random.seed(123)
-
-    if not config.collocation_in_fluid:
-
-        # Sample random points
-        for dim in range(xyz_data.shape[1]):
-
-            # Initialize output array
-            coll_points = np.empty((config.collocation_points, xyz_data.shape[1])) # (N, 4)
-
-            # Extract min & max values
-            mins = xyz_data.min(axis=0)
-            maxs = xyz_data.max(axis=0)
-
-            # Sample points random
-            coll_points[:, dim] = np.random.uniform(low=mins[dim], high=maxs[dim], size=config.collocation_points)
-
-        return coll_points
-    
-    else:
-
-        # Sample random points in fluid region
-        xyz_fluid = xyz_data[mask == 1]
-        indices = np.random.choice(len(xyz_fluid), size=config.collocation_points, replace=True)
-        sampled_points = xyz_fluid[indices]
-
-        # Add noise to sampled fluid points
-        unique_vals = [np.unique(xyz_data[:, i]) for i in range(xyz_data.shape[1])]
-        min_distances = [vals[1] - vals[0] for vals in unique_vals]
-
-        # Apply random noise
-        random_vals = np.random.uniform(-0.5, 0.5, size=sampled_points.shape)
-        noise = random_vals * min_distances
-        coll_points = sampled_points + noise
-
-        return coll_points
-    
-def sample_boundary_points(config, xyz_data, boundary_mask):
-
-    # np.random.seed(123)
-
-    # Sample random points in boundary region
-    bound_points = xyz_data[boundary_mask == 1]
-
-    if config.setup.include_time:
-
-        # Sample random timesteps
-        random_times = np.random.uniform(low=xyz_data[:, 0].min(), high=xyz_data[:, 0].max(), size=config.boundary_repetitions)
-        
-        # Repeat boundary points at each random timestep
-        boundary_spatial = np.unique(bound_points[:, 1:], axis=0)
-        repeated_spatial = np.tile(boundary_spatial, (config.boundary_repetitions, 1))
-        repeated_times = np.repeat(random_times, boundary_spatial.shape[0])  
-        bound_points = np.column_stack((repeated_times, repeated_spatial)) 
-
-    return bound_points
-
-
-def merge_timeframes(results_path, out_file):
-
-    # Get list of timeframe directories
-    timeframe_dirs = sorted([d for d in os.listdir(results_path) if ('timeframe' in d)])
-
-    # Load velocities from the first timeframe
-    with h5py.File(os.path.join(results_path, timeframe_dirs[0], 'pred.h5'), 'r') as f:
-        u = f['u'][:]
-        v = f['v'][:]
-        w = f['w'][:]
-        mask = f['mask'][:]
-
-    # Determine the shape of the time resolved velocities
-    num_timeframes = len(timeframe_dirs)
-    u_time_resolved = np.zeros((num_timeframes, *u.shape))
-    v_time_resolved = np.zeros((num_timeframes, *v.shape))
-    w_time_resolved = np.zeros((num_timeframes, *w.shape))
-    # print(f"Time resolved velocities shape: {u_time_resolved.shape}")
-    # print(f"num_timeframes {num_timeframes}")
-    # print(f"u {u.shape}")
-    # exit()
-
-    # Assign the first timeframe
-    u_time_resolved[0,...] = u
-    v_time_resolved[0,...] = v
-    w_time_resolved[0,...] = w
-
-    # Load and assign the rest of the timeframes
-    for i, timeframe_dir in enumerate(timeframe_dirs[1:], start=1):
-        with h5py.File(os.path.join(results_path, timeframe_dir, 'pred.h5'), 'r') as f:
-            u_time_resolved[i,...] = f['u'][:]
-            v_time_resolved[i,...] = f['v'][:]
-            w_time_resolved[i,...] = f['w'][:]
-
-    # Save the time resolved velocities
-    with h5py.File(out_file, 'w') as f:
-        f.create_dataset('u', data=u_time_resolved)
-        f.create_dataset('v', data=v_time_resolved)
-        f.create_dataset('w', data=w_time_resolved)
-        f.create_dataset('mask', data=mask)
-    
+        raise ValueError(f"Unknown coordinate normalization: {config.coords_normalization}")
+
+    grids = np.meshgrid(*normalized, indexing="ij")
+    coordinates = np.stack([grid.ravel() for grid in grids], axis=1).astype(np.float32)
+    return coordinates, factors
+
+
+def prepare_training_data(config, timeframe):
+    frame = load_frame(config.data_file, timeframe, config)
+    coordinates, factors = create_and_normalize_coords(config, frame.mask.shape, frame.spacing)
+
+    velocity_scale = float(frame.velocity.max())
+    if not np.isfinite(velocity_scale) or velocity_scale <= 0:
+        raise ValueError("The maximum velocity must be finite and positive.")
+    velocity = (frame.velocity / velocity_scale).reshape(-1, 3).astype(np.float32)
+
+    training_mask = frame.mask.astype(bool)
+    if config.setup.expand_mask:
+        training_mask |= compute_outer_boundary_mask(training_mask).astype(bool)
+    boundary_mask = compute_outer_boundary_mask(training_mask)
+
+    flat_training_mask = training_mask.ravel()
+    boundary_coordinates = coordinates[boundary_mask.ravel().astype(bool)] if config.sample_boundary else None
+    return TrainingData(
+        coordinates=coordinates[flat_training_mask],
+        velocity=velocity[flat_training_mask],
+        mask=np.ones((int(flat_training_mask.sum()), 1), dtype=np.float32),
+        boundary_coordinates=boundary_coordinates,
+        full_coordinates=coordinates,
+        full_shape=frame.mask.shape,
+        spacing=frame.spacing,
+        dt=frame.dt,
+        velocity_scale=velocity_scale,
+        normalization_factors=factors,
+    )
+
+
+def extract_fluid_region(velocity, coordinates, mask):
+    fluid = np.asarray(mask).ravel().astype(bool)
+    return velocity[fluid], coordinates[fluid]
+
+
+def sample_collocation_points(config, coordinates, mask):
+    """Sample collocation points for retained Vanilla/PINN implementations."""
+    count = int(config.collocation_points)
+    if config.collocation_in_fluid:
+        fluid_coordinates = coordinates[np.asarray(mask).ravel().astype(bool)]
+        indices = np.random.choice(len(fluid_coordinates), size=count, replace=True)
+        sampled = fluid_coordinates[indices]
+        spacings = np.array([
+            np.min(np.diff(values)) for values in (np.unique(coordinates[:, axis]) for axis in range(coordinates.shape[1]))
+        ])
+        return sampled + np.random.uniform(-0.5, 0.5, sampled.shape) * spacings
+
+    minimum, maximum = coordinates.min(axis=0), coordinates.max(axis=0)
+    return np.random.uniform(minimum, maximum, size=(count, coordinates.shape[1]))
+
+
+def sample_boundary_points(coordinates, boundary_mask):
+    return coordinates[np.asarray(boundary_mask).ravel().astype(bool)]

@@ -2,40 +2,6 @@ import torch.nn as nn
 import torch
 import numpy as np
 
-class FF_SIREN(nn.Module):
-    def __init__(self, in_dim=4, out_dim=4, depth=6, hidden_features=128, first_omega_0=30, hidden_omega_0=30, 
-                 outermost_linear=True, fourier_mapping_size=128, scale = 1.0):
-
-        super(FF_SIREN, self).__init__()
-
-        # Fourier Encoding
-        self.fourier_encoder = FourierFeatureEncoding(in_dim, fourier_mapping_size,scale=scale)
-        encoded_dim = fourier_mapping_size * 2
-
-        self.net = []
-        self.net.append(SineLayer(encoded_dim, hidden_features, is_first=True, omega_0=first_omega_0))
-        
-        for i in range(depth):
-            self.net.append(SineLayer(hidden_features, hidden_features, is_first=False, omega_0=hidden_omega_0))
-
-        if outermost_linear:
-            final_linear = nn.Linear(hidden_features, out_dim)
-            
-            with torch.no_grad():
-                final_linear.weight.uniform_(-np.sqrt(6 / hidden_features) / hidden_omega_0, 
-                                            np.sqrt(6 / hidden_features) / hidden_omega_0)
-                
-            self.net.append(final_linear)
-        else:
-            self.net.append(SineLayer(hidden_features, out_dim, 
-                                    is_first=False, omega_0=hidden_omega_0))
-        
-        self.net = nn.Sequential(*self.net)
-
-    def forward(self, x):
-        x_enc = self.fourier_encoder(x)
-        output = self.net(x_enc)
-        return output 
 
 class SIREN(nn.Module):
     def __init__(self, in_dim=4, out_dim=4, depth=6, hidden_features=128, first_omega_0=30, hidden_omega_0=30, outermost_linear=True):
@@ -143,58 +109,3 @@ class FFN(nn.Module):
     def forward(self, x):
         x_encoded = self.fourier_encoder(x)
         return self.network(x_encoded)
-
-class FathiMLP(nn.Module):
-    """
-    Fully-connected MLP replicating Fathi et al. (2020) Fig. 3 and Eq. (10).
- 
-    Input:  normalized spatio-temporal coordinates (t, x, y, z)  — shape (N, 4)
-    Output: (u, v, w, p)        when use_magnitude_output=False  — shape (N, 4)
-            (u, v, w, p, m)     when use_magnitude_output=True   — shape (N, 5)
- 
-    Architecture (exactly as in paper):
-      - depth hidden layers, each with hidden_features neurons
-      - tanh activation on every hidden layer
-      - single linear output layer with out_dim outputs (no activation)
-      - no Fourier encoding, no separate heads, no sigmoid on m
- 
-    When use_magnitude_output=True, pass out_dim=5 in the config so the
-    output layer has 5 neurons. The last output column is m, treated
-    identically to u/v/w/p — a plain linear output, exactly as Fig. 3 shows.
- 
-    Paper hyperparameters:
-      - 2-D steady case:   depth=10, hidden_features=25
-      - in-vitro 3-D case: depth=10, hidden_features=30
-    """
-    def __init__(self, in_dim: int = 4, out_dim: int = 4,
-                 depth: int = 10, hidden_features: int = 25,
-                 use_magnitude_output: bool = False,
-                 **kwargs):  # absorb unused kwargs (e.g. num_frequencies) silently
-        super(FathiMLP, self).__init__()
- 
-        self.use_magnitude_output = use_magnitude_output
- 
-        # When magnitude output is requested, force out_dim = 5
-        if use_magnitude_output:
-            out_dim = 5
- 
-        layers = []
-        layers.append(nn.Linear(in_dim, hidden_features))
-        layers.append(nn.Tanh())
-        for _ in range(depth - 1):
-            layers.append(nn.Linear(hidden_features, hidden_features))
-            layers.append(nn.Tanh())
-        layers.append(nn.Linear(hidden_features, out_dim))  # single output layer
- 
-        self.network = nn.Sequential(*layers)
-        self._init_weights()
- 
-    def _init_weights(self):
-        gain = nn.init.calculate_gain('tanh')
-        for module in self.network:
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight, gain=gain)
-                nn.init.zeros_(module.bias)
- 
-    def forward(self, x):
-        return self.network(x)      

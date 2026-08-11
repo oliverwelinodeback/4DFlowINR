@@ -86,7 +86,7 @@ def fluid_weighted_mse_loss(uvw_data, uvw_pred, mask, config):
 
     return mse_vel
 
-def vector_potential_fn(phi_pred, xyz_hr):
+def vector_potential_fn(phi_pred, xyz_hr, create_graph=True):
 
    # Separate out each predicted component
     phi_x = phi_pred[:, 0]  # shape (N,)
@@ -96,15 +96,15 @@ def vector_potential_fn(phi_pred, xyz_hr):
     # Compute partial derivatives
     dphix = torch.autograd.grad(phi_x, xyz_hr,
                                 grad_outputs=torch.ones_like(phi_x),
-                                create_graph=True, retain_graph=True)[0]  # shape (N,3)
+                                create_graph=create_graph, retain_graph=True)[0]  # shape (N,3)
 
     dphiy = torch.autograd.grad(phi_y, xyz_hr,
                                 grad_outputs=torch.ones_like(phi_y),
-                                create_graph=True, retain_graph=True)[0]
+                                create_graph=create_graph, retain_graph=True)[0]
 
     dphiz = torch.autograd.grad(phi_z, xyz_hr,
                                 grad_outputs=torch.ones_like(phi_z),
-                                create_graph=True, retain_graph=True)[0]
+                                create_graph=create_graph, retain_graph=True)[0]
 
     # Extract partial derivatives for each dimension:
     _, dphix_dy, dphix_dz = dphix[:, 0], dphix[:, 1], dphix[:, 2]
