@@ -8,14 +8,14 @@
 
 4DFlowINR is a PyTorch research framework for patient-specific, coordinate-based reconstruction of time-resolved three-dimensional velocity fields. It implements:
 
-- a fast, data-driven implicit neural representation (INR);
-- a physics-informed INR constrained by the incompressible Navier–Stokes equations;
-- WIRE and SIREN coordinate-network architectures;
-- arbitrary-grid spatial and temporal querying;
-- meta-learned initialization for rapid subject-specific adaptation;
-- neural tangent kernel (NTK) analysis;
-- experimental self-adaptive PINN extensions;
-- HDF5 prediction, quantitative evaluation, and ParaView export tools.
+- a fast, data-driven implicit neural representation (INR)
+- a physics-informed INR constrained by the incompressible Navier–Stokes equations
+- WIRE and SIREN coordinate-network architectures
+- arbitrary-grid spatial and temporal querying
+- meta-learned initialization for rapid subject-specific adaptation
+- neural tangent kernel (NTK) analysis
+- experimental self-adaptive PINN extensions
+- HDF5 prediction, quantitative evaluation, and ParaView export tools
 
 The repository accompanies the manuscript:
 
@@ -27,18 +27,18 @@ The manuscript evaluates three healthy cases and six cases with intracranial ath
 
 The network represents velocity as a continuous function of normalized spatiotemporal coordinates,
 
-\[
+$$
 (t,x,y,z)\longmapsto (u,v,w),
-\]
+$$
 
-with an additional latent pressure output for the physics-informed model. WIRE Gabor activations provide tunable spectral bias through \(\omega_0\) and \(s_0\).
+with an additional latent pressure output for the physics-informed model. WIRE Gabor activations provide tunable spectral bias through $\omega_0$ and $s_0$.
 
 The paper configurations use:
 
 | Model | WIRE parameters | Optimization |
 |---|---:|---|
-| Data-driven INR | \((\omega_0,s_0)=(20,20)\) | Adam, 8,000 iterations, 20,000 data points per iteration |
-| Physics-informed INR | \((\omega_0,s_0)=(60,30)\) | Adam for 10,000 iterations, then L-BFGS for 5,000 iterations; 6,000 data and collocation points per iteration |
+| Data-driven INR | $(\omega_0,s_0)=(20,20)$ | Adam, 8,000 iterations, 20,000 data points per iteration |
+| Physics-informed INR | $(\omega_0,s_0)=(60,30)$ | Adam for 10,000 iterations, then L-BFGS for 5,000 iterations; 6,000 data and collocation points per iteration |
 
 <p align="center">
   <img src="docs/figures/representative_reconstructions.jpg" width="88%" alt="Representative low-resolution, INR, and high-resolution velocity reconstructions">
