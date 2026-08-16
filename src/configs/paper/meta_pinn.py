@@ -28,7 +28,7 @@ def get_config(sweep_config=None):
     """ MAML (Second-Order) with Physics in outer loop only."""
     config = ml_collections.ConfigDict()
 
-    config.sweep = False
+    config.sweep = True   #### to False
     # Data
     config.data_file = "../data/XXX.h5"
     config.include_ref = True
@@ -83,7 +83,6 @@ def get_config(sweep_config=None):
     config.collocation_in_fluid = True
     config.collocation_points = 1_500_000
     config.sample_boundary = False
-    config.boundary_repetitions = 1000
 
     # Normalization and constants
     config.vel_normalization = "characteristic"
@@ -126,21 +125,15 @@ def get_config(sweep_config=None):
     # META-LEARNING CONFIGURATION (MAML + Physics Outer Only)
     # ==========================================
     config.meta_learning = ml_collections.ConfigDict()
-    config.meta_learning.enabled = True
+    config.meta_learning.enabled = False #### to True
 
     # Meta-learning method: FULL SECOND-ORDER MAML
     config.meta_learning.meta_method = 'MAML'
-
-    # Reptile-specific (not used)
-    config.meta_learning.reptile_epsilon = 1.0
 
     # Inner loop settings (SGD optimizer)
     # Can use MORE steps than full PINN MAML (no physics memory in inner loop)
     config.meta_learning.inner_lr = 0.000611
     config.meta_learning.inner_steps = 10  # Higher than full PINN (data-only inner)
-    config.meta_learning.inner_points = 5000
-    config.meta_learning.coll_points_inner = 3000  # Not used (physics_outer_only)
-    config.meta_learning.boundary_points_inner = 2000
 
     # Outer loop settings (Adam optimizer)
     config.meta_learning.outer_lr = 1.51e-05
@@ -157,7 +150,6 @@ def get_config(sweep_config=None):
     config.meta_learning.physics_weight = 1.0       
     config.meta_learning.coll_points_outer = 2000       # Collocation for outer loop
     config.meta_learning.use_boundary_loss = False
-    config.meta_learning.div_weight = 1.0
 
     # ==========================================
     # CURRICULUM LEARNING FOR PHYSICS
@@ -167,16 +159,11 @@ def get_config(sweep_config=None):
     # Phase 2 (curriculum_start to curriculum_end): Physics weight ramps up linearly
     # Phase 3 (after curriculum_end): Full physics_weight applied
 
-    # Physics curriculum disabled for the paper experiment.
-    config.meta_learning.physics_curriculum_start = 0
-    config.meta_learning.physics_curriculum_end = 0
-
     # Other settings
     config.meta_learning.support_fraction = 0.5
 
     # Scheduler
     config.meta_learning.use_scheduler = False
-    config.meta_learning.scheduler_gamma = 0.9995
 
     config.meta_learning.train_cases = [
         "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5",
@@ -210,16 +197,14 @@ def get_config(sweep_config=None):
     }
 
     # Fine-tuning (disabled for meta-learning sweep)
-    config.load_meta_init = False
+    config.load_meta_init = True  #### to False
     config.meta_init_path = "../models/paper_pinn-meta/paper_pinn-meta_20260731-1425/meta_best.pth"
-    config.warm_start_path = ""
 
     # Training parameters (for fine-tuning after meta-learning)
     config.training = ml_collections.ConfigDict()
     config.training.iterations = 1000
     config.training.data_points_per_batch = 6000
     config.training.coll_points_per_batch = 6000
-    config.training.boundary_points_per_batch = 60000
     # Optimizer
     config.training.lr = 1e-4
     config.training.lr_decay_iter = 25000
@@ -239,14 +224,6 @@ def get_config(sweep_config=None):
     config.training.alpha = 0.95
 
     config.training.self_adaptive = False
-    config.training.adaptive_sampling = False
-    config.training.tau = 0.02
-    config.training.weight_clip = [6, 0.2]
-    config.training.beta = 0.2
-    config.training.K_initial = 10_000
-    config.training.K = 20
-    config.training.points_to_update = 750_000
-    config.training.chunk_size = 2_000
 
     # Data loss options
     config.training.use_mse = False
@@ -256,27 +233,22 @@ def get_config(sweep_config=None):
     config.training.u_weight = 1.0
     config.training.v_weight = 1.0
     config.training.w_weight = 1.0
-    config.training.p_weight = 0.01
     # Physics loss options (for fine-tuning)
     config.training.use_physics_loss = True
     config.training.physics_loss_on_data_points = True
     config.training.use_navier_stokes = True
     config.training.use_divergence = True
     config.training.use_PPE = False
-    config.training.PPE_weight = 0.001
     config.training.predict_gradients = False
     config.training.reference_gradients = False
     config.training.physics_weight = 1
     # Boundary loss options
-    config.training.pressure_in_boundary_loss = False
-    config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
     config.training.summary_iter = 5000
     config.training.log_iter = 250
     config.training.error_iter = 500
     config.training.save_h5_iters = [10, 25, 50, 100, 250, 500, 1000]
-    config.training.denormalize = True
     
     # Visualization
     config.visualization = ml_collections.ConfigDict()

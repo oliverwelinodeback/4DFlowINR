@@ -97,8 +97,6 @@ def load_all_cases(file_list, config, device):
     loaded_cases = []
     print(f"\nProcessing {len(file_list)} cases (LR + Ref Pair)...")
 
-    pattern = re.compile(r"_LR_.*_newMask")
-
     for case_path in file_list:
         case_name = Path(case_path).stem
         print(f"  Loading: {case_name}")
@@ -127,9 +125,23 @@ def load_all_cases(file_list, config, device):
             mask_LR = torch.ones(len(xyz_LR), 1, device=device)
 
             # --- Load High-Resolution (Reference) Data for MONITORING ---
-            ref_path = pattern.sub("", case_path)
-            coords_HR, vel_HR, n_HR = None, None, None
+            case_path_obj = Path(case_path)
+            ref_stem, separator, _ = case_path_obj.stem.partition("_LR")
 
+            if not separator:
+                raise ValueError(
+                    f"Could not derive reference path: '_LR' not found in {case_path}"
+                )
+
+            ref_path = str(
+                case_path_obj.with_name(ref_stem + case_path_obj.suffix)
+            )
+
+            if not os.path.exists(ref_path):
+                print(f"    -> Expected reference not found: {ref_path}")
+                print("    -> HR monitoring will be skipped")
+
+            coords_HR, vel_HR, n_HR = None, None, None
             if os.path.exists(ref_path):
                 config.data_file_ref = ref_path
 

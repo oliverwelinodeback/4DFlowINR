@@ -145,17 +145,17 @@ def train(config=None, run_name=None, use_sweep=False):
             "../data/invivo/ICAD146.h5":     ("S3_invivo", [0.00098214, 0.00098214, 0.001], 0.0434),
         }
 
-        SAPINN_ROUTING = { }# LR file : (HR file, case_name, spatial factor, temporal factor, spat res [m], temp res [s], venc, peak_idx)
-        #    "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5":   ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 2, 2, 0.0005*2, 0.02*2, 1.7, 12),
-        #    "../data/healthy/HV01_05mm3_20ms_sv17_tSNR10.h5":         ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 1, 1, 0.0005, 0.02, 1.7, 12),
-        #    "../data/healthy/HV01_05mm3_20ms_sv17_tSNR2.h5":          ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 1, 1, 0.0005, 0.02, 1.7, 12),
-        #    "../data/healthy/ICAD48_05mm3_20ms_LR_sv13_tSNR10.h5": ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 2, 2, 0.0005*2, 0.02*2, 1.3, 14),
-        #    "../data/healthy/ICAD48_05mm3_20ms_sv13_tSNR10.h5":       ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 1, 1, 0.0005, 0.02, 1.3, 14),
-        #    "../data/healthy/ICAD48_05mm3_20ms_sv13_tSNR2.h5":        ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 1, 1, 0.0005, 0.02, 1.3, 14),
-        #    "../data/healthy/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5": ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 2, 2, 0.0005*2, 0.02*2, 2.6, 12),
-        #    "../data/healthy/ICAD21_05mm3_20ms_sv26_tSNR10.h5":       ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 1, 1, 0.0005, 0.02, 2.6, 12),
-        #    "../data/healthy/ICAD21_05mm3_20ms_sv26_tSNR2.h5":        ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 1, 1, 0.0005, 0.02, 2.6, 12),
-        #}
+        SAPINN_ROUTING = { # LR file : (HR file, case_name, spatial factor, temporal factor, spat res [m], temp res [s], venc, peak_idx)
+            "../data/healthy/HV01_05mm3_20ms_LR_sv17_tSNR10.h5":   ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 2, 2, 0.0005*2, 0.02*2, 1.7, 12),
+            "../data/healthy/HV01_05mm3_20ms_sv17_tSNR10.h5":         ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 1, 1, 0.0005, 0.02, 1.7, 12),
+            "../data/healthy/HV01_05mm3_20ms_sv17_tSNR2.h5":          ("../data/healthy/HV01_05mm3_20ms.h5", "H1", 1, 1, 0.0005, 0.02, 1.7, 12),
+            "../data/healthy/ICAD48_05mm3_20ms_LR_sv13_tSNR10.h5": ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 2, 2, 0.0005*2, 0.02*2, 1.3, 14),
+            "../data/healthy/ICAD48_05mm3_20ms_sv13_tSNR10.h5":       ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 1, 1, 0.0005, 0.02, 1.3, 14),
+            "../data/healthy/ICAD48_05mm3_20ms_sv13_tSNR2.h5":        ("../data/stenosis_50/ICAD48_05mm3_20ms.h5", "M2", 1, 1, 0.0005, 0.02, 1.3, 14),
+            "../data/healthy/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5": ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 2, 2, 0.0005*2, 0.02*2, 2.6, 12),
+            "../data/healthy/ICAD21_05mm3_20ms_sv26_tSNR10.h5":       ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 1, 1, 0.0005, 0.02, 2.6, 12),
+            "../data/healthy/ICAD21_05mm3_20ms_sv26_tSNR2.h5":        ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 1, 1, 0.0005, 0.02, 2.6, 12),
+        }
 
         if data_file in LR_ROUTING:
             ref_file, case_name, venc, peak_idx = LR_ROUTING[data_file]
@@ -308,7 +308,7 @@ def train(config=None, run_name=None, use_sweep=False):
 
     elif config.decay_type == 'exp':
         scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            Adam_optimizer, gamma=0.9991
+            Adam_optimizer, gamma=config.decay_gamma
         )
 
     elif config.decay_type == 'multi':

@@ -88,7 +88,6 @@ def get_config(sweep_config=None):
     config.collocation_in_fluid = True
     config.collocation_points = 1_500_000
     config.sample_boundary = False
-    config.boundary_repetitions = 1000
 
     # Normalization and constants
     config.vel_normalization = "characteristic"
@@ -131,14 +130,12 @@ def get_config(sweep_config=None):
     config.meta_learning = ml_collections.ConfigDict()
     config.meta_learning.enabled = False
     config.load_meta_init = False
-    config.meta_init_path =  "../models/paper_pinn-meta/paper_pinn-meta_20260731-1425/meta_best.pth"
 
     # Training parameters
     config.training = ml_collections.ConfigDict()
     config.training.iterations = 15000
     config.training.data_points_per_batch = 6000
     config.training.coll_points_per_batch = 6000
-    config.training.boundary_points_per_batch = 6000
     # Optimizer
     config.training.lr = 1e-4
     config.training.lr_decay_iter = 25000
@@ -155,16 +152,7 @@ def get_config(sweep_config=None):
     config.training.epochs_before_PDE = 0
     config.training.grad_weight_scheme = True
     config.training.alpha = 0.95
-
     config.training.self_adaptive = False
-    config.training.adaptive_sampling = False
-    config.training.tau = 0.02
-    config.training.weight_clip = [6, 0.2]
-    config.training.beta = 0.2
-    config.training.K_initial = 10_000
-    config.training.K = 20
-    config.training.points_to_update = 750_000
-    config.training.chunk_size = 2_000
 
     # Data loss options
     config.training.use_mse = False
@@ -174,26 +162,21 @@ def get_config(sweep_config=None):
     config.training.u_weight = 1.0
     config.training.v_weight = 1.0
     config.training.w_weight = 1.0
-    config.training.p_weight = 0.01
     # Physics loss options
     config.training.use_physics_loss = True
     config.training.physics_loss_on_data_points = True
     config.training.use_navier_stokes = True
     config.training.use_divergence = True
     config.training.use_PPE = False
-    config.training.PPE_weight = 0.001
     config.training.predict_gradients = False
     config.training.reference_gradients = False
     config.training.physics_weight = 1
     # Boundary loss options
-    config.training.pressure_in_boundary_loss = False
-    config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
     # Logging and performance evaluation
     config.training.summary_iter = 5000
     config.training.log_iter = 250
     config.training.error_iter = 5000
-    config.training.denormalize = True
 
     # Visualization
     config.visualization = ml_collections.ConfigDict()

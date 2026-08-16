@@ -103,7 +103,6 @@ def get_config(sweep_config=None):
     config.collocation_in_fluid = True
     config.collocation_points = 1_500_000
     config.sample_boundary = False
-    config.boundary_repetitions = 1000
 
     # ==========================================
     # NORMALIZATION AND CONSTANTS
@@ -150,36 +149,11 @@ def get_config(sweep_config=None):
     # ==========================================
     config.meta_learning = ml_collections.ConfigDict()
     config.meta_learning.enabled = False
-    config.meta_learning.meta_method = 'MAML'
-    config.meta_learning.reptile_epsilon = 1.0
-    config.meta_learning.inner_lr = 0.000611
-    config.meta_learning.inner_steps = 10
-    config.meta_learning.inner_points = 5000
-    config.meta_learning.coll_points_inner = 3000
-    config.meta_learning.boundary_points_inner = 2000
-    config.meta_learning.outer_lr = 1.51e-05
-    config.meta_learning.meta_batch_size = 3
-    config.meta_learning.max_iters = 10000
-    config.meta_learning.use_physics_loss = True
-    config.meta_learning.use_physics_outer_only = True
-    config.meta_learning.physics_weight = 1.0
-    config.meta_learning.coll_points_outer = 2000
-    config.meta_learning.use_boundary_loss = False
-    config.meta_learning.div_weight = 1.0
-    config.meta_learning.physics_curriculum_start = 0
-    config.meta_learning.physics_curriculum_end = 0
-    config.meta_learning.support_fraction = 0.5
-    config.meta_learning.use_scheduler = False
-    config.meta_learning.scheduler_gamma = 0.9995
-    config.meta_learning.train_cases = []
-    config.meta_learning.val_cases = []
-    config.meta_learning.case_venc = {}
 
     # ==========================================
     # META-INIT — disabled
     # ==========================================
     config.load_meta_init = False
-    config.meta_init_path = ""
 
     # ==========================================
     # TRAINING — LBFGS only (10k Adam → 20k LBFGS)
@@ -188,7 +162,6 @@ def get_config(sweep_config=None):
     config.training.iterations = 30_000
     config.training.data_points_per_batch = 10000
     config.training.coll_points_per_batch = 10000
-    config.training.boundary_points_per_batch = 10000
 
     config.training.lr = 1e-4
     config.training.lr_decay_iter = 99_999
@@ -211,14 +184,6 @@ def get_config(sweep_config=None):
     # SELF-ADAPTIVE PINN — disabled
     # ==========================================
     config.training.self_adaptive = False
-    config.training.adaptive_sampling = False
-    config.training.tau = 0.02
-    config.training.weight_clip = [6, 0.2]
-    config.training.beta = 0.2
-    config.training.K_initial = 10_000
-    config.training.K = 20
-    config.training.points_to_update = 750_000
-    config.training.chunk_size = 10_000
 
     # ==========================================
     # DATA LOSS OPTIONS
@@ -230,7 +195,6 @@ def get_config(sweep_config=None):
     config.training.u_weight = 1.0
     config.training.v_weight = 1.0
     config.training.w_weight = 1.0
-    config.training.p_weight = 0.01
 
     # ==========================================
     # PHYSICS LOSS OPTIONS
@@ -240,7 +204,6 @@ def get_config(sweep_config=None):
     config.training.use_navier_stokes = True
     config.training.use_divergence = False
     config.training.use_PPE = False
-    config.training.PPE_weight = 0.001
     config.training.predict_gradients = True
     config.training.reference_gradients = True
     config.training.physics_weight = 1
@@ -248,8 +211,6 @@ def get_config(sweep_config=None):
     # ==========================================
     # BOUNDARY LOSS OPTIONS
     # ==========================================
-    config.training.pressure_in_boundary_loss = False
-    config.training.use_boundary_mse = True
     config.training.boundary_weight = 1.0
 
     # ==========================================
@@ -258,8 +219,6 @@ def get_config(sweep_config=None):
     config.training.summary_iter = 2500
     config.training.log_iter = 250
     config.training.error_iter = 2500
-    config.training.save_h5_iters = []
-    config.training.denormalize = True
 
     # ==========================================
     # VISUALIZATION

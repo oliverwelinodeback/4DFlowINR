@@ -5,6 +5,7 @@
 /src/wandb_runs
 /src/data/vti_files/
 /src/configs/development/
+/src/configs/exact_repro/
 __pycache__/
 *.pyc
 *.py[cod]
