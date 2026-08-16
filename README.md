@@ -10,18 +10,18 @@
 
 - a fast, data-driven implicit neural representation (INR)
 - a physics-informed INR constrained by the incompressible Navier–Stokes equations
-- WIRE and SIREN coordinate-network architectures
+- WIRE and SIREN INR architectures
 - arbitrary-grid spatial and temporal querying
-- meta-learned initialization for rapid subject-specific adaptation
-- neural tangent kernel (NTK) analysis
-- experimental self-adaptive PINN extensions
+- meta-learned initialization for faster subject-specific adaptation
+- neural tangent kernel (NTK) analysis of spectral bias
 - HDF5 prediction, quantitative evaluation, and ParaView export tools
+- experimental self-adaptive PINN extensions
 
 The repository accompanies the manuscript:
 
 > **Spectrally optimized implicit neural representations mitigate acquisition-related image quality trade-offs in intracranial 4D Flow MRI**
 
-The manuscript evaluates three healthy cases and six cases with intracranial atherosclerotic disease, grouped into moderate and severe stenosis cohorts. The public example data are intended for software demonstration only; the full study datasets are not distributed in this repository.
+The manuscript evaluates three healthy cases and six cases with intracranial atherosclerotic disease, grouped into moderate and severe stenosis cohorts. The public example data are intended for software demonstration only. The full study datasets are not distributed in this repository.
 
 ## Method overview
 
@@ -64,13 +64,10 @@ The paper configurations use:
 │   ├── train.py                  # Training command-line entry point
 │   ├── trainer.py                # Training loop
 │   └── predict.py                # Checkpoint inference entry point
-├── CITATION.cff
 ├── LICENSE
 ├── README.md
 └── requirements.txt
 ```
-
-Some files in the tree above may be added as part of the release-preparation steps described below.
 
 ## Installation
 
@@ -117,8 +114,6 @@ Disable W&B logging for a non-sweep run:
 ```bash
 export WANDB_MODE=disabled
 ```
-
-W&B sweeps require an operational W&B setup. Ordinary training should also be tested in `offline` or `disabled` mode before release.
 
 ## Data format
 
@@ -179,14 +174,14 @@ python src/train.py \
 | `src/configs/paper/meta_inr.py` | Data-driven MAML training and fine-tuning |
 | `src/configs/paper/meta_pinn.py` | Physics-informed MAML training and fine-tuning |
 
-The paper sweep configurations reference study-specific data that are not included in the repository. Update the routing table and file paths only when working with authorized local copies.
+The paper sweep configurations reference study-specific data that are not included in the repository. 
 
 For a single subject, copy the relevant paper configuration and set:
 
 ```python
 config.sweep = False
 config.data_file = "../path/to/input.h5"
-config.include_ref = False          # True only when an authorized HR reference exists
+config.include_ref = False          # True only when HR or noise-free reference exists
 config.include_ref_loss = False
 config.data_file_ref = None
 ```
@@ -211,7 +206,7 @@ python src/train.py \
     --config configs/paper/pinn.py
 ```
 
-This is substantially more computationally demanding because it evaluates higher-order derivatives required by the Navier–Stokes residual and subsequently runs L-BFGS.
+This is substantially more computationally demanding because it evaluates higher-order derivatives required by the Navier–Stokes residual and subsequently runs L-BFGS optimization.
 
 ### Join an existing sweep
 
@@ -245,10 +240,8 @@ models/<experiment>/<run>/
 ├── checkpoints/          # PyTorch checkpoints
 ├── evaluation/           # Reference comparisons and metrics
 ├── tensorboard/          # TensorBoard logs
-└── ...                   # Prediction and visualization products
+└── ...                   # Prediction and visualization
 ```
-
-Checkpoints include model and optimizer states. Current checkpoints should also preserve the resolved configuration, normalization information, and random-number-generator states.
 
 ## Example data
 
