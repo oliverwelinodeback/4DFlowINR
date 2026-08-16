@@ -1,0 +1,23 @@
+# Tested environment for 4DFlowINR
+# Python 3.10.13
+#
+# For GPU use, install the PyTorch 2.2.1 CUDA build appropriate for your system
+# before installing this file. The manuscript environment used CUDA 12.1.
+#
+
+numpy==1.26.3
+scipy==1.12.0
+h5py==3.10.0
+pandas==2.2.1
+scikit-image==0.22.0
+Pillow==10.2.0
+
+torch==2.2.1
+higher==0.2.1
+
+ml-collections==1.0.0
+wandb==0.19.6
+tensorboard==2.16.2
+
+matplotlib==3.8.3
+tqdm==4.65.0

@@ -84,6 +84,8 @@ git lfs pull
 
 ### 2. Create an environment
 
+4DFlowINR was tested with Python 3.10.13 and PyTorch 2.2.1.
+
 Using `venv`:
 
 ```bash
@@ -93,7 +95,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-On an HPC system, install only the packages not already supplied by the PyTorch/CUDA container.
+On HPC systems, the required packages can instead be installed or provided through an existing PyTorch/CUDA container. The manuscript experiments used PyTorch 2.2.1 with CUDA 12.1 on NVIDIA A100 GPUs.
 
 ### 3. Configure Weights & Biases
 
