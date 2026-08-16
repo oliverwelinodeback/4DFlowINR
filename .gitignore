@@ -20,6 +20,7 @@ wandb/
 *.wandb
 .DS_Store
 .vscode/
+*.sbatch
 
 # Example dataset, tracked separately with Git LFS
 *.h5
