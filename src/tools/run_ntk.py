@@ -1,18 +1,24 @@
 import argparse
+import importlib.util
 import os
 import sys
+from pathlib import Path
+
+import h5py
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-# Allow imports from src/
 SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+REPO_ROOT = Path(SRC_DIR).parent
+
 sys.path.insert(0, SRC_DIR)
 
 import networks
 from utils.ntk import ntk_eigendecomposition
+from utils.prepare_data import create_and_normalize_coords
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -29,6 +35,20 @@ def parse_args():
         help="INR architecture",
     )
     parser.add_argument(
+        "--config",
+        default="configs/paper/inr.py",
+        help=(
+            "Configuration defining the coordinate normalization. "
+        ),
+    )
+    parser.add_argument(
+        "--data-file",
+        required=True,
+        help=(
+            "LR HDF5 file whose dimensions define the coordinate domain. "
+        ),
+    )
+    parser.add_argument(
         "--omega",
         type=float,
         default=20.0,
@@ -39,18 +59,6 @@ def parse_args():
         type=float,
         default=20.0,
         help="WIRE scale parameter sigma_0. Ignored for SIREN",
-    )
-    parser.add_argument(
-        "--depth",
-        type=int,
-        default=6,
-        help="Network depth",
-    )
-    parser.add_argument(
-        "--hidden",
-        type=int,
-        default=128,
-        help="Number of hidden features",
     )
     parser.add_argument(
         "--resolution",
@@ -81,65 +89,166 @@ def parse_args():
         default=None,
         help="Output directory. Defaults to src/tools/ntk_results",
     )
-
+ 
     return parser.parse_args()
 
+def load_config(config_path):
+    """Load a 4DFlowINR Python configuration file."""
 
-def build_model(args, device):
+    path = Path(config_path).expanduser()
+
+    if not path.is_absolute():
+        path = Path(SRC_DIR) / path
+
+    path = path.resolve()
+
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Could not find configuration file: {path}"
+        )
+
+    spec = importlib.util.spec_from_file_location(
+        "_4dflowinr_ntk_config",
+        path,
+    )
+
+    if spec is None or spec.loader is None:
+        raise ImportError(
+            f"Could not load configuration: {path}"
+        )
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    if not hasattr(module, "get_config"):
+        raise AttributeError(
+            f"{path} does not define get_config()."
+        )
+
+    return module.get_config(), path
+
+def build_model(config, args, device):
     """Construct the selected INR architecture."""
 
     if args.architecture == "WIRE":
         model = networks.WIRE(
-            in_dim=4,
-            out_dim=3,
-            depth=args.depth,
-            hidden_features=args.hidden,
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
             first_omega_0=args.omega,
             hidden_omega_0=args.omega,
             scale=args.sigma,
-            complex=False,
+            complex=config.network.complex,
         )
 
     elif args.architecture == "SIREN":
         model = networks.SIREN(
-            in_dim=4,
-            out_dim=3,
-            depth=args.depth,
-            hidden_features=args.hidden,
+            in_dim=config.network.in_dim,
+            out_dim=config.network.out_dim,
+            depth=config.network.depth,
+            hidden_features=config.network.hidden_features,
             first_omega_0=args.omega,
             hidden_omega_0=args.omega,
         )
-
     else:
         raise ValueError(f"Unknown architecture: {args.architecture}")
 
     return model.to(device)
 
-def create_ntk_grid(resolution, device):
-    """Create a regular x-y grid with fixed t=0.5 and z=0.5."""
+def create_ntk_grid(
+    config,
+    data_file,
+    resolution,
+    device,
+):
+    """
+    Create a regular x-y NTK grid in the same normalized coordinate
+    space used during 4DFlowINR training.
 
-    xs = np.linspace(0, 1, resolution)
-    ys = np.linspace(0, 1, resolution)
-    grid_x, grid_y = np.meshgrid(xs, ys)
+    The x/y domain is determined from the normalized coordinates of
+    the supplied LR dataset. Time and z are fixed to actual normalized
+    coordinates from that dataset.
+    """
+
+    # Training interprets data paths relative to src/.
+    data_path = Path(data_file).expanduser()
+
+    if not data_path.is_absolute():
+        data_path = Path(SRC_DIR) / data_path
+
+    data_path = data_path.resolve()
+
+    if not data_path.is_file():
+        raise FileNotFoundError(
+            f"Could not find data file: {data_path}"
+        )
+
+    # We only need the dimensions; no velocity data need to be loaded.
+    with h5py.File(data_path, "r") as f:
+        if "u" not in f:
+            raise KeyError(f"'u' dataset not found in {data_path}")
+        shape = f["u"].shape
+
+    if len(shape) != 4:
+        raise ValueError(f"Expected u with shape (T, X, Y, Z), got {shape}")
+
+    t_len, x_len, y_len, z_len = shape
+
+    (t_normalized, x_normalized, y_normalized, z_normalized, _) = create_and_normalize_coords(
+        config, t_len, x_len, y_len, z_len)
+
+    t_value = 0.5 * (float(t_normalized.min()) + float(t_normalized.max()))
+
+    z_value = 0.5 * (float(z_normalized.min()) + float(z_normalized.max()))
+
+    # Regular visualization grid spanning the actual normalized
+    # x/y domain seen by this INR.
+    xs = np.linspace(
+        x_normalized.min(),
+        x_normalized.max(),
+        resolution,
+    )
+
+    ys = np.linspace(
+        y_normalized.min(),
+        y_normalized.max(),
+        resolution,
+    )
+
+    grid_x, grid_y = np.meshgrid(xs,ys,indexing="xy")
 
     coords_np = np.stack(
         [
-            np.full(resolution * resolution, 0.5),  # t
-            grid_x.ravel(),                         # x
-            grid_y.ravel(),                         # y
-            np.full(resolution * resolution, 0.5),  # z
+            np.full(resolution * resolution, t_value),
+            grid_x.ravel(),
+            grid_y.ravel(),
+            np.full(resolution * resolution, z_value),
         ],
         axis=1,
     ).astype(np.float32)
 
-    return torch.tensor(coords_np, device=device)
+    info = {
+        "data_path": data_path,
+        "data_shape": shape,
+        "t_value": float(t_value),
+        "z_value": float(z_value),
+        "t_range": (float(t_normalized.min()),float(t_normalized.max())),
+        "x_range": (float(x_normalized.min()),float(x_normalized.max())),
+        "y_range": (float(y_normalized.min()),float(y_normalized.max())),
+        "z_range": (float(z_normalized.min()),float(z_normalized.max())),
+    }
 
+    return torch.tensor(
+        coords_np,
+        dtype=torch.float32,
+        device=device,
+    ), info
 
 def main():
     args = parse_args()
-    device = torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu"
-    )
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    config, config_path = load_config(args.config)
 
     # Reproducible network initialization
     torch.manual_seed(args.seed)
@@ -148,9 +257,11 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
-    coords = create_ntk_grid(
-        args.resolution,
-        device,
+    coords, grid_info = create_ntk_grid(
+        config=config,
+        data_file=args.data_file,
+        resolution=args.resolution,
+        device=device,
     )
 
     n_points = coords.shape[0]
@@ -160,19 +271,17 @@ def main():
             f"grid points ({n_points})."
         )
 
-    model = build_model(args, device)
+    model = build_model(config, args, device)
     model.eval()
 
     # Descriptive run name.
     if args.architecture == "WIRE":
         name = (
-            f"WIRE_omega{args.omega:g}_sigma{args.sigma:g}_"
-            f"depth{args.depth}_hidden{args.hidden}_seed{args.seed}"
+            f"WIRE_omega{args.omega:g}_sigma{args.sigma:g}_seed{args.seed}"
         )
     else:
         name = (
-            f"SIREN_omega{args.omega:g}_"
-            f"depth{args.depth}_hidden{args.hidden}_seed{args.seed}"
+            f"SIREN_omega{args.omega:g}_seed{args.seed}"
         )
 
     output_root = (
@@ -191,8 +300,6 @@ def main():
     print(f"omega_0:           {args.omega}")
     if args.architecture == "WIRE":
         print(f"sigma_0:           {args.sigma}")
-    print(f"Depth:             {args.depth}")
-    print(f"Hidden features:   {args.hidden}")
     print(f"Seed:              {args.seed}")
     print(
         f"Grid:              "
@@ -201,6 +308,11 @@ def main():
     print(f"Batch size:        {args.batch_size}")
     print(f"Eigenpairs:        {args.num_eigenpairs}")
     print(f"Device:            {device}")
+
+    print(f"Config:            {config_path}")
+    print(f"Data:              {grid_info['data_path']}")
+    print(f"Data shape:        {grid_info['data_shape']}")
+
     print("="*30)
 
     eigvals, eigvecs, ntk_matrix = ntk_eigendecomposition(
