@@ -23,26 +23,26 @@ import h5_utils as h5utils
 # Configuration
 
 # Input/output
-BASE_PATH = Path("../../data/stenosis_70")
-CASE_NAME = "ICAD21_05mm3_20ms"
+BASE_PATH = Path("../data/aorta_CFD")
+CASE_NAME = "aorta02_HR"
 INPUT_FILE = BASE_PATH / f"{CASE_NAME}.h5"
-OUTPUT_FILE = BASE_PATH / f"{CASE_NAME}_LR_check.h5"
+OUTPUT_FILE = BASE_PATH / f"{CASE_NAME}_LR_tSNR10_UG_mag.h5"
 
 # Magnitude template
-TEMPLATE_FILE = Path("../../data/mag_templates.h5")
+TEMPLATE_FILE = Path("../data/UG_mag_templates.h5")
 TEMPLATE_IDX = 0  # Set explicitly for reproducibility. Use None for random selection.
 MAG_THRESHOLD = 30
 
 # Downsampling parameters
-SPATIAL_DOWNSAMPLE = 2   # 1 = keep HR spatial resolution, 2 = 2x downsampling
-TEMPORAL_DOWNSAMPLE = 2  # 1 = keep all frames, 2 = keep every second frame
+SPATIAL_DOWNSAMPLE =  1 #2   # 1 = keep HR spatial resolution, 2 = 2x downsampling
+TEMPORAL_DOWNSAMPLE = 1 #2  # 1 = keep all frames, 2 = keep every second frame
 TARGET_SNR = 10           # Set to None to disable k-space noise
 
 # VENC mode
 VENC_MODE = "single"      # "single" or "dual"
 
 # Used when VENC_MODE == "single"
-SINGLE_VENC = 2.6         # m/s
+SINGLE_VENC = 2.3         # m/s
 
 # Used when VENC_MODE == "dual"
 DUAL_VENC_HIGH = 2.6      # m/s
@@ -52,7 +52,7 @@ DUAL_VENC_LOW = 1.3       # m/s
 #   "match_velocity"  - spatially downsample p, px, py, pz to velocity resolution
 #   "full_resolution" - retain p, px, py, pz at the original HR spatial resolution
 #   "omit"            - do not write p, px, py, pz
-PRESSURE_MODE = "match_velocity"
+PRESSURE_MODE = "omit"
 
 RANDOM_SEED = 1234        # Set to None for non-deterministic noise/template selection
 OVERWRITE_OUTPUT = False

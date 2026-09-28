@@ -13,9 +13,14 @@ Export one frame:
 
 Export all frames:
 
+python src/tools/export_vti.py \
+    models/extensions/sa_adam_lbfgs_aorta_FirstTest_260910/Ao2_20260911-1345/SR_it030000.h5 \
+    --index 12
+
     python src/tools/export_vti.py \
         models/example/SR_it008000.h5 \
         --all
+
 """
 
 import argparse
@@ -114,15 +119,12 @@ def export_frame(h5_filename, output_basename, index):
                 f"u={u.shape}, v={v.shape}, w={w.shape}"
             )
 
-        if "spacing" not in hf.attrs:
-            raise KeyError(
-                "HDF5 file does not contain the 'spacing' attribute."
-            )
+        #if "dx" not in hf.keys():
+        #    raise KeyError(
+        #        "HDF5 file does not contain the 'dx' attribute."
+        #    )
 
-        spacing = tuple(
-            float(value)
-            for value in hf.attrs["spacing"]
-        )
+        dx =  [0.594e-3,  0.594e-3,  0.594e-3]
 
         origin = tuple(
             float(value)
@@ -141,7 +143,11 @@ def export_frame(h5_filename, output_basename, index):
         }
 
         if "mask" in hf:
-            mask = _frame(hf["mask"], index)
+            mask = np.asarray(hf.get('mask'))
+            if mask.ndim == 4:
+                mask = mask[0]
+
+            mask = _frame(mask, index)
             cell_data["mask"] = np.ascontiguousarray(
                 (mask != 0).astype(np.uint8)
             )
@@ -168,7 +174,7 @@ def export_frame(h5_filename, output_basename, index):
     imageToVTK(
         str(output_basename),
         origin=origin,
-        spacing=spacing,
+        spacing=dx,
         pointData={},
         cellData=cell_data,
     )

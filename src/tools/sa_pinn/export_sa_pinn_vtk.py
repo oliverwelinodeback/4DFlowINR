@@ -19,6 +19,10 @@ One input phase:
         --dx 0.001 --dt 0.04 \
         --phase-index 12
 
+
+
+python src/tools/sa_pinn/export_sa_pinn_vtk.py --checkpoint models/extensions/sa_adam_lbfgs_aorta_FirstTest_260910/Ao2_20260911-1345/checkpoints/sa_adam_lbfgs_aorta_FirstTest_260910_it030000.pth --data-file ../data/aorta_CFD/aorta02_HR_tSNR10_UG_mag.h5 --dx 0.594e-3 --dt 0.01 --time-bins 6
+
 # > python src/tools/sa_pinn/export_sa_pinn_vtk.py    
 # --checkpoint ../../x_sebjo/SRFlow/models/260505_SAPINN_factorial/SA_PINN_HV01_HRLR2_SA+LBFGS/checkpoints/260505_Vincent_it030000.pth     
 # --data-file ../../x_sebjo/SRFlow/data/Vincent/healthy/HV01_05mm3_20ms_HRLR_sv17_tSNR2.h5     
@@ -42,7 +46,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 import networks
-from configs.extensions.sa_pinn.sa_adam_lbfgs import get_config
+from configs.extensions.sa_pinn.development.sa_adam_lbfgs_aorta_FirstTest_260910 import get_config #!#!#!#!#!
 from utils.data_io import load_data
 from utils.loss_utils import navier_stokes_loss
 from utils.prepare_data import prepare_data, sample_collocation_points

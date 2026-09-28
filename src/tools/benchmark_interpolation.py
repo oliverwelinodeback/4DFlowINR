@@ -255,8 +255,8 @@ if __name__ == "__main__":
 
     # ---------------- SETTINGS ----------------
     # HR reference
-    data_dir = "../../data/healthy"
-    hr_filename = "HV01_05mm3_20ms.h5"
+    data_dir = "../../../data/aorta_CFD"
+    hr_filename = "aorta02_HR.h5"
 
     # Typically these are your LR simulation/acquisition files.
 
@@ -265,7 +265,7 @@ if __name__ == "__main__":
     lr_data_dir = data_dir  # adjust if needed
     lr_filename_stems = [
         # HV01 - H1
-        'HV01_05mm3_20ms_LR_sv17_tSNR10_newMask',
+        'aorta02_HR_tSNR10_UG_mag',
         # ...
     ]
 
@@ -275,7 +275,7 @@ if __name__ == "__main__":
     results_subdir = "results"
 
     # Metrics behavior
-    do_temporal_interp = True   # True: tempospatial; False: spatial-only (time maps LR k -> HR 2*k)
+    do_temporal_interp = False   # True: tempospatial; False: spatial-only (time maps LR k -> HR 2*k)
 
     # ------------------------------------------
 
@@ -349,9 +349,15 @@ if __name__ == "__main__":
         w_sp = np.empty((T_lr,) + hr_shape_xyz, dtype=np.float32)
 
         for t in range(T_lr):
-            u_sp[t] = _cubic_resize_3d_to_shape(u_lr[t], hr_shape_xyz)
-            v_sp[t] = _cubic_resize_3d_to_shape(v_lr[t], hr_shape_xyz)
-            w_sp[t] = _cubic_resize_3d_to_shape(w_lr[t], hr_shape_xyz)
+            print(t)
+            #u_sp[t] = _cubic_resize_3d_to_shape(u_lr[t], hr_shape_xyz)
+            #v_sp[t] = _cubic_resize_3d_to_shape(v_lr[t], hr_shape_xyz)
+            #w_sp[t] = _cubic_resize_3d_to_shape(w_lr[t], hr_shape_xyz)
+
+            # No interpolation
+            u_sp[t] = u_lr[t]
+            v_sp[t] = v_lr[t]
+            w_sp[t] = w_lr[t]
 
         # -------------------------------
         # Temporal handling + reference alignment
@@ -380,6 +386,7 @@ if __name__ == "__main__":
             temporal_note = "tempospatial_x2_insert_between; compare vs HR[0:T_compare]"
 
         else:
+            '''
             # spatial-only: LR frames correspond to HR at 0,2,4,...
             hr_idx_use, T_compare = _hr_indices_for_lr(T_hr=T_hr, T_lr=T_lr)
 
@@ -395,10 +402,53 @@ if __name__ == "__main__":
             peak_used = int(np.clip(peak_flow_idx_hr // 2, 0, T_compare - 1))
 
             temporal_note = "spatial_only; compare vs HR[0,2,4,...]"
+            '''
+            # -------------------------------
+            # Direct same-resolution comparison
+            # -------------------------------
+
+            T_compare = min(T_lr, T_hr)
+
+            u_pred = u_sp[:T_compare]
+            v_pred = v_sp[:T_compare]
+            w_pred = w_sp[:T_compare]
+
+            u_ref = u_hr_all[:T_compare]
+            v_ref = v_hr_all[:T_compare]
+            w_ref = w_hr_all[:T_compare]
+
+            peak_used = int(np.clip(
+                peak_flow_idx_hr,
+                0,
+                T_compare - 1,
+            ))
+
+            temporal_note = (
+                "same spatial and temporal resolution; "
+                "direct noisy-vs-HR comparison"
+            )
+
+            print(f"Comparison timesteps: {T_compare}")
+            print(f"Temporal mode: {temporal_note}")
+            print(f"Peak used index: {peak_used}")
+
 
         print(f"Comparison timesteps: {T_compare}")
         print(f"Temporal mode: {temporal_note}")
         print(f"Peak used index: {peak_used}")
+
+        print('TEST ELLER')
+        if u_lr.shape[1:] != hr_shape_xyz:
+            raise ValueError(
+                f"Spatial shapes do not match: "
+                f"degraded={u_lr.shape[1:]}, HR={hr_shape_xyz}"
+            )
+
+        if T_lr != T_hr:
+            raise ValueError(
+                f"Temporal lengths do not match: "
+                f"degraded={T_lr}, HR={T_hr}"
+            )
 
         # -------------------------------
         # Metrics

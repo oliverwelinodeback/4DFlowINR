@@ -133,6 +133,21 @@ def load_ref_data(config):
     
     PA_PER_MM_TO_PA_PER_M = 1000.0
 
+    ####### 260911: Added support for loading - or not loading - reference pressure and gradients
+    load_pressure_from_ref = config.get("load_pressure_from_ref", True)
+
+    load_ref_pressure = (
+        config.setup.include_pressure
+        and load_pressure_from_ref
+    )
+
+    load_ref_gradients = (
+        config.setup.include_pressure
+        and load_pressure_from_ref
+        and config.training.reference_gradients
+    )
+    #######
+
     # Load data
     with h5py.File(config.data_file_ref, mode='r') as hf:
         
@@ -155,26 +170,26 @@ def load_ref_data(config):
                                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
-                                ) if config.domain.crop else np.asarray(hf['p'])) if config.setup.include_pressure else None
+                                ) if config.domain.crop else np.asarray(hf['p'])) if load_ref_pressure  else None
 
             px = (np.asarray(hf['px'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor, 
                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
                 )*PA_PER_MM_TO_PA_PER_M if config.domain.crop else np.asarray(hf['px'])*PA_PER_MM_TO_PA_PER_M) if (
-                    config.setup.include_pressure and config.training.reference_gradients) else None
+                    load_ref_gradients ) else None
             py = (np.asarray(hf['py'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
                 )*PA_PER_MM_TO_PA_PER_M if config.domain.crop else np.asarray(hf['py'])*PA_PER_MM_TO_PA_PER_M) if (
-                    config.setup.include_pressure and config.training.reference_gradients) else None
+                    load_ref_gradients ) else None
             pz = (np.asarray(hf['pz'][config.domain.t_start*config.ref_temporal_factor:config.domain.t_end*config.ref_temporal_factor,
                 config.domain.x_start*config.ref_spatial_factor:config.domain.x_end*config.ref_spatial_factor, 
                 config.domain.y_start*config.ref_spatial_factor:config.domain.y_end*config.ref_spatial_factor, 
                 config.domain.z_start*config.ref_spatial_factor:config.domain.z_end*config.ref_spatial_factor]
                 )*PA_PER_MM_TO_PA_PER_M if config.domain.crop else np.asarray(hf['pz'])*PA_PER_MM_TO_PA_PER_M) if (
-                    config.setup.include_pressure and config.training.reference_gradients) else None
+                    load_ref_gradients ) else None
 
             timesteps = len(u)
 
@@ -183,9 +198,10 @@ def load_ref_data(config):
                 u = u[:-1]
                 v = v[:-1]
                 w = w[:-1]
-                if config.setup.include_pressure and p is not None:
+                if p is not None:
                     p = p[:-1]
-                if config.setup.include_pressure and config.training.reference_gradients:
+
+                if px is not None:
                     px = px[:-1]
                     py = py[:-1]
                     pz = pz[:-1]

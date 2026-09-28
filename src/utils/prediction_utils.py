@@ -627,6 +627,30 @@ def plot_reference_comparison(config, model, device, it, xyz_ref,
     mask_ref, mask_flat_ref, U_max, standardization_factors
     ):
 
+    # 260911: support for when reference pressure or gradients are not available
+    predict_gradients = (
+        config.setup.include_pressure
+        and config.training.predict_gradients
+    )
+
+    predict_pressure = (
+        config.setup.include_pressure
+        and not config.training.predict_gradients
+    )
+
+    has_ref_pressure = (
+        config.get("load_pressure_from_ref", True)
+        and p_ref is not None
+    )
+
+    has_ref_gradients = (
+        config.training.reference_gradients
+        and px_ref is not None
+        and py_ref is not None
+        and pz_ref is not None
+    )
+
+
     # Create directory
     directory = os.path.join(
         config.log_dir,
@@ -664,14 +688,14 @@ def plot_reference_comparison(config, model, device, it, xyz_ref,
             uvw_pred[:, 2] *= config.constants.U  # w
             #if config.setup.include_pressure:
             #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
-            if (config.setup.include_pressure and config.training.reference_gradients):
+            if (predict_gradients):
                 _, _, _, std_x, _, std_y, _, std_z = standardization_factors
 
                 uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x # px
                 uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y # py
                 uvw_pred[:, 5] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z # pz
 
-            elif config.setup.include_pressure and not config.training.reference_gradients:
+            elif predict_pressure:
                 uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
         elif config.vel_normalization == "max_velocity":
             uvw_pred[:, 0] *= U_max  # u
@@ -679,13 +703,13 @@ def plot_reference_comparison(config, model, device, it, xyz_ref,
             uvw_pred[:, 2] *= U_max  # w
             #if config.setup.include_pressure:
             #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
-            if (config.setup.include_pressure and config.training.reference_gradients):
+            if (predict_gradients):
                 _, _, _, std_x, _, std_y, _, std_z = standardization_factors
 
                 uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x # px
                 uvw_pred[:, 4] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y # py
                 uvw_pred[:, 5] *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z # pz
-            elif config.setup.include_pressure and not config.training.reference_gradients:
+            elif predict_pressure:
                 uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
 
     # Define dimensions based on include_time
@@ -711,16 +735,22 @@ def plot_reference_comparison(config, model, device, it, xyz_ref,
     v_pred = uvw_pred[t_ref, :, :, :, 1]
     w_pred = uvw_pred[t_ref, :, :, :, 2]
 
-    px_pred = (uvw_pred[t_ref, :, :, :, 3] if config.training.reference_gradients else None)
-    py_pred = (uvw_pred[t_ref, :, :, :, 4] if config.training.reference_gradients else None)
-    pz_pred = (uvw_pred[t_ref, :, :, :, 5] if config.training.reference_gradients else None)
+    px_pred = (
+        uvw_pred[t_ref, :, :, :, 3]
+        if predict_gradients else None
+    )
+    py_pred = (
+        uvw_pred[t_ref, :, :, :, 4]
+        if predict_gradients else None
+    )
+    pz_pred = (
+        uvw_pred[t_ref, :, :, :, 5]
+        if predict_gradients else None
+    )
+
     p_pred = (
         uvw_pred[t_ref, :, :, :, 3]
-        if (
-            config.setup.include_pressure
-            and not config.training.reference_gradients
-        )
-        else None
+        if predict_pressure else None
     )
 
     # Create LR vs HR vs SR plots
@@ -745,42 +775,126 @@ def plot_reference_comparison(config, model, device, it, xyz_ref,
         symmetric=False,
     )
 
-    if config.setup.include_pressure and not config.training.reference_gradients:
+    if predict_pressure:
 
-        plt.figure(figsize=(12, 6))
+        if has_ref_pressure:
+            plt.figure(figsize=(12, 6))
 
-        plt.subplot(1, 3, 1)
-        plt.title('Reference p')
-        plt.imshow(p_ref[t_ref, :, :, z_ref].T, origin='lower', cmap='coolwarm')
-        plt.colorbar()
+            plt.subplot(1, 2, 1)
+            plt.title("Reference p")
+            plt.imshow(
+                p_ref[t_ref, :, :, z_ref].T,
+                origin="lower",
+                cmap="coolwarm",
+            )
+            plt.colorbar()
 
-        plt.subplot(1, 3, 3)
-        plt.title('Predicted p')
-        plt.imshow(p_pred[:, :, z_ref].T, origin='lower', cmap='coolwarm')
-        plt.colorbar()
+            plt.subplot(1, 2, 2)
+            plt.title("Predicted p")
+            plt.imshow(
+                p_pred[:, :, z_ref].T,
+                origin="lower",
+                cmap="coolwarm",
+            )
+            plt.colorbar()
 
-        plt.savefig(os.path.join(directory, f"prediction_vs_reference_p.png"))
-        plt.close()
+            plt.savefig(
+                os.path.join(
+                    directory,
+                    "prediction_vs_reference_p.png",
+                )
+            )
+            plt.close()
+
+        else:
+            plt.figure(figsize=(6, 6))
+
+            plt.title("Predicted p")
+            plt.imshow(
+                p_pred[:, :, z_ref].T,
+                origin="lower",
+                cmap="coolwarm",
+            )
+            plt.colorbar()
+
+            plt.savefig(
+                os.path.join(
+                    directory,
+                    "prediction_p.png",
+                )
+            )
+            plt.close()
     
-    if config.training.reference_gradients:
+    if predict_gradients:
 
-        gradient_rows = [
-        ("dp/dx [Pa/m]", [px_ref[t_ref, :, :, z_ref], px_pred[:, :, z_ref],],),
-        ("dp/dy [Pa/m]", [py_ref[t_ref, :, :, z_ref], py_pred[:, :, z_ref],],),
-        ("dp/dz [Pa/m]", [pz_ref[t_ref, :, :, z_ref], pz_pred[:, :, z_ref],],),
-        ]
+        if has_ref_gradients:
+            gradient_rows = [
+                (
+                    "dp/dx [Pa/m]",
+                    [
+                        px_ref[t_ref, :, :, z_ref],
+                        px_pred[:, :, z_ref],
+                    ],
+                ),
+                (
+                    "dp/dy [Pa/m]",
+                    [
+                        py_ref[t_ref, :, :, z_ref],
+                        py_pred[:, :, z_ref],
+                    ],
+                ),
+                (
+                    "dp/dz [Pa/m]",
+                    [
+                        pz_ref[t_ref, :, :, z_ref],
+                        pz_pred[:, :, z_ref],
+                    ],
+                ),
+            ]
 
-        _plot_field_comparison(
-            gradient_rows,["Reference", "Prediction"],
-            os.path.join(
-                directory, "pressure_gradient_comparison.png",), 
-            symmetric=False,
-        )
+            _plot_field_comparison(
+                gradient_rows,
+                ["Reference", "Prediction"],
+                os.path.join(
+                    directory,
+                    "pressure_gradient_comparison.png",
+                ),
+                symmetric=False,
+            )
+
+        else:
+            gradient_rows = [
+                ("dp/dx [Pa/m]", [px_pred[:, :, z_ref]]),
+                ("dp/dy [Pa/m]", [py_pred[:, :, z_ref]]),
+                ("dp/dz [Pa/m]", [pz_pred[:, :, z_ref]]),
+            ]
+
+            _plot_field_comparison(
+                gradient_rows,
+                ["Prediction"],
+                os.path.join(
+                    directory,
+                    "pressure_gradient_prediction.png",
+                ),
+                symmetric=False,
+            )
 
     return
 
 def predict_superresolved_grid(config, model, device, it, u, mask, 
     U_max, save_pred=False):
+
+    # 260911: support for when reference pressure or gradients are not available
+    predict_gradients = (
+        config.setup.include_pressure
+        and config.training.predict_gradients
+    )
+
+    predict_pressure = (
+        config.setup.include_pressure
+        and not config.training.predict_gradients
+    )
+
     
     directory = os.path.join(
         config.log_dir,
@@ -881,13 +995,23 @@ def predict_superresolved_grid(config, model, device, it, u, mask,
         v_pred = uvw_pred_plot[:, :, :, :, 1]
         w_pred = uvw_pred_plot[:, :, :, :, 2]
 
-        px_pred = uvw_pred_plot[:, :, :, :, 3] if config.training.reference_gradients else None
-        py_pred = uvw_pred_plot[:, :, :, :, 4] if config.training.reference_gradients else None
-        pz_pred = uvw_pred_plot[:, :, :, :, 5] if config.training.reference_gradients else None
-        
-        p_pred = uvw_pred_plot[:, :, :, :, 3] if (config.setup.include_pressure and not config.training.reference_gradients) else None 
-
-        p_pred = uvw_pred_plot[:, :, :, :, 3] if config.setup.include_pressure else None
+        px_pred = (
+            uvw_pred_plot[:, :, :, :, 3]
+            if predict_gradients else None
+        )
+        py_pred = (
+            uvw_pred_plot[:, :, :, :, 4]
+            if predict_gradients else None
+        )
+        pz_pred = (
+            uvw_pred_plot[:, :, :, :, 5]
+            if predict_gradients else None
+        )
+  
+        p_pred = (
+            uvw_pred_plot[:, :, :, :, 3]
+            if predict_pressure else None
+        )
     else:
         u_pred = uvw_pred_plot[0, :, :, :, 0]
         v_pred = uvw_pred_plot[0, :, :, :, 1]
@@ -903,21 +1027,45 @@ def predict_superresolved_grid(config, model, device, it, u, mask,
 
             #if config.setup.include_pressure:
             #    uvw_pred[:, 3] *= config.constants.rho * (config.constants.U ** 2)  # p
-            if (config.setup.include_pressure and config.training.reference_gradients):
+            if (predict_gradients):
                 _, _, _, std_x, _, std_y, _, std_z = standardization_factors
 
                 px_pred *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_x # px
                 py_pred *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_y # py
                 pz_pred *= config.constants.rho * (config.constants.U ** 2) / config.constants.L / std_z # pz
 
-            elif config.setup.include_pressure and not config.training.reference_gradients:
+            elif predict_pressure:
                 p_pred *= config.constants.rho * (config.constants.U ** 2)  # p
 
         elif config.vel_normalization == "max_velocity":
-            u_pred = u_pred*U_max
-            v_pred = v_pred*U_max
-            w_pred = w_pred*U_max
-            p_pred = p_pred*(config.constants.rho*(config.constants.U**2)) if config.setup.include_pressure else None
+            u_pred = u_pred * U_max
+            v_pred = v_pred * U_max
+            w_pred = w_pred * U_max
+
+            if predict_gradients:
+                _, _, _, std_x, _, std_y, _, std_z = standardization_factors
+
+                px_pred *= (
+                    config.constants.rho
+                    * config.constants.U**2
+                    / config.constants.L
+                    / std_x
+                )
+                py_pred *= (
+                    config.constants.rho
+                    * config.constants.U**2
+                    / config.constants.L
+                    / std_y
+                )
+                pz_pred *= (
+                    config.constants.rho
+                    * config.constants.U**2
+                    / config.constants.L
+                    / std_z
+                )
+
+            elif predict_pressure:
+                p_pred *= config.constants.rho * config.constants.U**2
     
     # Plotting (example using matplotlib)
     plt.figure(figsize=(12, 6))
@@ -949,12 +1097,33 @@ def predict_superresolved_grid(config, model, device, it, u, mask,
         save_to_h5(h5_filename, "v", v_pred, expand_dim=False)
         save_to_h5(h5_filename, "w", w_pred, expand_dim=False)
 
-        if (config.setup.include_pressure and not config.training.reference_gradients):
-            save_to_h5(f"{config.log_dir}/SR_final.h5", "p", p_pred, expand_dim=False)
-        #elif config.training.reference_gradients:
-        #    save_to_h5(f"{config.log_dir}/SR_final.h5", "p_x", px_pred, expand_dim=False)
-        #    save_to_h5(f"{config.log_dir}/SR_final.h5", "p_y", py_pred, expand_dim=False)
-        #    save_to_h5(f"{config.log_dir}/SR_final.h5", "p_z", pz_pred, expand_dim=False)
+        if predict_pressure:
+            save_to_h5(
+                h5_filename,
+                "p",
+                p_pred,
+                expand_dim=False,
+            )
+
+        if predict_gradients:
+            save_to_h5(
+                h5_filename,
+                "px",
+                px_pred,
+                expand_dim=False,
+            )
+            save_to_h5(
+                h5_filename,
+                "py",
+                py_pred,
+                expand_dim=False,
+            )
+            save_to_h5(
+                h5_filename,
+                "pz",
+                pz_pred,
+                expand_dim=False,
+            )
 
         save_prediction_metadata(
             h5_filename,

@@ -425,14 +425,30 @@ def prepare_ref_data(config, u, u_ref, v_ref, w_ref, p_ref, px_ref, py_ref, pz_r
 
     velocities = [u_flat, v_flat, w_flat]
 
-    if config.setup.include_pressure:
+    load_pressure_from_ref = config.get("load_pressure_from_ref", True)
+
+    ## 260911: Added support for loading - or not loading - reference pressure and gradients
+    has_ref_pressure = (
+        config.setup.include_pressure
+        and load_pressure_from_ref
+        and p_ref is not None
+    )
+
+    has_ref_gradients = (
+        config.training.reference_gradients
+        and load_pressure_from_ref
+        and px_ref is not None
+        and py_ref is not None
+        and pz_ref is not None
+    )
+
+    if has_ref_pressure:
         rho, U, L = config.constants.rho, config.constants.U, config.constants.L
         p_normalized = p_ref / (rho*(U**2))
         p_flat = p_normalized.reshape(-1)
         velocities.append(p_flat)
 
-    if config.training.reference_gradients:
-
+    if has_ref_gradients:
         #_, _, _, std_x, _, std_y, _, std_z = standardization_factors
         # px_normalized = px_ref * L * std_x / (rho*(U**2))
         # py_normalized = py_ref * L * std_y / (rho*(U**2))

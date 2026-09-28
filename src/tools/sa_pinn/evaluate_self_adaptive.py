@@ -53,7 +53,7 @@ OUT_DIR   = "residuals/sa_pinn_evaluation22"
 #
 # dtype_meta: per-dtype data file + resolution settings (loaded separately
 # because LR and HRLR use different input files and ref_spatial_factor).
-x_sebjo/SRFlow/models/260505_SAPINN_factorial/SA_PINN_HV01_HRLR2_SA+LBFGS/checkpoints/260505_Vincent_it030000.pth
+## x_sebjo/SRFlow/models/260505_SAPINN_factorial/SA_PINN_HV01_HRLR2_SA+LBFGS/checkpoints/260505_Vincent_it030000.pth
 CASE_RUNS = {
     "HV01": {
         "dtype_meta": {

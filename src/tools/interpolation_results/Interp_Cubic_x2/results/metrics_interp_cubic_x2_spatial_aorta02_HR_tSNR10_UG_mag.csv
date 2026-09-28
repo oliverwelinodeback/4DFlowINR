@@ -1,0 +1,77 @@
+Metric,Value
+method,cubic_interp_x2
+mode,spatial
+lr_filename,aorta02_HR_tSNR10_UG_mag.h5
+hr_filename,aorta02_HR.h5
+note,same spatial and temporal resolution; direct noisy-vs-HR comparison
+T_hr,71
+T_lr,71
+T_compare,71
+PEAK FLOW INDEX (HR),12
+Coverage [%],6.097588172325722
+Boundary Coverage [%],1.0862497182992787
+Core Coverage [%],5.011338454026442
+Ratio Boundary/Core [%],82.18558430671692
+Interp2x Relative error [Fluid],40.5055
+Interp2x Relative error [Bound],54.41935
+Interp2x Relative error [Core],37.488953
+Interp2x tanh Relative error [Fluid],36.839413
+Interp2x tanh Relative error [Bound],50.673203
+Interp2x tanh Relative error [Core],33.840267
+Interp2x Absolute error [Fluid],0.036448736
+Interp2x Absolute error [Bound],0.036427073
+Interp2x Absolute error [Core],0.036453005
+Interp2x Absolute error [Non-F],0.24505511
+Interp2x R.M.S. error [Fluid],0.043502375
+Interp2x R.M.S. error [Bound],0.040072706
+Interp2x R.M.S. error [Core],0.04420412
+Interp2x R.M.S. error [Non-F],0.59908974
+Interp2x vNRMSE error [Fluid],0.09955693
+Interp2x vNRMSE error [Bound],0.0917385
+Interp2x vNRMSE error [Core],0.10116614
+Interp2x vNRMSE error [Non-F],1.3762194
+Interp2x Directional error [Fluid],0.115842834
+Interp2x Directional error [Bound],0.19683239
+Interp2x Directional error [Core],0.09828556
+Interp2x Directional error [Non-F],0.93431664
+Interp2x U R2 [Fluid],0.7815827
+Interp2x U R2 [Bound],0.66308814
+Interp2x U R2 [Core],0.79384416
+Interp2x V R2 [Fluid],0.7835537
+Interp2x V R2 [Bound],0.6593503
+Interp2x V R2 [Core],0.7955867
+Interp2x W R2 [Fluid],0.8907893
+Interp2x W R2 [Bound],0.8411099
+Interp2x W R2 [Core],0.8925867
+Interp2x U K [Fluid],0.99993217
+Interp2x U K [Bound],0.9993439
+Interp2x U K [Core],0.9999506
+Interp2x V K [Fluid],0.99962884
+Interp2x V K [Bound],0.9985599
+Interp2x V K [Core],0.9996987
+Interp2x W K [Fluid],1.0002425
+Interp2x W K [Bound],1.0002474
+Interp2x W K [Core],1.000249
+Interp2x PEAK INDEX USED,12
+Interp2x Relative error [Fluid] Peak,5.8660865
+Interp2x Relative error [Bound] Peak,10.868919
+Interp2x Relative error [Core] Peak,4.7815676
+Interp2x tanh Relative error [Fluid] Peak,5.7887096
+Interp2x tanh Relative error [Bound] Peak,10.53179
+Interp2x tanh Relative error [Core] Peak,4.760495
+Interp2x Absolute error [Fluid] Peak,0.03636336
+Interp2x Absolute error [Bound] Peak,0.036439147
+Interp2x Absolute error [Core] Peak,0.036346518
+Interp2x Absolute error [Non-F] Peak,0.24514817
+Interp2x R.M.S. error [Fluid] Peak,0.042549085
+Interp2x R.M.S. error [Bound] Peak,0.03997233
+Interp2x R.M.S. error [Core] Peak,0.043087296
+Interp2x R.M.S. error [Non-F] Peak,0.59950054
+Interp2x vNRMSE error [Fluid] Peak,0.018106326
+Interp2x vNRMSE error [Bound] Peak,0.017009437
+Interp2x vNRMSE error [Core] Peak,0.018335337
+Interp2x vNRMSE error [Non-F] Peak,0.25511244
+Interp2x Directional error [Fluid] Peak,0.0029923762
+Interp2x Directional error [Bound] Peak,0.010745689
+Interp2x Directional error [Core] Peak,0.0013116739
+Interp2x Directional error [Non-F] Peak,0.9299268

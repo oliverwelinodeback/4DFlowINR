@@ -155,6 +155,9 @@ def train(config=None, run_name=None, use_sweep=False):
             "../data/healthy/ICAD21_05mm3_20ms_LR_sv26_tSNR10.h5": ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 2, 2, 0.0005*2, 0.02*2, 2.6, 12),
             "../data/healthy/ICAD21_05mm3_20ms_sv26_tSNR10.h5":       ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 1, 1, 0.0005, 0.02, 2.6, 12),
             "../data/healthy/ICAD21_05mm3_20ms_sv26_tSNR2.h5":        ("../data/stenosis_70/ICAD21_05mm3_20ms.h5", "S2", 1, 1, 0.0005, 0.02, 2.6, 12),
+
+            "../../data/aorta_CFD/aorta02_HR_tSNR10_UG_mag.h5":        ("../../data/aorta_CFD/aorta02_HR.h5", "Ao2_L0_03", 1, 1, 0.594e-3, 0.01, 2.3, 12),
+
         }
 
         if data_file in LR_ROUTING:
